@@ -2,8 +2,17 @@
 
 Voice-first medicine-adherence system. A Pipecat-based voice agent calls patients to remind them
 about medicine, logs adherence and symptoms, and escalates to a doctor (with a live audio merge)
-or notifies a caregiver when needed. Built as a capstone project — see the plan history for the
-full architecture rationale.
+or notifies a caregiver when needed. Built as a capstone project.
+
+**Read `PLAN.md` first** for the full architecture rationale, design constraints, and — critically
+— the up-to-date status of what's done vs. not (chunk-by-chunk). It's the source of truth for
+project status, not chat history or this file.
+
+**Keep `PLAN.md` up to date.** Whenever a chunk (or any piece of work) is completed, whenever
+scope is added or removed, or whenever a design decision changes, update `PLAN.md`'s Status
+section (and the rest of the file, if the change affects architecture/stack/data-model) in the
+same turn as the change itself -- not as an afterthought later. If it isn't reflected there, treat
+the work as not actually finished.
 
 ## Architecture at a glance
 
