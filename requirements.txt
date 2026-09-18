@@ -8,7 +8,10 @@ jinja2
 python-multipart
 python-dotenv
 
-# Voice agent (added in Chunk 2)
+# Agent core (Chunk 2: Sarvam LLM via OpenAI-compatible client)
+openai
+
+# Voice agent (added in Chunk 3)
 pipecat-ai[daily,sarvam,openai]
 aiohttp
 
