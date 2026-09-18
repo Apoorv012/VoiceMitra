@@ -35,7 +35,12 @@ class AgentConfig:
 
 
 async def run_chat_session(transport: Transport, config: AgentConfig, context: Any) -> None:
-    messages: list[dict] = []
+    # A system-prompt-only request (no user/model turns yet) is how the very first LLM call looks,
+    # since the agent speaks first (it's calling the patient, not the other way round). OpenAI and
+    # Sarvam both accept that; Gemini's OpenAI-compat endpoint rejects it ("contents is not
+    # specified"). This neutral seed message keeps every provider working without branching on
+    # which one is in use.
+    messages: list[dict] = [{"role": "user", "content": "(the call has just connected)"}]
     await transport.start()
 
     while True:

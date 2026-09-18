@@ -21,7 +21,10 @@ SARVAM_BASE_URL = "https://api.sarvam.ai/v1"
 SARVAM_DEFAULT_MODEL = "sarvam-105b-conversations"  # tuned for real-time conversational/voice-agent use
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-GEMINI_DEFAULT_MODEL = "gemini-3.5-flash"
+# Flash-Lite over plain Flash: ~500 free requests/day vs ~20 for Flash tier (confirmed via
+# ai.google.dev/gemini-api/docs/rate-limits, Sept 2026) -- a single test conversation burns
+# 5-8 requests, so Flash's daily quota exhausts almost immediately during iterative testing.
+GEMINI_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # Backwards-compatible aliases (Chunk 2 code imports these names directly).
 DEFAULT_MODEL = SARVAM_DEFAULT_MODEL
