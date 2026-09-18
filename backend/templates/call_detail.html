@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Call {{ call.id[:8] }} - VoiceMitra{% endblock %}
+{% block content %}
+<p><a href="/patients/{{ call.patient_id }}">&larr; back to patient</a></p>
+
+<h1>Call {{ call.date_time }}</h1>
+<p class="subtitle">
+  Type: {{ call.type }} &middot;
+  Medicine: {{ call.medicine_status or '-' }} &middot;
+  Patient status:
+  {% if call.patient_status == 'urgent' %}<span class="badge urgent">urgent</span>
+  {% elif call.patient_status == 'remedy' %}<span class="badge warn">remedy</span>
+  {% elif call.patient_status == 'good' %}<span class="badge good">good</span>
+  {% else %}-{% endif %}
+</p>
+{% if call.escalation_reason %}
+<div class="escalation-banner">Escalated: {{ call.escalation_reason }}</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Transcript &amp; tool calls</h2>
+  {% if call.logs %}
+    {% for entry in call.logs %}
+      {% if entry.type == 'patient_said' %}
+      <div class="log-entry patient_said"><span class="meta">{{ entry.timestamp }} &middot; patient</span><br>{{ entry.content }}</div>
+      {% elif entry.type == 'agent_said' %}
+      <div class="log-entry agent_said"><span class="meta">{{ entry.timestamp }} &middot; agent</span><br>{{ entry.content }}</div>
+      {% elif entry.type == 'tool_call' %}
+      <div class="log-entry tool_call">
+        <div class="meta">{{ entry.timestamp }} &middot; tool call{% if entry.note %} &middot; {{ entry.note }}{% endif %}</div>
+        <div><strong>{{ entry.tool_name }}</strong>({{ entry.tool_args }}) &rarr; {{ entry.tool_result }}</div>
+      </div>
+      {% else %}
+      <div class="log-entry"><span class="meta">{{ entry.timestamp }} &middot; {{ entry.type }}</span><br>{{ entry.related_call_id or entry.note }}</div>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+  <p class="empty">No transcript recorded for this call.</p>
+  {% endif %}
+</div>
+{% endblock %}

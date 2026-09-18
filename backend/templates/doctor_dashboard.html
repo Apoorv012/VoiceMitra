@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ doctor.name }} - VoiceMitra{% endblock %}
+{% block content %}
+<h1>{{ doctor.name }}</h1>
+<p class="subtitle">{{ doctor.description or '' }}</p>
+
+{% if escalations %}
+<div class="escalation-banner">
+  <strong>{{ escalations|length }} escalation(s) need attention.</strong> See below.
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0">Escalations</h2>
+  {% if escalations %}
+  <table>
+    <tr><th>Patient</th><th>When</th><th>Reason</th><th>Status</th><th></th></tr>
+    {% for c in escalations %}
+    <tr>
+      <td>{{ patient_names.get(c.patient_id, c.patient_id) }}</td>
+      <td>{{ c.date_time }}</td>
+      <td>{{ c.escalation_reason }}</td>
+      <td><span class="badge urgent">{{ c.patient_status }}</span></td>
+      <td><a href="/calls/{{ c.id }}">View call &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No escalations right now.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Patients</h2>
+  {% if patients %}
+  <table>
+    <tr><th>Name</th><th>Age</th><th></th></tr>
+    {% for p in patients %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>{{ p.age }}</td>
+      <td><a href="/doctors/{{ doctor.id }}/patients/{{ p.id }}">Open &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No patients assigned yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

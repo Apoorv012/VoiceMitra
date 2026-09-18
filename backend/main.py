@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-from backend.db import doc_to_model, ensure_indexes, patients_col
-from backend.models import Patient
+from backend import pages
+from backend.db import ensure_indexes
+from backend.routers import calls, doctors, patients
 
 app = FastAPI(title="VoiceMitra")
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+app.include_router(patients.router)
+app.include_router(doctors.router)
+app.include_router(calls.router)
+app.include_router(pages.router)
 
 
 @app.on_event("startup")
@@ -20,9 +30,3 @@ async def on_startup() -> None:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
-
-
-@app.get("/patients", response_model=list[Patient], response_model_by_alias=False)
-async def list_patients() -> list[Patient]:
-    docs = await patients_col().find().to_list(length=200)
-    return [doc_to_model(Patient, d) for d in docs]

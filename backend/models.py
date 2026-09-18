@@ -90,6 +90,14 @@ class CaregiverNotifyOn(str, Enum):
     escalation = "escalation"
 
 
+class CallLogEntryType(str, Enum):
+    patient_said = "patient_said"
+    agent_said = "agent_said"
+    tool_call = "tool_call"
+    escalation_call_started = "escalation_call_started"  # agent dialed the doctor separately
+    escalation_call_merged = "escalation_call_merged"    # doctor's call merged into the patient's
+
+
 # ---------------------------------------------------------------------------
 # Core entities
 # ---------------------------------------------------------------------------
@@ -158,10 +166,21 @@ class DailyLog(MongoDocument):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class CallLogEntry(BaseModel):
+    type: CallLogEntryType
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    content: str | None = None               # for patient_said / agent_said
+    tool_name: str | None = None              # for tool_call
+    tool_args: dict | None = None             # for tool_call
+    tool_result: dict | None = None           # for tool_call
+    related_call_id: str | None = None        # for escalation_call_started / _merged
+    note: str | None = None                   # e.g. "guardrail override: <reason>"
+
+
 class Call(MongoDocument):
     patient_id: str
     date_time: datetime = Field(default_factory=datetime.utcnow)
-    logs: list[str] = Field(default_factory=list)
+    logs: list[CallLogEntry] = Field(default_factory=list)
     doctor_id: str | None = None
     type: CallType
     medicine_status: MedicineStatus | None = None

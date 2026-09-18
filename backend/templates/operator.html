@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Operator - VoiceMitra{% endblock %}
+{% block content %}
+<h1>Operator dashboard</h1>
+<p class="subtitle">Patient roster and onboarding.</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Patients</h2>
+  {% if rows %}
+  <table>
+    <tr><th>Name</th><th>Age</th><th>Last call</th><th>Status</th><th></th></tr>
+    {% for row in rows %}
+    <tr>
+      <td><a class="row-link" href="/operator/patients/{{ row.patient.id }}">{{ row.patient.name }}</a></td>
+      <td>{{ row.patient.age }}</td>
+      <td>{{ row.last_call.date_time.strftime('%d %b, %H:%M') if row.last_call else '-' }}</td>
+      <td>
+        {% if not row.last_call %}
+          <span class="badge neutral">no calls yet</span>
+        {% elif row.last_call.patient_status == 'urgent' %}
+          <span class="badge urgent">urgent</span>
+        {% elif row.last_call.patient_status == 'remedy' %}
+          <span class="badge warn">remedy</span>
+        {% elif row.last_call.patient_status == 'good' %}
+          <span class="badge good">good</span>
+        {% else %}
+          <span class="badge neutral">pending</span>
+        {% endif %}
+      </td>
+      <td><a href="/operator/patients/{{ row.patient.id }}">Manage &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No patients yet -- add one below.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Add patient</h2>
+  <form class="stacked-form" method="post" action="/operator/patients">
+    <div class="field"><label>Name</label><input name="name" required></div>
+    <div class="field"><label>Age</label><input name="age" type="number" required></div>
+    <div class="field"><label>Phone number</label><input name="phone_number" required></div>
+    <div class="field"><label>Address</label><input name="address"></div>
+    <div class="field"><label>Allergies (comma separated)</label><input name="allergies"></div>
+    <div class="field"><label>Description</label><textarea name="description" rows="2"></textarea></div>
+    <fieldset style="border:1px solid var(--border); border-radius:8px;">
+      <legend style="color:var(--muted); font-size:0.85rem;">Caregiver (optional)</legend>
+      <div class="field"><label>Name</label><input name="caregiver_name"></div>
+      <div class="field"><label>Relation</label><input name="caregiver_relation" placeholder="son / daughter / spouse"></div>
+      <div class="field"><label>Phone number</label><input name="caregiver_phone"></div>
+    </fieldset>
+    <button type="submit">Add patient</button>
+  </form>
+</div>
+{% endblock %}

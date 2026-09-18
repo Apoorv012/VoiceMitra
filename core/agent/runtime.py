@@ -41,7 +41,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
     while True:
         forced = config.guardrails.forced_action(context)
         if forced is not None:
-            result = await _run_tool(forced.tool_name, forced.args, config, context)
+            result = await _run_tool(forced.tool_name, forced.args, config, context, note=forced.reason)
             messages.append({
                 "role": "system",
                 "content": (
@@ -87,6 +87,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
             for tc in choice.tool_calls:
                 if tc.function.name not in allowed:
                     result = {"error": f"'{tc.function.name}' is not usable at this point in the call"}
+                    context.record_tool_call(tc.function.name, {}, result, note="blocked: not allowed in current state")
                 else:
                     args = json.loads(tc.function.arguments or "{}")
                     result = await _run_tool(tc.function.name, args, config, context)
@@ -105,6 +106,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
         except GuardrailViolation as e:
             text = f"Sorry, I can't help with that. {e}"
         messages.append({"role": "assistant", "content": text})
+        context.record_agent_text(text)
         await transport.send_text(text)
 
         if config.policy.is_done():
@@ -113,13 +115,16 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
         user_text = await transport.receive_text()
         if user_text is None:
             break
+        context.record_user_text(user_text)
         context.observe_user_text(user_text)
         messages.append({"role": "user", "content": user_text})
 
     await transport.end()
 
 
-async def _run_tool(name: str, args: dict, config: AgentConfig, context: Any) -> Any:
+async def _run_tool(
+    name: str, args: dict, config: AgentConfig, context: Any, *, note: str | None = None
+) -> Any:
     try:
         config.guardrails.check_tool_call(name, args, context)
         result = await config.tool_registry.dispatch(name, args, context=context)
@@ -127,4 +132,6 @@ async def _run_tool(name: str, args: dict, config: AgentConfig, context: Any) ->
         result = {"error": str(e)}
     finally:
         config.policy.advance(name)
-    return result if result is not None else {"ok": True}
+    result = result if result is not None else {"ok": True}
+    context.record_tool_call(name, args, result, note=note)
+    return result

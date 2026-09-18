@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.name }} - VoiceMitra{% endblock %}
+{% block content %}
+{% if back_link %}<p><a href="{{ back_link }}">&larr; back</a></p>{% endif %}
+
+<h1>{{ patient.name }}</h1>
+<p class="subtitle">{{ patient.age }} years old &middot; {{ patient.phone_number }}{% if patient.address %} &middot; {{ patient.address }}{% endif %}</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Profile</h2>
+  <p><strong>Allergies:</strong> {{ patient.allergies|join(', ') if patient.allergies else 'None known' }}</p>
+  {% if patient.description %}<p><strong>Notes:</strong> {{ patient.description }}</p>{% endif %}
+  {% if caregiver %}
+  <p><strong>Caregiver:</strong> {{ caregiver.name }} ({{ caregiver.relation }}) &middot; {{ caregiver.phone_number }}</p>
+  {% else %}
+  <p class="empty">No caregiver on file.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Prescriptions</h2>
+  {% if prescriptions %}
+  {% for rx in prescriptions %}
+    <table>
+      <tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Times</th><th>From</th><th>To</th></tr>
+      {% for m in rx.medicines %}
+      <tr>
+        <td>{{ m.medicine_name }}</td>
+        <td>{{ m.dosage }}</td>
+        <td>{{ m.frequency }}</td>
+        <td>{{ m.times|join(', ') if m.times else '-' }}</td>
+        <td>{{ m.from_date }}</td>
+        <td>{{ m.to_date or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No prescriptions yet.</p>
+  {% endif %}
+
+  {% if editable %}
+  <h2>Add prescription</h2>
+  <form class="stacked-form" method="post" action="{{ add_prescription_action }}">
+    <div class="dosage-row">
+      <div class="field"><label>Medicine name</label><input name="medicine_name" required></div>
+      <div class="field"><label>Dosage</label><input name="dosage" placeholder="1 tablet" required></div>
+      <div class="field">
+        <label>Frequency</label>
+        <select name="frequency">
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+          <option value="every_x_day">every X day</option>
+          <option value="fixed_times">fixed times</option>
+        </select>
+      </div>
+      <div class="field"><label>Times (comma separated, e.g. 09:00,21:00)</label><input name="times"></div>
+      <div class="field"><label>From date</label><input name="from_date" type="date" required></div>
+      <div class="field"><label>To date</label><input name="to_date" type="date"></div>
+    </div>
+    <button type="submit">Add prescription</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Dose adherence history</h2>
+  {% if dose_events %}
+  <table>
+    <tr><th>Recorded</th><th>Status</th><th>Confidence</th><th>Source</th></tr>
+    {% for e in dose_events %}
+    <tr>
+      <td>{{ e.recorded_at }}</td>
+      <td>
+        {% if e.status == 'taken' %}<span class="badge good">taken</span>
+        {% elif e.status == 'not_taken' %}<span class="badge urgent">not taken</span>
+        {% else %}<span class="badge warn">{{ e.status }}</span>{% endif %}
+      </td>
+      <td>{{ e.confidence }}</td>
+      <td>{{ e.source }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No dose events recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Symptoms &amp; daily logs</h2>
+  {% if daily_logs %}
+  {% for log in daily_logs %}
+  <div class="log-entry">
+    <div class="meta">{{ log.created_at }} &middot; seriousness {{ log.seriousness }}/10</div>
+    <div>{{ log.summary }}</div>
+    {% if log.symptoms %}
+    <ul>
+      {% for s in log.symptoms %}
+      <li>{{ s.name }}{% if s.location %} ({{ s.location }}){% endif %} -- {{ s.severity }}{% if s.duration_note %}, {{ s.duration_note }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No daily logs yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Call history</h2>
+  {% if calls %}
+  <table>
+    <tr><th>Date</th><th>Type</th><th>Medicine status</th><th>Patient status</th><th></th></tr>
+    {% for c in calls %}
+    <tr>
+      <td>{{ c.date_time }}</td>
+      <td>{{ c.type }}</td>
+      <td>{{ c.medicine_status or '-' }}</td>
+      <td>
+        {% if c.patient_status == 'urgent' %}<span class="badge urgent">urgent</span>
+        {% elif c.patient_status == 'remedy' %}<span class="badge warn">remedy</span>
+        {% elif c.patient_status == 'good' %}<span class="badge good">good</span>
+        {% else %}<span class="badge neutral">-</span>{% endif %}
+      </td>
+      <td><a href="/calls/{{ c.id }}">View transcript &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No calls yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

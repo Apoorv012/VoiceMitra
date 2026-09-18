@@ -19,7 +19,7 @@ load_dotenv()
 from backend.db import calls_col, doc_to_model, model_to_doc, patients_col, prescriptions_col
 from backend.models import Call, CallType, Patient, Prescription
 from core.agent.runtime import AgentConfig, run_chat_session
-from core.providers.llm import DEFAULT_MODEL, get_sarvam_llm_client
+from core.providers.llm import get_llm_client_and_model
 from core.transport.chat_transport import ChatTransport
 from domains.med_adherence.context import CallContext
 from domains.med_adherence.guardrails import build_guardrails
@@ -58,9 +58,10 @@ async def run_chat_demo(patient_id: str) -> None:
         allergies=patient.allergies,
     )
 
+    llm_client, model = get_llm_client_and_model()
     config = AgentConfig(
-        llm_client=get_sarvam_llm_client(),
-        model=DEFAULT_MODEL,
+        llm_client=llm_client,
+        model=model,
         base_system_prompt=build_base_system_prompt(
             patient_name=patient.name,
             medicine_name=dosage.medicine_name,
@@ -74,6 +75,11 @@ async def run_chat_demo(patient_id: str) -> None:
 
     transport = ChatTransport(speaker_label=patient.name)
     await run_chat_session(transport, config, context)
+
+    await calls_col().update_one(
+        {"_id": call.id},
+        {"$set": {"logs": [e.model_dump(mode="json") for e in context.log_entries]}},
+    )
 
     print(f"\n(call id {call.id} -- inspect dose_events/daily_logs/calls in Mongo)")
 

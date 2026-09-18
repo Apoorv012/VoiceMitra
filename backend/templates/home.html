@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}VoiceMitra{% endblock %}
+{% block content %}
+<h1>VoiceMitra</h1>
+<p class="subtitle">Pick a dashboard to view.</p>
+
+<div class="card">
+  <h2 style="margin-top:0">Operator</h2>
+  <p class="subtitle">Hospital staff: patient roster, add patients/prescriptions, trigger calls.</p>
+  <a href="/operator">Open operator dashboard &rarr;</a>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Doctors</h2>
+  {% if doctors %}
+  <table>
+    <tr><th>Name</th><th>Patients</th><th></th></tr>
+    {% for d in doctors %}
+    <tr>
+      <td>{{ d.name }}</td>
+      <td>{{ d.patient_ids|length }}</td>
+      <td><a href="/doctors/{{ d.id }}">Open dashboard &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No doctors seeded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Patients (self / family view)</h2>
+  {% if patients %}
+  <table>
+    <tr><th>Name</th><th>Age</th><th></th></tr>
+    {% for p in patients %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>{{ p.age }}</td>
+      <td><a href="/patients/{{ p.id }}">Open view &rarr;</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="empty">No patients seeded yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
