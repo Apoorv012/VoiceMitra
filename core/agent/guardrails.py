@@ -20,7 +20,14 @@ from typing import Any, Callable
 
 
 class GuardrailViolation(Exception):
-    """Raised by a text or tool-call check to block the offending output/call."""
+    """Raised by a text or tool-call check to block the offending output/call.
+
+    `fallback_text`, for a blocked reply: what to say instead if regenerating the reply keeps
+    failing the same check (the runtime otherwise falls back to a generic apology)."""
+
+    def __init__(self, message: str, *, fallback_text: str | None = None) -> None:
+        super().__init__(message)
+        self.fallback_text = fallback_text
 
 
 @dataclass

@@ -10,6 +10,9 @@ know anything about conversation transcripts, persistence, or domain state shape
 - record_user_text / record_agent_text: once per turn, for whichever side just spoke.
 - record_tool_call: once per tool dispatch (LLM-issued or guardrail-forced), with its args and
   result.
+- prompt_suffix: asked for on every LLM call; whatever it returns is appended to the end of that
+  call's system prompt (the position models weigh most). For per-turn instructions the domain
+  derives from conversation state, e.g. "reply in the language the patient just used".
 """
 
 from __future__ import annotations
@@ -29,3 +32,6 @@ class AgentContext:
 
     def record_tool_call(self, name: str, args: dict, result: Any, *, note: str | None = None) -> None:
         pass
+
+    def prompt_suffix(self) -> str:
+        return ""

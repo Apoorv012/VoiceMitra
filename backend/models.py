@@ -136,6 +136,7 @@ class DoseEvent(MongoDocument):
     confidence: DoseConfidence
     source: DoseSource
     recorded_via_call_id: str | None = None
+    note: str | None = None          # e.g. why a dose was missed
     recorded_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -188,6 +189,22 @@ class Call(MongoDocument):
     escalation_reason: str | None = None
     caregiver_notified: bool = False
     room_url: str | None = None
+
+
+class ReminderStatus(str, Enum):
+    pending = "pending"
+    fired = "fired"
+    missed = "missed"    # came due while the server was down, and too late to still be useful
+
+
+class Reminder(MongoDocument):
+    """A follow-up call the patient asked for (e.g. "I'll take it later, remind me in an hour")."""
+
+    patient_id: str
+    dosage_id: str
+    call_id: str                     # the call in which the patient asked for it
+    remind_at: datetime              # UTC, like every other timestamp here
+    status: ReminderStatus = ReminderStatus.pending
 
 
 class Patient(MongoDocument):

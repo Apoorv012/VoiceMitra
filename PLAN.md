@@ -77,7 +77,7 @@ voicemitra/
   .env.example
 
   core/                          # transport-agnostic voice-agent runtime
-    transport/                   # base.py (interface), chat_transport.py (done), daily_transport.py (Chunk 3)
+    transport/                   # base.py (interface), chat_transport.py + queue_transport.py (done), daily_transport.py (Chunk 3)
     providers/                   # llm.py (done, Sarvam+Gemini), stt.py / tts.py (Chunk 3)
     agent/                       # runtime.py, tool_registry.py, policy.py, guardrails.py, context.py (all done)
 
@@ -85,8 +85,8 @@ voicemitra/
                                   # escalation_rules.py, context.py, bot.py (all done for chat; voice pending)
 
   backend/
-    main.py, db.py, models.py, queries.py, seed.py
-    routers/                     # patients.py, doctors.py, calls.py (JSON API)
+    main.py, db.py, models.py, queries.py, seed.py, live_calls.py
+    routers/                     # patients.py, doctors.py, calls.py (JSON API), live.py (WebSockets + call controls)
     pages.py                     # server-rendered dashboards
     templates/, static/
 
@@ -136,6 +136,77 @@ Two real bugs found and fixed during this chunk:
   bug (rejects a system-only first request with no prior turn — worked around with a neutral seed
   message, harmless for every provider) and switched the default model to `gemini-3.5-flash-lite`
   for a much higher free-tier request quota than the plain Flash tier.
+
+### Operator-triggered web chat — **DONE** (added after Chunk 2, before voice)
+The operator dashboard has a **Call now** button per patient (and **End call** while one is live).
+Pressing it starts the agent's session in the backend and the message appears in the patient's own
+window (`/patients/<id>`; the chat panel shows up when a call is live); the patient replies there.
+When the session finishes, the transcript is flushed to the `Call` document.
+
+**Real-time, event-driven -- no polling.** Two WebSockets (`backend/routers/live.py`):
+`/ws/patients/<id>/chat` (server: snapshot / call_started / message / call_ended; client: reply) and
+`/ws/operator` (call_started / call_ended, on which the dashboard re-fetches just that patient's row
+via `/operator/patients/<id>/row`). Start/End are plain `POST /api/patients/<id>/call[/end]`. Both
+pages reconnect with backoff and resync from the snapshot the server sends on connect. The hub is
+in `backend/live_calls.py` (per-socket asyncio queues); `QueueTransport` reports messages through an
+`on_message` callback, so the agent core still knows nothing about HTTP.
+
+Built: `core/transport/queue_transport.py` (queue-backed `Transport`, a second implementation
+alongside `ChatTransport`), `backend/live_calls.py`, `backend/routers/live.py`,
+`backend/templates/_chat_widget.html` + `_operator_row.html`, plus `domains/med_adherence/bot.py`
+split into `create_call_session` / `run_call_session` so the CLI and the web backend share setup.
+
+**Conversation-quality pass** (after first hands-on test: the agent asked the dose question, then
+symptoms, then hung up -- it didn't react to "no" or "not yet"):
+- `policy_states.py` prompts rewritten so `log_dose_event` / `update_daily_log` are only called once
+  the outcome is actually known: "no" -> ask why first; "right now" -> wait for the patient to come
+  back; any discomfort -> up to 3 follow-ups (where / how bad / since when) before logging.
+- New guardrails: `_missed_dose_needs_reason` (`log_dose_event(status=not_taken)` is rejected without
+  a `note`) and `_symptom_needs_duration` (`update_daily_log` symptoms need a `duration_note`), so
+  "ask why" / "ask since when" are enforced in code, not just prompted.
+- Runtime bug fixed: `_run_tool` advanced the policy state even when a guardrail/tool rejected the
+  call (`finally`); it now advances only on success.
+- `DoseEvent.note` added -- `log_dose_event` accepted a `note` but never stored it, so the reason for
+  a missed dose was being dropped. Shown in the patient page's dose history.
+
+**Language + "no advice" rules:**
+- The agent replies in the patient's language: Hindi/Hinglish (Roman script only, never Devanagari or
+  mixed) or English, following them if they switch. Any other language -> it says (fixed line,
+  `UNSUPPORTED_LANGUAGE_LINE`) that only Hindi and English are supported and waits.
+  Prompt-only did not work (the model kept answering in the Hinglish it opened with, even when the
+  patient wrote only English), so the language is decided in code: `domains/med_adherence/language.py`
+  classifies each patient message (Devanagari / non-Latin script / Roman-script word-list count;
+  undecided -> left to the LLM, e.g. French), and the domain's `prompt_suffix()` -- a new generic hook
+  on `AgentContext`, appended to the end of every LLM call's system prompt -- states the language
+  flatly each turn. The word lists are a heuristic and will misjudge some inputs.
+- **No question in the last message:** once the call is wrapping up (`update_daily_log` /
+  `escalate_to_doctor` succeeded), a reply containing "?" is blocked and regenerated
+  (`_no_question_when_wrapping_up`), with a fixed sign-off as fallback, since the call hangs up
+  right after and the patient can't answer. (Prompt-only had failed here too.)
+- **The agent gives no suggestions or advice of any kind for now** -- no medicine/dose/timing advice,
+  no remedies or "rest", no what-to-do-about-symptoms, no reassurance about outcomes; asked for
+  advice, it says to ask the doctor. Enforced twice: prompt hard rule, and a text guardrail
+  (`ADVICE_OR_REASSURANCE_PHRASES`, substring match on deliberately narrow phrases). A blocked reply
+  is now regenerated by the model (up to `MAX_BLOCKED_REPLIES`) instead of being replaced by a
+  canned apology. This is a POC-stage restriction and may be relaxed later.
+
+**Reminders ("I'll take it later"):** when the patient says they'll take the dose later, the agent
+asks when to remind them and calls `reschedule_dose(remind_in_minutes)`, which logs the dose as
+not-taken (with a note), stores a `Reminder` (new collection) and arms a timer
+(`live_calls.arm_reminder`, `asyncio.sleep`, no scan loop) that starts a new reminder call at that
+time -- or, if the patient is mid-call then, retries every 15 s. The agent is told the current local
+time so "8 baje" can become minutes. Pending reminders are re-armed from Mongo on startup (ones more
+than 30 min late are marked `missed`). Upcoming reminders show on the patient page. Not built:
+cancelling/editing a reminder, or the agent rescheduling one *during* a later call.
+
+Verified with scripted patients over the real WebSockets against the live LLM (Gemini). Not yet
+covered by `eval/`. The two pages' JS was syntax-checked but not exercised in a real browser.
+
+Known limits (POC): live calls are in-memory only (server restart drops them); no timeout for a
+patient who opens the call and never replies (operator must End call); the reminder time is a
+whole number of minutes chosen by the LLM. Doctor briefing on escalation is deliberately **not**
+built here -- the doctor's role in the final product isn't settled, so `escalate_to_doctor` still
+only records the decision (see Chunk 4).
 
 ### Chunk 3 — Voice transport swap-in — **NOT STARTED**
 Plan: `core/providers/stt.py` + `tts.py` (Sarvam wiring), `core/transport/daily_transport.py`

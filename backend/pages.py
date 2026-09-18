@@ -18,8 +18,14 @@ from backend.db import (
     patients_col,
     prescriptions_col,
 )
+from backend.live_calls import get_live_call
 from backend.models import Call, Caregiver, Doctor, DoseFrequency, Dosage, Patient, Prescription
-from backend.queries import get_doctor_bundle, get_patient_bundle, list_patients_with_last_status
+from backend.queries import (
+    get_doctor_bundle,
+    get_patient_bundle,
+    get_patient_row,
+    list_patients_with_last_status,
+)
 
 router = APIRouter(include_in_schema=False)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -40,10 +46,25 @@ async def home(request: Request):
     return templates.TemplateResponse(request, "home.html", {"patients": patients, "doctors": doctors})
 
 
+def _with_live_state(row: dict) -> dict:
+    live = get_live_call(row["patient"].id)
+    row["in_call"] = live is not None and live.active
+    return row
+
+
 @router.get("/operator")
 async def operator_dashboard(request: Request):
-    rows = await list_patients_with_last_status()
+    rows = [_with_live_state(r) for r in await list_patients_with_last_status()]
     return templates.TemplateResponse(request, "operator.html", {"rows": rows})
+
+
+@router.get("/operator/patients/{patient_id}/row")
+async def operator_patient_row(request: Request, patient_id: str):
+    """One roster row as an HTML fragment -- the dashboard swaps it in when a call event arrives."""
+    row = await get_patient_row(patient_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="patient not found")
+    return templates.TemplateResponse(request, "_operator_row.html", {"row": _with_live_state(row)})
 
 
 @router.post("/operator/patients")
@@ -76,7 +97,8 @@ async def operator_create_patient(
 
 
 async def _render_patient_detail(request: Request, patient_id: str, *, editable: bool,
-                                  back_link: str | None, add_prescription_action: str):
+                                  back_link: str | None, add_prescription_action: str,
+                                  chat_enabled: bool = False):
     bundle = await get_patient_bundle(patient_id)
     if bundle is None:
         raise HTTPException(status_code=404, detail="patient not found")
@@ -85,6 +107,7 @@ async def _render_patient_detail(request: Request, patient_id: str, *, editable:
         "editable": editable,
         "back_link": back_link,
         "add_prescription_action": add_prescription_action,
+        "chat_enabled": chat_enabled,
     })
     return templates.TemplateResponse(request, "patient_detail.html", context)
 
@@ -138,6 +161,7 @@ async def operator_add_prescription(
 async def patient_self_view(request: Request, patient_id: str):
     return await _render_patient_detail(
         request, patient_id, editable=False, back_link=None, add_prescription_action="",
+        chat_enabled=True,
     )
 
 

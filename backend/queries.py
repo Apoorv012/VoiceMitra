@@ -13,8 +13,19 @@ from backend.db import (
     dose_events_col,
     patients_col,
     prescriptions_col,
+    reminders_col,
 )
-from backend.models import Call, Caregiver, DailyLog, Doctor, DoseEvent, Patient, Prescription
+from backend.models import (
+    Call,
+    Caregiver,
+    DailyLog,
+    Doctor,
+    DoseEvent,
+    Patient,
+    Prescription,
+    Reminder,
+    ReminderStatus,
+)
 
 
 async def get_patient_bundle(patient_id: str) -> dict | None:
@@ -42,6 +53,12 @@ async def get_patient_bundle(patient_id: str) -> dict | None:
         doc_to_model(Call, d)
         async for d in calls_col().find({"patient_id": patient_id}).sort("date_time", -1)
     ]
+    reminders = [
+        doc_to_model(Reminder, d)
+        async for d in reminders_col().find(
+            {"patient_id": patient_id, "status": ReminderStatus.pending.value}
+        ).sort("remind_at", 1)
+    ]
 
     return {
         "patient": patient,
@@ -50,19 +67,23 @@ async def get_patient_bundle(patient_id: str) -> dict | None:
         "dose_events": dose_events,
         "daily_logs": daily_logs,
         "calls": calls,
+        "reminders": reminders,
     }
+
+
+async def _row_for(patient: Patient) -> dict:
+    last_call_doc = await calls_col().find_one({"patient_id": patient.id}, sort=[("date_time", -1)])
+    return {"patient": patient, "last_call": doc_to_model(Call, last_call_doc)}
+
+
+async def get_patient_row(patient_id: str) -> dict | None:
+    patient = doc_to_model(Patient, await patients_col().find_one({"_id": patient_id}))
+    return None if patient is None else await _row_for(patient)
 
 
 async def list_patients_with_last_status() -> list[dict]:
     patients = [doc_to_model(Patient, d) async for d in patients_col().find()]
-    out = []
-    for patient in patients:
-        last_call_doc = await calls_col().find_one(
-            {"patient_id": patient.id}, sort=[("date_time", -1)]
-        )
-        last_call = doc_to_model(Call, last_call_doc)
-        out.append({"patient": patient, "last_call": last_call})
-    return out
+    return [await _row_for(p) for p in patients]
 
 
 async def get_doctor_bundle(doctor_id: str) -> dict | None:

@@ -124,3 +124,9 @@ button.secondary:hover { background: #d3d7de; }
   border-radius: 8px;
   margin-bottom: 12px;
 }
+
+.chat-log { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.chat-msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; font-size: 0.92rem; white-space: pre-wrap; }
+.chat-msg.agent { align-self: flex-start; background: #eef0f3; }
+.chat-msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+[hidden] { display: none !important; }

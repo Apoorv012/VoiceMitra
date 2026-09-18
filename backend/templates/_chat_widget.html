@@ -1,0 +1,84 @@
+<div class="card" id="chat-card" hidden>
+  <h2 style="margin-top:0">Call with VoiceMitra</h2>
+  <div id="chat-log" class="chat-log"></div>
+  <form id="chat-form" class="inline-form" autocomplete="off">
+    <input id="chat-input" name="text" placeholder="Type your reply" maxlength="2000" style="flex:1" required>
+    <button type="submit">Send</button>
+  </form>
+  <p id="chat-ended" class="empty" hidden>The call has ended.</p>
+</div>
+
+<script>
+(function () {
+  const card = document.getElementById("chat-card");
+  const log = document.getElementById("chat-log");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+  const endedNote = document.getElementById("chat-ended");
+
+  let ws = null;
+  let callId = null;
+  let shown = 0;  // messages already rendered; the server numbers them from 0
+  let retryMs = 500;
+
+  function addMessage(m) {
+    if (m.index < shown) return;  // already have it (snapshot and live events can overlap)
+    const div = document.createElement("div");
+    div.className = "chat-msg " + m.role;
+    div.textContent = m.text;  // textContent, never innerHTML: the text is untrusted
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    shown = m.index + 1;
+  }
+
+  function startCall(id) {
+    callId = id;
+    shown = 0;
+    log.replaceChildren();
+    card.hidden = false;
+    form.hidden = false;
+    endedNote.hidden = true;
+  }
+
+  function endCall() {
+    form.hidden = true;
+    endedNote.hidden = false;
+  }
+
+  function onEvent(e) {
+    if (e.type === "snapshot") {
+      if (!e.call_id) { card.hidden = true; callId = null; return; }
+      startCall(e.call_id);
+      e.messages.forEach(addMessage);
+      if (!e.active) endCall();
+    } else if (e.type === "call_started") {
+      startCall(e.call_id);
+    } else if (e.type === "message" && e.call_id === callId) {
+      addMessage(e);
+    } else if (e.type === "call_ended" && e.call_id === callId) {
+      endCall();
+    }
+  }
+
+  function connect() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host +
+                       "/ws/patients/{{ patient.id }}/chat");
+    ws.onopen = () => { retryMs = 500; };
+    ws.onmessage = (ev) => onEvent(JSON.parse(ev.data));
+    ws.onclose = () => {
+      setTimeout(connect, retryMs);
+      retryMs = Math.min(retryMs * 2, 10000);
+    };
+  }
+
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({type: "reply", text}));
+    input.value = "";  // our own message comes back as a "message" event and is rendered from that
+  });
+
+  connect();
+})();
+</script>

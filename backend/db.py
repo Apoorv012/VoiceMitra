@@ -47,6 +47,10 @@ def daily_logs_col():
     return get_db()["daily_logs"]
 
 
+def reminders_col():
+    return get_db()["reminders"]
+
+
 async def ensure_indexes() -> None:
     # `_id` (== the domain id) is already indexed+unique by Mongo itself; only
     # foreign-key lookup fields need explicit indexes.
@@ -56,6 +60,7 @@ async def ensure_indexes() -> None:
     await calls_col().create_index("patient_id")
     await calls_col().create_index("doctor_id")
     await daily_logs_col().create_index("patient_id")
+    await reminders_col().create_index([("patient_id", 1), ("status", 1)])
 
 
 def doc_to_model(model_cls, doc: dict | None):

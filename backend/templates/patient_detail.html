@@ -6,6 +6,18 @@
 <h1>{{ patient.name }}</h1>
 <p class="subtitle">{{ patient.age }} years old &middot; {{ patient.phone_number }}{% if patient.address %} &middot; {{ patient.address }}{% endif %}</p>
 
+{% if chat_enabled %}{% include "_chat_widget.html" %}{% endif %}
+
+{% if reminders %}
+<div class="card">
+  <h2 style="margin-top:0">Upcoming reminders</h2>
+  <table>
+    <tr><th>Call back at (UTC)</th></tr>
+    {% for r in reminders %}<tr><td>{{ r.remind_at }}</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+
 <div class="card">
   <h2 style="margin-top:0">Profile</h2>
   <p><strong>Allergies:</strong> {{ patient.allergies|join(', ') if patient.allergies else 'None known' }}</p>
@@ -67,7 +79,7 @@
   <h2 style="margin-top:0">Dose adherence history</h2>
   {% if dose_events %}
   <table>
-    <tr><th>Recorded</th><th>Status</th><th>Confidence</th><th>Source</th></tr>
+    <tr><th>Recorded</th><th>Status</th><th>Confidence</th><th>Source</th><th>Note</th></tr>
     {% for e in dose_events %}
     <tr>
       <td>{{ e.recorded_at }}</td>
@@ -78,6 +90,7 @@
       </td>
       <td>{{ e.confidence }}</td>
       <td>{{ e.source }}</td>
+      <td>{{ e.note or '-' }}</td>
     </tr>
     {% endfor %}
   </table>

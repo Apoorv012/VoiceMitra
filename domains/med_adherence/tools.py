@@ -5,11 +5,11 @@ through an HTTP client/repository abstraction, since it's one Python codebase en
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, Field
 
-from backend.db import calls_col, daily_logs_col, dose_events_col, model_to_doc
+from backend.db import calls_col, daily_logs_col, dose_events_col, model_to_doc, reminders_col
 from backend.models import (
     DailyLog,
     DoseConfidence,
@@ -17,6 +17,7 @@ from backend.models import (
     DoseSource,
     DoseStatus,
     PatientStatus,
+    Reminder,
     Symptom,
     SymptomSeverity,
 )
@@ -47,10 +48,61 @@ async def log_dose_event(args: LogDoseEventArgs, context: CallContext) -> dict:
         confidence=args.confidence,
         source=args.source,
         recorded_via_call_id=context.call_id,
+        note=args.note,
     )
     await dose_events_col().insert_one(model_to_doc(event))
     context.dose_status = args.status
     return {"logged": True, "status": args.status.value}
+
+
+class RescheduleDoseArgs(BaseModel):
+    remind_in_minutes: int = Field(ge=1, le=720)
+    reason: str | None = None
+
+
+@registry.register(
+    name="reschedule_dose",
+    description=(
+        "The patient will take this dose later and asked to be reminded: record the dose as "
+        "not taken yet and schedule a reminder call `remind_in_minutes` minutes from now. Only "
+        "call this once the patient has told you when they want to be reminded."
+    ),
+    args_model=RescheduleDoseArgs,
+)
+async def reschedule_dose(args: RescheduleDoseArgs, context: CallContext) -> dict:
+    remind_at = datetime.utcnow() + timedelta(minutes=args.remind_in_minutes)
+    note = f"will take it later; reminder in {args.remind_in_minutes} min"
+    if args.reason:
+        note += f" ({args.reason})"
+    event = DoseEvent(
+        patient_id=context.patient_id,
+        dosage_id=context.dosage_id,
+        scheduled_at=datetime.utcnow(),
+        status=DoseStatus.not_taken,
+        confidence=DoseConfidence.high,
+        source=DoseSource.patient_self_report,
+        recorded_via_call_id=context.call_id,
+        note=note,
+    )
+    await dose_events_col().insert_one(model_to_doc(event))
+    context.dose_status = DoseStatus.not_taken
+
+    reminder = Reminder(
+        patient_id=context.patient_id,
+        dosage_id=context.dosage_id,
+        call_id=context.call_id,
+        remind_at=remind_at,
+    )
+    await reminders_col().insert_one(model_to_doc(reminder))
+    if context.on_reminder_created is not None:
+        context.on_reminder_created(reminder)
+
+    local = remind_at.replace(tzinfo=timezone.utc).astimezone()
+    return {
+        "reminder_set": True,
+        "remind_at_local": local.strftime("%H:%M"),
+        "note": note,
+    }
 
 
 class SymptomArg(BaseModel):

@@ -24,6 +24,11 @@ from core.agent.tool_registry import ToolCallError, ToolRegistry
 from core.transport.base import Transport
 
 
+# How many times a reply blocked by a text guardrail is regenerated before falling back to a
+# generic line.
+MAX_BLOCKED_REPLIES = 2
+
+
 @dataclass
 class AgentConfig:
     llm_client: AsyncOpenAI
@@ -41,6 +46,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
     # specified"). This neutral seed message keeps every provider working without branching on
     # which one is in use.
     messages: list[dict] = [{"role": "user", "content": "(the call has just connected)"}]
+    blocked_replies = 0
     await transport.start()
 
     while True:
@@ -57,7 +63,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
             # Fall through to the LLM turn below even in a terminal state, so it can deliver a
             # closing line; the loop ends via the `policy.is_done()` check after that line sends.
 
-        system_prompt = config.policy.build_system_prompt(config.base_system_prompt)
+        system_prompt = config.policy.build_system_prompt(config.base_system_prompt) + context.prompt_suffix()
         allowed = set(config.policy.allowed_tools())
         full_schema = config.tool_registry.openai_tools_schema()
         allowed_schema = [t for t in full_schema if t["function"]["name"] in allowed]
@@ -108,8 +114,23 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
         text = choice.content or ""
         try:
             text = config.guardrails.check_text(text, context)
+            blocked_replies = 0
         except GuardrailViolation as e:
-            text = f"Sorry, I can't help with that. {e}"
+            blocked_replies += 1
+            if blocked_replies <= MAX_BLOCKED_REPLIES:
+                # Let the model rewrite its own reply (the patient never sees the blocked one),
+                # rather than dropping a canned apology into the middle of the conversation.
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        f"[guardrail -- your last reply was blocked and not shown to the patient: "
+                        f"{e}] Say it again with that fixed, in the patient's language, and "
+                        "continue the current step."
+                    ),
+                })
+                continue
+            blocked_replies = 0
+            text = e.fallback_text or f"Sorry, I can't help with that. {e}"
         messages.append({"role": "assistant", "content": text})
         context.record_agent_text(text)
         await transport.send_text(text)
@@ -134,8 +155,10 @@ async def _run_tool(
         config.guardrails.check_tool_call(name, args, context)
         result = await config.tool_registry.dispatch(name, args, context=context)
     except (GuardrailViolation, ToolCallError) as e:
+        # A rejected call must not move the conversation forward: the LLM gets the error back
+        # and retries within the same state.
         result = {"error": str(e)}
-    finally:
+    else:
         config.policy.advance(name)
     result = result if result is not None else {"ok": True}
     context.record_tool_call(name, args, result, note=note)

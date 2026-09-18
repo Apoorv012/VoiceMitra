@@ -6,30 +6,11 @@
 
 <div class="card">
   <h2 style="margin-top:0">Patients</h2>
+  <p id="call-error" class="escalation-banner" hidden></p>
   {% if rows %}
-  <table>
-    <tr><th>Name</th><th>Age</th><th>Last call</th><th>Status</th><th></th></tr>
-    {% for row in rows %}
-    <tr>
-      <td><a class="row-link" href="/operator/patients/{{ row.patient.id }}">{{ row.patient.name }}</a></td>
-      <td>{{ row.patient.age }}</td>
-      <td>{{ row.last_call.date_time.strftime('%d %b, %H:%M') if row.last_call else '-' }}</td>
-      <td>
-        {% if not row.last_call %}
-          <span class="badge neutral">no calls yet</span>
-        {% elif row.last_call.patient_status == 'urgent' %}
-          <span class="badge urgent">urgent</span>
-        {% elif row.last_call.patient_status == 'remedy' %}
-          <span class="badge warn">remedy</span>
-        {% elif row.last_call.patient_status == 'good' %}
-          <span class="badge good">good</span>
-        {% else %}
-          <span class="badge neutral">pending</span>
-        {% endif %}
-      </td>
-      <td><a href="/operator/patients/{{ row.patient.id }}">Manage &rarr;</a></td>
-    </tr>
-    {% endfor %}
+  <table id="roster">
+    <tr><th>Name</th><th>Age</th><th>Last call</th><th>Status</th><th>Call</th><th></th></tr>
+    {% for row in rows %}{% include "_operator_row.html" %}{% endfor %}
   </table>
   {% else %}
   <p class="empty">No patients yet -- add one below.</p>
@@ -54,4 +35,62 @@
     <button type="submit">Add patient</button>
   </form>
 </div>
+<script>
+(function () {
+  const roster = document.getElementById("roster");
+  const errorBox = document.getElementById("call-error");
+  if (!roster) return;
+
+  function showError(text) {
+    errorBox.textContent = text;
+    errorBox.hidden = !text;
+  }
+
+  // Swap in a freshly rendered row (in-call badge, last-call time, status) when its call changes.
+  async function refreshRow(patientId) {
+    const res = await fetch("/operator/patients/" + patientId + "/row");
+    if (!res.ok) return;
+    const tmp = document.createElement("tbody");
+    tmp.innerHTML = await res.text();
+    const fresh = tmp.querySelector("tr");
+    const old = document.getElementById("row-" + patientId);
+    if (fresh && old) old.replaceWith(fresh);
+  }
+
+  roster.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    showError("");
+    btn.disabled = true;
+    const path = btn.dataset.action === "call" ? "/call" : "/call/end";
+    const res = await fetch("/api/patients/" + btn.dataset.patientId + path, {method: "POST"});
+    if (!res.ok) {
+      btn.disabled = false;
+      const body = await res.json().catch(() => ({}));
+      showError(body.detail || "Could not " + btn.dataset.action + " (HTTP " + res.status + ")");
+    }
+    // On success nothing else to do: the socket delivers call_started / call_ended.
+  });
+
+  let retryMs = 500;
+  function connect() {
+    const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/operator");
+    ws.onopen = () => { retryMs = 500; };
+    ws.onmessage = (ev) => {
+      const e = JSON.parse(ev.data);
+      if (e.type === "snapshot") {
+        // Covers anything that happened while we were disconnected.
+        roster.querySelectorAll("tr[data-patient-id]").forEach((tr) => refreshRow(tr.dataset.patientId));
+      } else if (e.patient_id) {
+        refreshRow(e.patient_id);
+      }
+    };
+    ws.onclose = () => {
+      setTimeout(connect, retryMs);
+      retryMs = Math.min(retryMs * 2, 10000);
+    };
+  }
+  connect();
+})();
+</script>
 {% endblock %}

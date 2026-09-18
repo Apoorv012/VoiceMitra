@@ -1,0 +1,30 @@
+<tr id="row-{{ row.patient.id }}" data-patient-id="{{ row.patient.id }}">
+  <td><a class="row-link" href="/operator/patients/{{ row.patient.id }}">{{ row.patient.name }}</a></td>
+  <td>{{ row.patient.age }}</td>
+  <td>{{ row.last_call.date_time.strftime('%d %b, %H:%M') if row.last_call else '-' }}</td>
+  <td>
+    {% if not row.last_call %}
+      <span class="badge neutral">no calls yet</span>
+    {% elif row.last_call.patient_status == 'urgent' %}
+      <span class="badge urgent">urgent</span>
+    {% elif row.last_call.patient_status == 'remedy' %}
+      <span class="badge warn">remedy</span>
+    {% elif row.last_call.patient_status == 'good' %}
+      <span class="badge good">good</span>
+    {% else %}
+      <span class="badge neutral">pending</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if row.in_call %}
+    <span class="badge warn">in call</span>
+    <button type="button" class="secondary" data-action="end" data-patient-id="{{ row.patient.id }}">End call</button>
+    {% else %}
+    <button type="button" data-action="call" data-patient-id="{{ row.patient.id }}">Call now</button>
+    {% endif %}
+  </td>
+  <td>
+    <a href="/patients/{{ row.patient.id }}" target="_blank" rel="noopener">Patient window &nearr;</a>
+    &middot; <a href="/operator/patients/{{ row.patient.id }}">Manage &rarr;</a>
+  </td>
+</tr>

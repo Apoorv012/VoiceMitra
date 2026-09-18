@@ -1,7 +1,7 @@
 """Concrete dialogue policy for the medicine-adherence agent.
 
 dosage_check (start)
-  -> log_dose_event -> symptom_check
+  -> log_dose_event / reschedule_dose (patient will take it later) -> symptom_check
 symptom_check
   -> update_daily_log (nothing concerning)   -> closing_normal (terminal)
   -> escalate_to_doctor (concerning symptom) -> escalation_active (terminal)
@@ -29,16 +29,33 @@ def build_policy() -> PolicyEngine:
         PolicyState(
             name=DOSAGE_CHECK,
             prompt_fragment=(
-                "Current step: greet the patient by name, confirm you're speaking to them, and "
-                "ask about the dose that is due right now (you'll be told which medicine/dosage "
-                "in the context above). Once you know whether they took it, are about to, missed "
-                "it, or are unsure, call log_dose_event with your best judgement of status, "
-                "confidence, and source. If they're unsure/can't recall, that's still a valid "
-                "outcome (status=unknown, confidence=low) -- don't push them to guess."
+                "Current step: dose check. On your first turn, greet the patient by name and "
+                "confirm you're speaking to them. Then ask about the dose due right now (the "
+                "medicine/dosage is in the context above). This is a real conversation: do NOT "
+                "call log_dose_event until you actually know what happened with the dose.\n"
+                "- They took it: call log_dose_event with status=taken.\n"
+                "- They're about to take it right now ('abhi leta hun', 'let me take it'): do not "
+                "log anything yet. Say something short like 'theek hai, le lijiye, main wait "
+                "karta hun' and wait for their next message. When they confirm they've taken it, "
+                "log taken.\n"
+                "- They'll take it later ('baad mein', 'thodi der mein', 'later'): ask when they "
+                "would like to be reminded ('kab yaad dilaun?'). Once they tell you, work out the "
+                "number of minutes from the current time in the context above and call "
+                "reschedule_dose. Don't call it before they've told you a time.\n"
+                "- They say no / didn't take it: a bare 'no' is not enough to log. Ask why, in "
+                "one short, kind question (bhool gaye? tabiyat theek nahi? dawai khatam?), and "
+                "listen. Once you know the reason, log status=not_taken with the reason in note. "
+                "Don't lecture, and never tell them to take extra or skip doses.\n"
+                "- They're unsure / can't recall: ask at most one gentle question to help them "
+                "recall (a question only -- don't suggest ways to check or work it out). If still "
+                "unsure, log status=unknown, confidence=low -- don't push them to guess.\n"
+                "If the reason for a missed dose is itself a symptom (e.g. nausea after the "
+                "tablet), log the dose first; the next step follows up on the symptom."
             ),
-            allowed_tools=["log_dose_event"],
+            allowed_tools=["log_dose_event", "reschedule_dose"],
             on_tool_called={
                 "log_dose_event": SYMPTOM_CHECK,
+                "reschedule_dose": SYMPTOM_CHECK,
                 # Not offered to the LLM in this state (not in allowed_tools above), but a
                 # forced-action guardrail can still dispatch escalate_to_doctor directly if a
                 # red-flag symptom is blurted out before the dosage question is even answered --
@@ -50,12 +67,23 @@ def build_policy() -> PolicyEngine:
         PolicyState(
             name=SYMPTOM_CHECK,
             prompt_fragment=(
-                "Current step: ask how the patient is feeling / whether they've noticed any "
-                "symptoms or discomfort. If nothing concerning comes up, call update_daily_log "
-                "summarizing the call with a low seriousness score. If they mention something "
-                "concerning (e.g. chest pain, breathlessness, severe/unusual symptoms), call "
-                "escalate_to_doctor instead of update_daily_log -- do not try to diagnose or "
-                "reassure them yourself first, just move to escalation."
+                "Current step: symptom check. Ask how the patient is feeling / whether they've "
+                "had any discomfort since their last dose. If a reminder was just set (see the "
+                "reschedule_dose result), first confirm it in a few words ('theek hai, X baje "
+                "yaad dilaunga') in the same message as your question.\n"
+                "- They say they're fine: call update_daily_log with a low seriousness score.\n"
+                "- They mention any discomfort, even mild: do not log yet. Ask short follow-ups, "
+                "one per turn -- where is it, how bad, since when -- until you can fill in the "
+                "symptom's location, severity and duration (at most 3 questions; duration -- "
+                "since when -- is mandatory, don't skip it). Then call update_daily_log with "
+                "those details and a seriousness score that reflects them. Just acknowledge what "
+                "they told you: don't suggest remedies or rest, and don't promise it will be "
+                "fine.\n"
+                "- They mention something concerning (e.g. chest pain, breathlessness, "
+                "severe/unusual symptoms): call escalate_to_doctor instead -- do not diagnose or "
+                "reassure them yourself first.\n"
+                "If they ask for advice or a medical question, say you can't advise on that and "
+                "they should ask their doctor."
             ),
             allowed_tools=["update_daily_log", "escalate_to_doctor"],
             on_tool_called={
@@ -78,7 +106,8 @@ def build_policy() -> PolicyEngine:
             name=CLOSING_NORMAL,
             prompt_fragment=(
                 "Current step: give a brief, warm sign-off (no more than a sentence or two) and "
-                "end the call. Do not call any tools."
+                "end the call. Do not ask any question -- the call ends right after this "
+                "message. Do not call any tools."
             ),
             allowed_tools=[],
             is_terminal=True,
