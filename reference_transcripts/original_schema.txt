@@ -1,0 +1,64 @@
+patient:
+    id: uuid
+    name: string
+    age: number
+    description: no allergy
+    phone number: number
+    secondary phone numbers: [number]
+    address: string
+    allergies: [string]
+    prescriptions: [prescription]
+    daily_logs: [daily_log]
+    call_history: [call]
+
+prescription:
+    id: uuid
+    patient_id: uuid (fk)
+    medicines: [dosage]
+
+dosage:
+    id: uuid
+    prescription_id: uuid (fk)
+    medicine_name: string
+    dosage: string
+    from_date: date
+    to_date: date
+    frequency: weekly | every X day | daily | [time]
+
+dose_event:
+    id: uuid
+    patient_id: uuid (fk)
+    dosage_id: uuid (fk)
+    scheduled_at: datetime
+    status: taken | not_taken | partial | unknown | skipped_on_advice
+    confidence: high | medium | low
+    source: patient_self_report | family_report | inferred | doctor_instruction
+    recorded_via_call_id: uuid (fk, nullable)
+    recorded_at: datetime
+
+doctor:
+    id: uuid
+    name: string
+    age: number
+    description: something
+    phone number: number
+    secondary phone numbers: [number]
+    address: string
+    patients: [uuid] (fk)
+
+call:
+    id: uuid
+    patient_id: uuid (fk)
+    date_time: date_time
+    logs: [string]
+    doctor?: uuid (fk) # if called
+    type: medicine_reminder | just_catch_up | inbound_call | other
+    medicine_status: taken | confusion | not_taken | dont know
+    patient_status: good | remedy | urgent
+
+daily_log:
+    id: uuid
+    patient_id: uuid (fk)
+    call_id: uuid (fk)
+    summary: string
+    seriousness: int # (1 all good - 10 very bad)

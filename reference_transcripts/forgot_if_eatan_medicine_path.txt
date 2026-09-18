@@ -1,0 +1,31 @@
+Agent: Namaste, mein VoiceMitra se baat kr rha hun. Kya meri baat Apoorv ji se ho rhi h?
+
+Apoorv: hnji, boliye
+
+Agent: Apka dawai khane ka time ho gaya h. Apko PCM 500 khani h, kya aapne kha li? ya kha rhe ho?
+
+Apoorv: Le liya tha shyd
+
+Agent: Kya koi tareeka h jisse aap bata sakein ki apne dawai leli h ya nhi? Jese ki aap jaha apni dawai rakhte ho? ya apko koi dawai deta ho?
+
+Apoorv: Nhi...
+
+Agent: Apko kisi bhi tareh ki takleef feel ho rhi h?
+
+Apoorv: Nhi sb badiya.
+
+Agent: Accha theek h. Mein ek baari doctor se connect krke dawai walein confusion ke baarein mein puchta hun. Please 2 min hold kijiye.
+
+Agent to doctor: Apka patient (Apoorv 21 Male) unsure h ki unhone dawai khai h ya nhi. kya karna cahhiye?
+
+Doctor: Koi baat nhi, agli wali time se kha lena.
+
+Agent: Theek h doctor. dhanyawaad.
+
+Agent to Patient: Hello, kya aap call pr ho?
+
+Apoorv: Hnji
+
+Agent: Koi baat nhi agar ye wali dawai ke baarein mein sure nhi h. Agli dawai ka dhyan rakhte h. Baki aap pill box rakh sakte h din ke hisab se jisse ye confusion na ho.
+
+Apoorv: Theek h

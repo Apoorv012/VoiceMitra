@@ -1,0 +1,16 @@
+# Backend
+fastapi
+uvicorn[standard]
+motor
+pydantic
+pydantic-settings
+jinja2
+python-multipart
+python-dotenv
+
+# Voice agent (added in Chunk 2)
+pipecat-ai[daily,sarvam,openai]
+aiohttp
+
+# Eval harness (added in Chunk 5)
+pytest

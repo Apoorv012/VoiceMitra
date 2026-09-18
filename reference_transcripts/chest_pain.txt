@@ -1,0 +1,31 @@
+Agent: Namaste, mein VoiceMitra se baat kr rha hun. Kya meri baat Apoorv ji se ho rhi h?
+
+Apoorv: hnji, boliye
+
+Agent: Apka dawai khane ka time ho gaya h. Apko PCM 500 khani h, kya aapne kha li? ya kha rhe ho?
+
+Apoorv: hnji kha li thi.
+
+Agent: Theek h. Apko kisi tareh ki takleef toh nhi ho rhi?
+
+Apoorv: Nhi... bs kabhi kabhi chest mein pain hota h.
+
+Agent: Ohh... Chest pain ho rha h. Ek kaam krta hun, mein apki ek baari doctor se baat karwa deta hun. Agar kuch badi pareshani hogi toh wo bata payenge. 2 min hold kijiye.
+
+Agent to Doctor: Hi Doctor, apka patient (Apoorv 21 Male) ko chest mein pain ho rha h. mein apko call mein add kardu?
+
+Doctor: hn jaldi
+
+(Added to call)
+
+Doctor: Hello, apke chest mein pain ho rha h... chest mein exactly kis jageh ho rha h.. 
+
+Apoorv: ese center mein thoda thoda ho rha h.
+
+Doctor: kbse ho rha h?
+
+Apoorv: subhe se hi shuru hua hi
+
+Doctor: kaafi chances h ki ye gas ki wajeh se ho rha hoga. Aap ek kaam karein, eno pee li jiye. Aur agar 30 mins mein pain mein aaram na milein, ya kisi bhi time pr pain badein toh turant call kardijiye.
+
+Apoorv: Ji theek h. Dhanyawaad.
