@@ -22,7 +22,8 @@ from backend.models import (
     SymptomSeverity,
 )
 from core.agent.tool_registry import ToolRegistry
-from domains.med_adherence.context import CallContext
+from domains.med_adherence.caregiver import notify_caregiver_of_escalation
+from domains.med_adherence.context import CallContext, EscalationRequest
 
 registry = ToolRegistry()
 
@@ -160,6 +161,9 @@ class EscalateToDoctorArgs(BaseModel):
 )
 async def escalate_to_doctor(args: EscalateToDoctorArgs, context: CallContext) -> dict:
     context.escalated = True
+    context.escalation = EscalationRequest(
+        reason=args.reason, brief_summary=args.brief_summary, urgency=args.urgency
+    )
     await calls_col().update_one(
         {"_id": context.call_id},
         {"$set": {
@@ -167,9 +171,10 @@ async def escalate_to_doctor(args: EscalateToDoctorArgs, context: CallContext) -
             "patient_status": PatientStatus.urgent.value,
         }},
     )
-    # Chunk 4 extends this to actually notify a doctor dashboard and set up the live call merge;
-    # for now it just records the decision so the agent core/logic is fully testable on its own.
-    return {"escalation_recorded": True, "reason": args.reason}
+    # The doctor is rung by whoever hosts the call (backend/escalations.py) once the patient has
+    # heard the hand-off line; the caregiver is told here, unconditionally.
+    caregiver = await notify_caregiver_of_escalation(context, args.reason)
+    return {"escalation_recorded": True, "reason": args.reason, "caregiver": caregiver}
 
 
 class EndCallArgs(BaseModel):

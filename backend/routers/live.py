@@ -13,9 +13,11 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
+from backend import escalations
 from backend.live_calls import (
     PatientNotReady,
     active_patient_ids,
+    end_call,
     get_live_call,
     snapshot_patient,
     start_call,
@@ -30,7 +32,7 @@ router = APIRouter(tags=["live"])
 MAX_REPLY_CHARS = 2000
 
 
-async def _serve(
+async def serve_socket(
     ws: WebSocket, queue: asyncio.Queue, on_receive: Callable[[dict], Awaitable[None]] | None = None
 ) -> None:
     """Forward queued events to the socket while reading whatever the client sends, until either
@@ -75,10 +77,17 @@ async def patient_chat(ws: WebSocket, patient_id: str) -> None:
             if data.get("type") != "reply" or not isinstance(text, str) or live is None or not live.active:
                 return
             text = text.strip()
-            if text:
-                live.transport.push_user_text(text[:MAX_REPLY_CHARS])
+            if not text:
+                return
+            text = text[:MAX_REPLY_CHARS]
+            if live.escalation_id is not None:
+                # The agent's part of the conversation is over: replies go to the doctor once merged
+                # (and are dropped while the patient is on hold).
+                await escalations.patient_message(live.escalation_id, text)
+            else:
+                live.transport.push_user_text(text)
 
-        await _serve(ws, queue, on_receive)
+        await serve_socket(ws, queue, on_receive)
     finally:
         unsubscribe_patient(patient_id, queue)
 
@@ -89,7 +98,7 @@ async def operator_events(ws: WebSocket) -> None:
     queue = subscribe_operator()
     try:
         await ws.send_json({"type": "snapshot", "in_call": active_patient_ids()})
-        await _serve(ws, queue)
+        await serve_socket(ws, queue)
     finally:
         unsubscribe_operator(queue)
 
@@ -104,6 +113,4 @@ async def start_patient_call(patient_id: str) -> None:
 
 @router.post("/api/patients/{patient_id}/call/end", status_code=204)
 async def end_patient_call(patient_id: str) -> None:
-    live = get_live_call(patient_id)
-    if live is not None and live.active:
-        live.transport.hang_up()
+    await end_call(patient_id)

@@ -62,6 +62,13 @@ Extends the original `reference_transcripts/original_schema.txt` draft:
 - `call.logs` is a structured transcript+tool-call log (`CallLogEntry`: patient_said / agent_said /
   tool_call with args+result / escalation_call_started / escalation_call_merged), not `list[str]`.
 - `call` has `escalation_reason` and `caregiver_notified`.
+- `escalation` (new collection): the doctor leg of an escalated call -- status `ringing` -> `briefing`
+  -> `merged` -> `resolved` (or `abandoned`), which doctor joined, timestamps, and the agent's summary
+  of the merged conversation.
+- `caregiver_notification` (new collection): one record per alert sent to a caregiver (delivery is
+  simulated; the record is the notification).
+- `CallLogEntry` gained a `channel` (`None` = patient<->agent, `doctor_briefing`, `merged`) and two
+  types, `doctor_said` and `escalation_summary`, so one call log tells the whole escalated story.
 
 Full field-level detail lives in `backend/models.py` (source of truth) — this file just tracks the
 rationale for the deviations from the original draft schema.
@@ -83,10 +90,12 @@ voicemitra/
 
   domains/med_adherence/         # prompts.py, policy_states.py, tools.py, guardrails.py,
                                   # escalation_rules.py, context.py, bot.py (all done for chat; voice pending)
+                                  # doctor_agent.py (briefing agent + summariser), caregiver.py (done)
 
   backend/
-    main.py, db.py, models.py, queries.py, seed.py, live_calls.py
-    routers/                     # patients.py, doctors.py, calls.py (JSON API), live.py (WebSockets + call controls)
+    main.py, db.py, models.py, queries.py, seed.py, live_calls.py, escalations.py
+    routers/                     # patients.py, doctors.py, calls.py (JSON API), live.py (WebSockets + call controls),
+                                 # escalations.py (doctor WebSockets + join/end)
     pages.py                     # server-rendered dashboards
     templates/, static/
 
@@ -208,6 +217,60 @@ whole number of minutes chosen by the LLM. Doctor briefing on escalation is deli
 built here -- the doctor's role in the final product isn't settled, so `escalate_to_doctor` still
 only records the decision (see Chunk 4).
 
+### Doctor escalation flow (text chat) — **DONE**, verified by scripted runs; **awaiting user testing**
+Built ahead of voice (Chunk 4's doctor/caregiver logic, on the chat transport) so the flow is demoable
+now and maps onto a Daily room later. The flow:
+
+1. The agent escalates (LLM `escalate_to_doctor`, or the red-flag forced-action guardrail). The patient
+   hears a **fixed hand-off line** and is **held on the line** (their call is not ended: new generic
+   `AgentContext.hands_off_transport()` hook makes the runtime skip `transport.end()`).
+2. The patient's doctor(s) get an **incoming call** on their dashboard, pushed over `/ws/doctors/<id>`:
+   patient name + id only (like a phone ringing), pulsing card, **Join call** button. First doctor to
+   join wins (claimed before any `await`); others' cards clear.
+3. Join opens `/doctors/<id>/escalations/<esc_id>`: a **private chat between the doctor and the agent**
+   (patient still on hold). The agent (`domains/med_adherence/doctor_agent.py`, same core runtime /
+   policy engine / guardrail pipeline, its own tool registry + states) sends a brief written from the
+   records (patient, allergies, prescription, today's transcript, recent doses/logs, escalation reason),
+   answers the doctor's questions from those records only ("not recorded" otherwise), and asks whether
+   to merge.
+4. The doctor says merge -> the agent calls `merge_call`. **Guardrail:** `merge_call` requires
+   `doctor_confirmation_quote`, which must be words from the doctor's *latest actual message* -- the LLM
+   can't merge on its own or on a mere question (no keyword-list NLU). Then the patient's chat
+   unlocks; doctor and patient talk directly (relayed by `backend/escalations.py`, not the LLM). The agent
+   stays on the line, silent, and the patient is told it stays on to take notes.
+5. Either side ends (doctor **End call**, or operator **End call**). The agent summarises the merged
+   conversation (`Concern / Doctor's instructions / Follow-up`) into `Escalation.summary` and the call log
+   (`escalation_summary`); the whole thing (briefing Q&A, merge, relay, summary) is in the call log,
+   tagged by `channel`.
+6. **Caregiver** is notified automatically on escalation (`domains/med_adherence/caregiver.py`, called
+   from `escalate_to_doctor` -- deliberately *not* an LLM-callable tool, so the agent can't skip or spam
+   it): a `CaregiverNotification` record shown on the patient/family page and `Call.caregiver_notified`.
+   Respects `Caregiver.notify_on`. Delivery is simulated (no SMS/WhatsApp).
+
+Other paths handled: no doctor assigned to the patient (patient told the hospital will follow up,
+call ends, escalation `abandoned`); operator ends the call while ringing or during the briefing
+(`abandoned`, patient told, ring cards cleared, late join -> 410); doctor rejoin/reload (snapshot
+resend); patient replies while on hold are dropped; escalations still open at server start are marked
+`abandoned` (`escalations.abandon_stale`).
+
+**Bug found and fixed during testing:** the LLM-written hand-off line came out as medical advice
+("go to the hospital right away...") -- the exact thing the no-advice rule forbids -- and the phrase-list
+guardrail missed it. The hand-off line is now decided in code (`_fixed_handoff_line` text guardrail,
+`HANDOFF_LINE_*` in `prompts.py`), Hinglish or English by the patient's language.
+
+Verified against the live LLM (Gemini) over the real WebSockets in an isolated `voicemitra_test` DB
+(since dropped): full happy path, operator-ends-while-ringing, doctor-leaves-during-briefing (a "wait,
+what dose is he on" question did not trigger a merge), no-doctor patient, 403 for a non-assigned
+doctor, 410 for a late join; unit checks for the `merge_call` guardrail and the doctor policy. The new
+pages' inline JS was syntax-checked (`node --check`) but **not exercised in a real browser**.
+
+Known limits (POC): no ring timeout (a patient stays on hold until a doctor joins or the operator ends
+the call); live state is in-process (a restart drops open escalations); the brief and the summary are
+LLM-written from the records with only prompt + a diagnosis/dosage-phrase check behind them (a summary
+can miss a follow-up the doctor mentioned, e.g. "I'll call the hospital"); doctors aren't
+authenticated; the caregiver is told on escalation whether or not a doctor ever connects; the
+`unreachable` caregiver trigger (patient never answers) isn't built.
+
 ### Chunk 3 — Voice transport swap-in — **NOT STARTED**
 Plan: `core/providers/stt.py` + `tts.py` (Sarvam wiring), `core/transport/daily_transport.py`
 (wrapping Pipecat's `DailyTransport`), `backend/daily_client.py` + `bot_runner.py` + trigger
@@ -215,12 +278,13 @@ endpoint, patient call page embedding Daily's prebuilt UI, `domains/med_adherenc
 with a Daily-transport entrypoint alongside the existing chat one. No changes expected to
 `core/agent/policy.py`, `guardrails.py`, or `domains/med_adherence/tools.py`/`policy_states.py`.
 
-### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **NOT STARTED**
-Plan: `domains/med_adherence/escalation_rules.py` extended with the mandatory-escalation guardrail
-override tied to real doctor notification (currently `escalate_to_doctor` only records the
-decision — see `domains/med_adherence/tools.py`), `notify_caregiver` tool, doctor dashboard
-extended with live "Join Call" into the same Daily room, caregiver-notification recording for both
-"unreachable" and "escalation" triggers.
+### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **PARTLY DONE**
+Done (see "Doctor escalation flow (text chat)" above): rings the doctor's dashboard, private doctor<->agent
+briefing, confirmed merge, agent listening + summary, caregiver notification record, doctor dashboard
+queue. `escalate_to_doctor` still doesn't dial anyone by phone -- that's the voice part.
+Remaining, after Chunk 3: carry the same states onto a **Daily room** (doctor's Join call joins the
+patient's room instead of a text relay; the agent transcribes both speakers for the summary), the
+`unreachable` caregiver trigger, and a real delivery channel for caregiver alerts if wanted.
 
 ### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED**
 Plan: tighten symptom-extraction tool schema, build `eval/scenarios/` (reference-derived +

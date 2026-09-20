@@ -145,7 +145,8 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
         context.observe_user_text(user_text)
         messages.append({"role": "user", "content": user_text})
 
-    await transport.end()
+    if not context.hands_off_transport():
+        await transport.end()
 
 
 async def _run_tool(

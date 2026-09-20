@@ -130,3 +130,36 @@ button.secondary:hover { background: #d3d7de; }
 .chat-msg.agent { align-self: flex-start; background: #eef0f3; }
 .chat-msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
 [hidden] { display: none !important; }
+
+.chat-log.tall { max-height: 460px; min-height: 200px; }
+.chat-msg.doctor { align-self: flex-start; background: #dcfce7; }
+.chat-msg.patient { align-self: flex-start; background: #fef3c7; }
+.chat-msg.system { align-self: center; max-width: 90%; background: none; color: var(--muted); font-size: 0.8rem; font-style: italic; text-align: center; }
+.chat-msg .who { font-size: 0.72rem; font-weight: 600; opacity: 0.7; margin-bottom: 2px; }
+.chat-msg.user .who { color: #fff; }
+.hold-note { background: #fef3c7; border: 1px solid #fcd34d; color: #78350f; padding: 8px 12px; border-radius: 8px; margin: 0; }
+
+.meta { color: var(--muted); font-size: 0.75rem; }
+.summary-text { white-space: pre-wrap; }
+.summary-snippet { color: var(--muted); font-size: 0.8rem; white-space: pre-wrap; margin-top: 4px; }
+
+.incoming-call {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #fee2e2;
+  border: 2px solid var(--urgent);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  animation: ring 1.2s ease-in-out infinite;
+}
+.incoming-call button { background: var(--good); font-weight: 600; padding: 10px 22px; }
+.incoming-call button:hover { background: #15803d; }
+.incoming-call .ring-error { color: var(--urgent); font-size: 0.85rem; }
+@keyframes ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); } 50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); } }
+
+.log-entry.doctor_said { border-left: 3px solid var(--good); padding-left: 10px; }
+.log-entry.escalation_summary { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; }
+.log-entry.escalation_event { color: var(--muted); font-style: italic; }

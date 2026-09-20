@@ -17,6 +17,16 @@ WRAP_UP_TOOLS = frozenset({"update_daily_log", "escalate_to_doctor"})
 
 
 @dataclass
+class EscalationRequest:
+    """What the agent decided to escalate, kept so the host can bring a doctor in once the
+    patient has heard the hand-off line."""
+
+    reason: str
+    brief_summary: str
+    urgency: str = "high"
+
+
+@dataclass
 class CallContext(AgentContext):
     patient_id: str
     call_id: str
@@ -28,6 +38,8 @@ class CallContext(AgentContext):
     mentioned_red_flag: bool = False
     red_flag_reason: str | None = None
     escalated: bool = False
+    escalation: EscalationRequest | None = None
+    handoff_line_sent: bool = False
     wrapping_up: bool = False  # the call ends right after the next agent message
     patient_language: Language | None = None  # of their most recent message that could be told
     log_entries: list[CallLogEntry] = field(default_factory=list)
@@ -57,6 +69,10 @@ class CallContext(AgentContext):
             return ("\n\n[This turn] The patient is writing in a language we don't support. Reply "
                     f"with exactly this and nothing else: {UNSUPPORTED_LANGUAGE_LINE}")
         return ""
+
+    def hands_off_transport(self) -> bool:
+        # An escalated patient isn't hung up on: they're held on the line while a doctor is brought in.
+        return self.escalation is not None
 
     def record_user_text(self, text: str) -> None:
         self.log_entries.append(CallLogEntry(type=CallLogEntryType.patient_said, content=text))

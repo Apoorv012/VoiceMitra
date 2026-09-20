@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Call: {{ patient.name }} - VoiceMitra{% endblock %}
+{% block content %}
+<p><a href="/doctors/{{ doctor.id }}">&larr; back to dashboard</a></p>
+
+<h1>Call &mdash; {{ patient.name }}</h1>
+<p class="subtitle">Patient id {{ patient.id }} &middot; {{ patient.age }} years old &middot;
+  <a href="/doctors/{{ doctor.id }}/patients/{{ patient.id }}" target="_blank" rel="noopener">patient record &nearr;</a></p>
+
+<div class="escalation-banner" id="status-line">Connecting&hellip;</div>
+
+<div class="card">
+  <div id="call-log" class="chat-log tall"></div>
+  <form id="call-form" class="inline-form" autocomplete="off" hidden>
+    <input id="call-input" placeholder="Ask VoiceMitra about the case" maxlength="2000" style="flex:1" required>
+    <button type="submit">Send</button>
+  </form>
+  <p style="margin-bottom:0">
+    <button type="button" id="end-btn" class="secondary" hidden>End call</button>
+  </p>
+</div>
+
+<div class="card" id="summary-card" hidden>
+  <h2 style="margin-top:0">Call summary</h2>
+  <div id="summary-text" class="summary-text"></div>
+</div>
+<p><a href="/calls/{{ escalation.call_id }}">Full call log (transcript, briefing, tool calls) &rarr;</a></p>
+
+<script>
+(function () {
+  const patientName = {{ patient.name|tojson }};
+  const escalationId = {{ escalation.id|tojson }};
+  const statusLine = document.getElementById("status-line");
+  const log = document.getElementById("call-log");
+  const form = document.getElementById("call-form");
+  const input = document.getElementById("call-input");
+  const endBtn = document.getElementById("end-btn");
+  const summaryCard = document.getElementById("summary-card");
+  const summaryText = document.getElementById("summary-text");
+
+  const STATUS_TEXT = {
+    briefing: "Private line with VoiceMitra — " + patientName + " is on hold. Ask anything, then tell it to merge.",
+    merged: "Merged — you're talking to " + patientName + ". VoiceMitra is listening and taking notes.",
+    summarising: "Call ended. VoiceMitra is writing the summary…",
+    resolved: "Call ended.",
+    abandoned: "Call ended before it was merged with the patient.",
+  };
+  const WHO = {agent: "VoiceMitra", user: "You", patient: patientName};
+
+  let ws = null;
+  let shown = 0;
+  let retryMs = 500;
+  let ended = false;
+
+  function addMessage(m) {
+    if (m.index < shown) return;  // snapshot and live events can overlap
+    const div = document.createElement("div");
+    div.className = "chat-msg " + m.role;
+    if (WHO[m.role]) {
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = WHO[m.role];
+      div.appendChild(who);
+    }
+    div.appendChild(document.createTextNode(m.text));  // text node, never innerHTML: it's untrusted
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    shown = m.index + 1;
+  }
+
+  function setStatus(status, summary) {
+    statusLine.textContent = STATUS_TEXT[status] || status;
+    ended = ["summarising", "resolved", "abandoned"].includes(status);
+    form.hidden = ended;
+    endBtn.hidden = ended;
+    input.placeholder = status === "merged" ? "Message to " + patientName : "Ask VoiceMitra about the case";
+    if (summary) {
+      summaryText.textContent = summary;
+      summaryCard.hidden = false;
+    }
+  }
+
+  function onEvent(e) {
+    if (e.type === "snapshot") {
+      e.messages.forEach(addMessage);
+      setStatus(e.status, e.summary);
+    } else if (e.type === "message") {
+      addMessage(e);
+    } else if (e.type === "status") {
+      setStatus(e.status, e.summary);
+    } else if (e.type === "gone") {
+      ended = true;
+      statusLine.textContent = "This call is no longer live.";
+    }
+  }
+
+  function connect() {
+    if (ended) return;
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host +
+                       "/ws/escalations/" + escalationId);
+    ws.onopen = () => { retryMs = 500; };
+    ws.onmessage = (ev) => onEvent(JSON.parse(ev.data));
+    ws.onclose = () => {
+      setTimeout(connect, retryMs);
+      retryMs = Math.min(retryMs * 2, 10000);
+    };
+  }
+
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({type: "reply", text}));
+    input.value = "";  // our own message comes back as a "message" event
+  });
+
+  endBtn.addEventListener("click", async () => {
+    endBtn.disabled = true;
+    await fetch("/api/escalations/" + escalationId + "/end", {method: "POST"});
+  });
+
+  connect();
+})();
+</script>
+{% endblock %}

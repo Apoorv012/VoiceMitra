@@ -14,22 +14,31 @@
   {% else %}-{% endif %}
 </p>
 {% if call.escalation_reason %}
-<div class="escalation-banner">Escalated: {{ call.escalation_reason }}</div>
+<div class="escalation-banner">Escalated: {{ call.escalation_reason }}{% if call.caregiver_notified %} &middot; caregiver notified{% endif %}</div>
 {% endif %}
 
 <div class="card">
   <h2 style="margin-top:0">Transcript &amp; tool calls</h2>
   {% if call.logs %}
     {% for entry in call.logs %}
+      {% set leg = {'doctor_briefing': 'doctor briefing', 'merged': 'merged call'}.get(entry.channel) %}
       {% if entry.type == 'patient_said' %}
-      <div class="log-entry patient_said"><span class="meta">{{ entry.timestamp }} &middot; patient</span><br>{{ entry.content }}</div>
+      <div class="log-entry patient_said"><span class="meta">{{ entry.timestamp }} &middot; patient{% if leg %} &middot; {{ leg }}{% endif %}</span><br>{{ entry.content }}</div>
       {% elif entry.type == 'agent_said' %}
-      <div class="log-entry agent_said"><span class="meta">{{ entry.timestamp }} &middot; agent</span><br>{{ entry.content }}</div>
+      <div class="log-entry agent_said"><span class="meta">{{ entry.timestamp }} &middot; agent{% if leg %} &middot; {{ leg }}{% endif %}</span><br>{{ entry.content }}</div>
+      {% elif entry.type == 'doctor_said' %}
+      <div class="log-entry doctor_said"><span class="meta">{{ entry.timestamp }} &middot; doctor{% if leg %} &middot; {{ leg }}{% endif %}</span><br>{{ entry.content }}</div>
       {% elif entry.type == 'tool_call' %}
       <div class="log-entry tool_call">
-        <div class="meta">{{ entry.timestamp }} &middot; tool call{% if entry.note %} &middot; {{ entry.note }}{% endif %}</div>
+        <div class="meta">{{ entry.timestamp }} &middot; tool call{% if leg %} &middot; {{ leg }}{% endif %}{% if entry.note %} &middot; {{ entry.note }}{% endif %}</div>
         <div><strong>{{ entry.tool_name }}</strong>({{ entry.tool_args }}) &rarr; {{ entry.tool_result }}</div>
       </div>
+      {% elif entry.type == 'escalation_summary' %}
+      <div class="log-entry escalation_summary"><div class="meta">{{ entry.timestamp }} &middot; summary of the doctor&ndash;patient call{% if entry.note %} &middot; {{ entry.note }}{% endif %}</div>{{ entry.content }}</div>
+      {% elif entry.type == 'escalation_call_started' %}
+      <div class="log-entry escalation_event"><span class="meta">{{ entry.timestamp }}</span> &middot; doctor rung: {{ entry.note }}</div>
+      {% elif entry.type == 'escalation_call_merged' %}
+      <div class="log-entry escalation_event"><span class="meta">{{ entry.timestamp }}</span> &middot; {{ entry.note }}</div>
       {% else %}
       <div class="log-entry"><span class="meta">{{ entry.timestamp }} &middot; {{ entry.type }}</span><br>{{ entry.related_call_id or entry.note }}</div>
       {% endif %}

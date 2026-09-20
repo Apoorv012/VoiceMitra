@@ -22,7 +22,8 @@ from core.transport.queue_transport import Message, QueueTransport
 from domains.med_adherence.bot import PatientNotReady, create_call_session, run_call_session
 
 __all__ = [
-    "LiveCall", "PatientNotReady", "active_patient_ids", "get_live_call", "rearm_pending_reminders",
+    "LiveCall", "PatientNotReady", "active_patient_ids", "end_call", "finish_call", "get_live_call",
+    "publish_operator", "publish_patient", "rearm_pending_reminders", "set_escalation_state",
     "snapshot_patient", "start_call", "subscribe_operator", "subscribe_patient",
     "unsubscribe_operator", "unsubscribe_patient",
 ]
@@ -40,6 +41,11 @@ class LiveCall:
     call_id: str
     transport: QueueTransport
     task: asyncio.Task
+    # Set once the agent has escalated: the patient's line stays open (held, then merged with the
+    # doctor) and backend/escalations.py drives it from there.
+    escalation_id: str | None = None
+    escalation_status: str | None = None
+    escalation_doctor: str | None = None
 
     @property
     def active(self) -> bool:
@@ -78,12 +84,12 @@ def unsubscribe_operator(queue: asyncio.Queue) -> None:
     _operator_subs.discard(queue)
 
 
-def _publish_patient(patient_id: str, event: dict) -> None:
+def publish_patient(patient_id: str, event: dict) -> None:
     for queue in _patient_subs.get(patient_id, ()):
         queue.put_nowait(event)
 
 
-def _publish_operator(event: dict) -> None:
+def publish_operator(event: dict) -> None:
     for queue in _operator_subs:
         queue.put_nowait(event)
 
@@ -93,13 +99,39 @@ def _publish_operator(event: dict) -> None:
 def snapshot_patient(patient_id: str) -> dict:
     live = _live_calls.get(patient_id)
     if live is None:
-        return {"type": "snapshot", "call_id": None, "active": False, "messages": []}
+        return {"type": "snapshot", "call_id": None, "active": False, "messages": [], "escalation": None}
     return {
         "type": "snapshot",
         "call_id": live.call_id,
         "active": live.active,
         "messages": [asdict(m) for m in live.transport.messages],
+        "escalation": _escalation_event(live) if live.escalation_status else None,
     }
+
+
+def _escalation_event(live: LiveCall) -> dict:
+    return {
+        "type": "escalation",
+        "call_id": live.call_id,
+        "status": live.escalation_status,
+        "doctor_name": live.escalation_doctor,
+    }
+
+
+def set_escalation_state(
+    patient_id: str, status: str, *, escalation_id: str | None = None, doctor_name: str | None = None
+) -> None:
+    """Record where the patient's escalated call has got to (ringing / briefing / merged) and tell
+    their page, so it can show the hold notice or let them talk to the doctor."""
+    live = _live_calls.get(patient_id)
+    if live is None:
+        return
+    live.escalation_status = status
+    if escalation_id is not None:
+        live.escalation_id = escalation_id
+    if doctor_name is not None:
+        live.escalation_doctor = doctor_name
+    publish_patient(patient_id, _escalation_event(live))
 
 
 def get_live_call(patient_id: str) -> LiveCall | None:
@@ -123,7 +155,7 @@ async def start_call(patient_id: str) -> LiveCall:
     call_id = session.call.id
 
     def on_message(message: Message) -> None:
-        _publish_patient(patient_id, {"type": "message", "call_id": call_id, **asdict(message)})
+        publish_patient(patient_id, {"type": "message", "call_id": call_id, **asdict(message)})
 
     transport = QueueTransport(on_message=on_message)
     task = asyncio.create_task(_run(patient_id, call_id, session, transport))
@@ -131,22 +163,50 @@ async def start_call(patient_id: str) -> LiveCall:
 
     # No await between create_task and here, so the session can't have produced a message yet:
     # subscribers always see call_started before the first message.
-    _publish_patient(patient_id, {"type": "call_started", "call_id": call_id})
-    _publish_operator({"type": "call_started", "patient_id": patient_id})
+    publish_patient(patient_id, {"type": "call_started", "call_id": call_id})
+    publish_operator({"type": "call_started", "patient_id": patient_id})
     return _live_calls[patient_id]
 
 
 async def _run(patient_id: str, call_id: str, session, transport: QueueTransport) -> None:
+    handed_off = False
     try:
         await run_call_session(session, transport)
+        if session.context.escalation is not None:
+            # Imported here: escalations.py itself builds on this module.
+            from backend import escalations
+
+            await escalations.begin(patient_id, session.patient.name, call_id, session.context.escalation)
+            handed_off = True  # the patient stays on the line; escalations.py ends the call
     except Exception:
         log.exception("call %s crashed", call_id)
         await transport.send_text("Sorry, something went wrong on our side. We'll try again shortly.")
     finally:
-        # run_chat_session only reaches transport.end() on a clean exit.
-        await transport.end()
-        _publish_patient(patient_id, {"type": "call_ended", "call_id": call_id})
-        _publish_operator({"type": "call_ended", "patient_id": patient_id})
+        # run_chat_session only reaches transport.end() on a clean exit, and skips it on hand-off.
+        if not handed_off:
+            await finish_call(patient_id, call_id)
+
+
+async def finish_call(patient_id: str, call_id: str) -> None:
+    """Hang up on the patient and tell their page and the operator dashboard."""
+    live = _live_calls.get(patient_id)
+    if live is not None and live.call_id == call_id:
+        await live.transport.end()
+    publish_patient(patient_id, {"type": "call_ended", "call_id": call_id})
+    publish_operator({"type": "call_ended", "patient_id": patient_id})
+
+
+async def end_call(patient_id: str) -> None:
+    """The operator's End call: closes the conversation, or the doctor leg if the call has escalated."""
+    live = _live_calls.get(patient_id)
+    if live is None or not live.active:
+        return
+    if live.escalation_id is not None:
+        from backend import escalations
+
+        await escalations.end(live.escalation_id, by="operator")
+    else:
+        live.transport.hang_up()
 
 
 # --- reminders -----------------------------------------------------------------------------

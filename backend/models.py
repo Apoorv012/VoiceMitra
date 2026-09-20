@@ -96,6 +96,8 @@ class CallLogEntryType(str, Enum):
     tool_call = "tool_call"
     escalation_call_started = "escalation_call_started"  # agent dialed the doctor separately
     escalation_call_merged = "escalation_call_merged"    # doctor's call merged into the patient's
+    doctor_said = "doctor_said"                          # doctor's message, in the briefing or merged
+    escalation_summary = "escalation_summary"            # agent's summary of the merged conversation
 
 
 # ---------------------------------------------------------------------------
@@ -174,8 +176,11 @@ class CallLogEntry(BaseModel):
     tool_name: str | None = None              # for tool_call
     tool_args: dict | None = None             # for tool_call
     tool_result: dict | None = None           # for tool_call
-    related_call_id: str | None = None        # for escalation_call_started / _merged
+    related_call_id: str | None = None        # for escalation_call_started / _merged (the escalation's id)
     note: str | None = None                   # e.g. "guardrail override: <reason>"
+    # Which leg of an escalated call an entry belongs to: None = the patient's own conversation with
+    # the agent, "doctor_briefing" = doctor <-> agent (patient on hold), "merged" = doctor + patient.
+    channel: str | None = None
 
 
 class Call(MongoDocument):
@@ -189,6 +194,44 @@ class Call(MongoDocument):
     escalation_reason: str | None = None
     caregiver_notified: bool = False
     room_url: str | None = None
+
+
+class EscalationStatus(str, Enum):
+    ringing = "ringing"      # doctor(s) notified, nobody has joined yet; patient on hold
+    briefing = "briefing"    # a doctor joined and is talking to the agent; patient still on hold
+    merged = "merged"        # doctor and patient are talking; the agent listens and takes notes
+    resolved = "resolved"    # ended after a merge, summary recorded
+    abandoned = "abandoned"  # ended (or the server restarted) before the doctor and patient were merged
+
+
+class Escalation(MongoDocument):
+    """The doctor leg of an escalated call: rung, briefed, merged, summarised."""
+
+    patient_id: str
+    call_id: str
+    reason: str
+    brief_summary: str
+    urgency: str = "high"
+    doctor_ids: list[str] = Field(default_factory=list)  # doctors rung (those the patient is assigned to)
+    doctor_id: str | None = None                          # the one who joined
+    status: EscalationStatus = EscalationStatus.ringing
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    joined_at: datetime | None = None
+    merged_at: datetime | None = None
+    ended_at: datetime | None = None
+    summary: str | None = None
+
+
+class CaregiverNotification(MongoDocument):
+    """An alert to a patient's caregiver. Delivery is simulated for the POC: the record (shown on the
+    patient/family page) is the notification."""
+
+    patient_id: str
+    caregiver_id: str
+    call_id: str
+    trigger: CaregiverNotifyOn
+    message: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ReminderStatus(str, Enum):

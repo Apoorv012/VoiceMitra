@@ -13,6 +13,10 @@ know anything about conversation transcripts, persistence, or domain state shape
 - prompt_suffix: asked for on every LLM call; whatever it returns is appended to the end of that
   call's system prompt (the position models weigh most). For per-turn instructions the domain
   derives from conversation state, e.g. "reply in the language the patient just used".
+- hands_off_transport: asked once when the session loop finishes; True means the session is over
+  but the transport must stay open because whoever hosts the call carries on with it (e.g. the
+  patient is held on the line while a doctor is brought in). The runtime then skips `transport.end()`
+  and the host becomes responsible for ending it.
 """
 
 from __future__ import annotations
@@ -35,3 +39,6 @@ class AgentContext:
 
     def prompt_suffix(self) -> str:
         return ""
+
+    def hands_off_transport(self) -> bool:
+        return False

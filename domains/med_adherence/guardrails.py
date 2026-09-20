@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from core.agent.guardrails import ForcedAction, GuardrailPipeline, GuardrailViolation
 from domains.med_adherence.context import CallContext
+from domains.med_adherence.prompts import HANDOFF_LINE_ENGLISH, HANDOFF_LINE_HINGLISH
 
 DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES = [
     "dosage badha", "dosage kam", "dawai band kar do", "dawai badal do", "dose double",
@@ -22,6 +23,14 @@ ADVICE_OR_REASSURANCE_PHRASES = [
     "will be fine", "don't worry", "do not worry", "chinta mat", "chinta ki koi baat nahi",
     "ghabraiye mat", "ghabrao mat",
 ]
+
+
+def _fixed_handoff_line(text: str, context: CallContext) -> str:
+    """The first thing said after escalating is always the fixed hand-off line, whatever the model wrote."""
+    if context.escalation is None or context.handoff_line_sent:
+        return text
+    context.handoff_line_sent = True
+    return HANDOFF_LINE_ENGLISH if context.patient_language == "english" else HANDOFF_LINE_HINGLISH
 
 
 def _no_dosage_change_or_diagnosis(text: str, context: CallContext) -> str:
@@ -102,6 +111,7 @@ def _forced_escalation(context: CallContext) -> ForcedAction | None:
 
 def build_guardrails() -> GuardrailPipeline:
     pipeline = GuardrailPipeline()
+    pipeline.add_text_check(_fixed_handoff_line)
     pipeline.add_text_check(_no_dosage_change_or_diagnosis)
     pipeline.add_text_check(_no_question_when_wrapping_up)
     pipeline.add_tool_call_check(_no_severe_symptom_without_escalation)

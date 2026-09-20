@@ -14,12 +14,15 @@ from backend.db import (
     caregivers_col,
     doc_to_model,
     doctors_col,
+    escalations_col,
     model_to_doc,
     patients_col,
     prescriptions_col,
 )
 from backend.live_calls import get_live_call
-from backend.models import Call, Caregiver, Doctor, DoseFrequency, Dosage, Patient, Prescription
+from backend.models import (
+    Call, Caregiver, Doctor, DoseFrequency, Dosage, Escalation, Patient, Prescription,
+)
 from backend.queries import (
     get_doctor_bundle,
     get_patient_bundle,
@@ -178,6 +181,19 @@ async def doctor_dashboard(request: Request, doctor_id: str):
         "patient_names": patient_names,
     }
     return templates.TemplateResponse(request, "doctor_dashboard.html", context)
+
+
+@router.get("/doctors/{doctor_id}/escalations/{escalation_id}")
+async def doctor_escalation_call(request: Request, doctor_id: str, escalation_id: str):
+    """The doctor's side of an escalated call: chat with the agent, then with the patient."""
+    doctor = doc_to_model(Doctor, await doctors_col().find_one({"_id": doctor_id}))
+    escalation = doc_to_model(Escalation, await escalations_col().find_one({"_id": escalation_id}))
+    if doctor is None or escalation is None or doctor_id not in escalation.doctor_ids:
+        raise HTTPException(status_code=404, detail="call not found")
+    patient = doc_to_model(Patient, await patients_col().find_one({"_id": escalation.patient_id}))
+    return templates.TemplateResponse(request, "escalation_call.html", {
+        "doctor": doctor, "escalation": _dump(escalation), "patient": patient,
+    })
 
 
 @router.get("/doctors/{doctor_id}/patients/{patient_id}")

@@ -9,6 +9,13 @@ UNSUPPORTED_LANGUAGE_LINE = (
 )
 
 
+# What the patient hears when the agent escalates. Fixed, not LLM-written: left to the model, this
+# one line came out as medical advice ("go to the hospital right away") in the very situation where
+# the no-advice rule matters most, and the phrase-list guardrail can't catch every wording.
+HANDOFF_LINE_HINGLISH = "Main abhi aapko doctor se connect kar raha hun. Kripya line par bane rahiye."
+HANDOFF_LINE_ENGLISH = "I'm connecting you to the doctor now. Please stay on the line."
+
+
 def build_base_system_prompt(
     *, patient_name: str, medicine_name: str, medicine_dosage: str, allergies: list[str],
     now_local: str,

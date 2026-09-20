@@ -47,6 +47,12 @@ class QueueTransport(Transport):
         self._append("user", text)
         self._inbox.put_nowait(text)
 
+    def add_message(self, role: str, text: str) -> None:
+        """Show a message that isn't part of the agent<->user turn loop (nothing reads it back):
+        a third party's line, or a system notice."""
+        if not self.ended:
+            self._append(role, text)
+
     def hang_up(self) -> None:
         """Ask the session to finish: unblocks a pending `receive_text` with None."""
         self._inbox.put_nowait(None)

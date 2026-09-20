@@ -29,6 +29,18 @@
   {% endif %}
 </div>
 
+{% if caregiver_notifications %}
+<div class="card">
+  <h2 style="margin-top:0">Alerts sent to caregiver</h2>
+  {% for n in caregiver_notifications %}
+  <div class="log-entry">
+    <div class="meta">{{ n.created_at }}{% if caregiver %} &middot; to {{ caregiver.name }} ({{ caregiver.relation }}){% endif %} &middot; <a href="/calls/{{ n.call_id }}">call log</a></div>
+    <div>{{ n.message }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card">
   <h2 style="margin-top:0">Prescriptions</h2>
   {% if prescriptions %}

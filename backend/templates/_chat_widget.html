@@ -1,6 +1,7 @@
 <div class="card" id="chat-card" hidden>
   <h2 style="margin-top:0">Call with VoiceMitra</h2>
   <div id="chat-log" class="chat-log"></div>
+  <p id="chat-hold" class="hold-note" hidden></p>
   <form id="chat-form" class="inline-form" autocomplete="off">
     <input id="chat-input" name="text" placeholder="Type your reply" maxlength="2000" style="flex:1" required>
     <button type="submit">Send</button>
@@ -14,18 +15,26 @@
   const log = document.getElementById("chat-log");
   const form = document.getElementById("chat-form");
   const input = document.getElementById("chat-input");
+  const holdNote = document.getElementById("chat-hold");
   const endedNote = document.getElementById("chat-ended");
 
   let ws = null;
   let callId = null;
   let shown = 0;  // messages already rendered; the server numbers them from 0
   let retryMs = 500;
+  let doctorName = "Doctor";
 
   function addMessage(m) {
     if (m.index < shown) return;  // already have it (snapshot and live events can overlap)
     const div = document.createElement("div");
     div.className = "chat-msg " + m.role;
-    div.textContent = m.text;  // textContent, never innerHTML: the text is untrusted
+    if (m.role === "doctor") {
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = doctorName;
+      div.appendChild(who);
+    }
+    div.appendChild(document.createTextNode(m.text));  // text node, never innerHTML: it's untrusted
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
     shown = m.index + 1;
@@ -37,24 +46,46 @@
     log.replaceChildren();
     card.hidden = false;
     form.hidden = false;
+    holdNote.hidden = true;
     endedNote.hidden = true;
   }
 
   function endCall() {
     form.hidden = true;
+    holdNote.hidden = true;
     endedNote.hidden = false;
+  }
+
+  // The agent has handed the call to a doctor: the patient is held until the doctor is merged in,
+  // and can only type once they have been.
+  function applyEscalation(e) {
+    if (e.doctor_name) doctorName = e.doctor_name;
+    if (e.status === "merged") {
+      form.hidden = false;
+      holdNote.hidden = true;
+      input.placeholder = "Message to " + doctorName;
+    } else {
+      form.hidden = true;
+      holdNote.hidden = false;
+      holdNote.textContent = e.status === "briefing"
+        ? doctorName + " has picked up and is being briefed. Please hold."
+        : "Connecting you to the doctor. Please hold.";
+    }
   }
 
   function onEvent(e) {
     if (e.type === "snapshot") {
       if (!e.call_id) { card.hidden = true; callId = null; return; }
       startCall(e.call_id);
+      if (e.escalation) applyEscalation(e.escalation);
       e.messages.forEach(addMessage);
       if (!e.active) endCall();
     } else if (e.type === "call_started") {
       startCall(e.call_id);
     } else if (e.type === "message" && e.call_id === callId) {
       addMessage(e);
+    } else if (e.type === "escalation" && e.call_id === callId) {
+      applyEscalation(e);
     } else if (e.type === "call_ended" && e.call_id === callId) {
       endCall();
     }

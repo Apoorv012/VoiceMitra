@@ -6,11 +6,13 @@ from __future__ import annotations
 
 from backend.db import (
     calls_col,
+    caregiver_notifications_col,
     caregivers_col,
     daily_logs_col,
     doc_to_model,
     doctors_col,
     dose_events_col,
+    escalations_col,
     patients_col,
     prescriptions_col,
     reminders_col,
@@ -18,9 +20,11 @@ from backend.db import (
 from backend.models import (
     Call,
     Caregiver,
+    CaregiverNotification,
     DailyLog,
     Doctor,
     DoseEvent,
+    Escalation,
     Patient,
     Prescription,
     Reminder,
@@ -60,9 +64,15 @@ async def get_patient_bundle(patient_id: str) -> dict | None:
         ).sort("remind_at", 1)
     ]
 
+    caregiver_notifications = [
+        doc_to_model(CaregiverNotification, d)
+        async for d in caregiver_notifications_col().find({"patient_id": patient_id}).sort("created_at", -1)
+    ]
+
     return {
         "patient": patient,
         "caregiver": caregiver,
+        "caregiver_notifications": caregiver_notifications,
         "prescriptions": prescriptions,
         "dose_events": dose_events,
         "daily_logs": daily_logs,
@@ -96,11 +106,8 @@ async def get_doctor_bundle(doctor_id: str) -> dict | None:
         async for d in patients_col().find({"_id": {"$in": doctor.patient_ids}})
     ]
     escalations = [
-        doc_to_model(Call, d)
-        async for d in calls_col().find({
-            "patient_id": {"$in": doctor.patient_ids},
-            "escalation_reason": {"$ne": None},
-        }).sort("date_time", -1)
+        doc_to_model(Escalation, d)
+        async for d in escalations_col().find({"doctor_ids": doctor_id}).sort("created_at", -1)
     ]
 
     return {"doctor": doctor, "patients": patients, "escalations": escalations}
