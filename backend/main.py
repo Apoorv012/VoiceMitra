@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -15,7 +16,15 @@ from backend.live_calls import rearm_pending_reminders
 from backend.routers import calls, doctors, live, patients
 from backend.routers import escalations as escalation_routes
 
-app = FastAPI(title="VoiceMitra")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await ensure_indexes()
+    await escalations.abandon_stale()
+    await rearm_pending_reminders()
+    yield
+
+
+app = FastAPI(title="VoiceMitra", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
 app.include_router(patients.router)
@@ -24,13 +33,6 @@ app.include_router(calls.router)
 app.include_router(live.router)
 app.include_router(escalation_routes.router)
 app.include_router(pages.router)
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    await ensure_indexes()
-    await escalations.abandon_stale()
-    await rearm_pending_reminders()
 
 
 @app.get("/health")
