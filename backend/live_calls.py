@@ -17,12 +17,14 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 
 from backend.db import reminders_col
+from backend.livekit_client import create_call_room as create_livekit_room
 from backend.models import Reminder, ReminderStatus
 from core.transport.queue_transport import Message, QueueTransport
-from domains.med_adherence.bot import PatientNotReady, create_call_session, run_call_session
+from core.transport.livekit_transport import LiveKitTransport
+from domains.med_adherence.bot import PatientNotReady, create_call_session, run_call_session, run_voice_call
 
 __all__ = [
-    "LiveCall", "PatientNotReady", "active_patient_ids", "end_call", "finish_call", "get_live_call",
+    "LiveCall", "PatientNotReady", "VoiceCall", "start_voice_call", "active_patient_ids", "end_call", "finish_call", "get_live_call",
     "publish_operator", "publish_patient", "rearm_pending_reminders", "set_escalation_state",
     "snapshot_patient", "start_call", "subscribe_operator", "subscribe_patient",
     "unsubscribe_operator", "unsubscribe_patient",
@@ -52,7 +54,18 @@ class LiveCall:
         return not self.transport.ended
 
 
+@dataclass
+class VoiceCall:
+    """A call carried by a LiveKit room: the agent runs in-process (`task`), the patient's browser
+    joins with `patient_token`."""
+    call_id: str
+    room_url: str
+    patient_token: str
+    task: asyncio.Task
+
+
 _live_calls: dict[str, LiveCall] = {}
+_voice_calls: dict[str, VoiceCall] = {}
 _patient_subs: dict[str, set[asyncio.Queue]] = {}
 _operator_subs: set[asyncio.Queue] = set()
 _reminder_tasks: set[asyncio.Task] = set()
@@ -98,6 +111,10 @@ def publish_operator(event: dict) -> None:
 
 def snapshot_patient(patient_id: str) -> dict:
     live = _live_calls.get(patient_id)
+    voice = _voice_calls.get(patient_id)
+    if voice is not None:
+        return {"type": "snapshot", "call_id": None, "active": False, "messages": [], "escalation": None,
+                "voice": _voice_event(voice)}
     if live is None:
         return {"type": "snapshot", "call_id": None, "active": False, "messages": [], "escalation": None}
     return {
@@ -141,7 +158,7 @@ def get_live_call(patient_id: str) -> LiveCall | None:
 
 
 def active_patient_ids() -> list[str]:
-    return [pid for pid, live in _live_calls.items() if live.active]
+    return [pid for pid, live in _live_calls.items() if live.active] + list(_voice_calls)
 
 
 # --- calls ---------------------------------------------------------------------------------
@@ -196,8 +213,47 @@ async def finish_call(patient_id: str, call_id: str) -> None:
     publish_operator({"type": "call_ended", "patient_id": patient_id})
 
 
+def _voice_event(voice: VoiceCall) -> dict:
+    return {"type": "voice_call", "call_id": voice.call_id, "url": voice.room_url, "token": voice.patient_token}
+
+
+async def start_voice_call(patient_id: str) -> VoiceCall:
+    """Put the patient and the agent in a LiveKit room: the agent joins now (in-process), the
+    patient's page joins with the token it is sent."""
+    existing = _voice_calls.get(patient_id)
+    if existing is not None:
+        return existing
+    if (chat := _live_calls.get(patient_id)) is not None and chat.active:
+        raise PatientNotReady("patient is already in a chat call")
+    session = await create_call_session(patient_id)
+    call_id = session.call.id
+    room = create_livekit_room(f"call-{call_id}")
+    task = asyncio.create_task(_run_voice(patient_id, call_id, session, room))
+    voice = VoiceCall(call_id=call_id, room_url=room.url, patient_token=room.patient_token, task=task)
+    _voice_calls[patient_id] = voice
+    publish_patient(patient_id, _voice_event(voice))
+    publish_operator({"type": "call_started", "patient_id": patient_id})
+    return voice
+
+
+async def _run_voice(patient_id: str, call_id: str, session, room) -> None:
+    try:
+        await run_voice_call(session, LiveKitTransport(room.url, room.bot_token, room.name))
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        log.exception("voice call %s failed", call_id)
+    finally:
+        _voice_calls.pop(patient_id, None)
+        publish_patient(patient_id, {"type": "voice_call_ended", "call_id": call_id})
+        publish_operator({"type": "call_ended", "patient_id": patient_id})
+
+
 async def end_call(patient_id: str) -> None:
     """The operator's End call: closes the conversation, or the doctor leg if the call has escalated."""
+    if (voice := _voice_calls.get(patient_id)) is not None:
+        voice.task.cancel()  # _run_voice hangs up and announces the end
+        return
     live = _live_calls.get(patient_id)
     if live is None or not live.active:
         return

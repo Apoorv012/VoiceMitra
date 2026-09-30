@@ -16,3 +16,13 @@ Voice-first medicine-adherence agent. See `CLAUDE.md` for the architecture.
    you don't have one — no Docker setup here yet).
 4. Seed a demo patient/prescription: `python -m backend.seed`. It prints a patient id.
 5. Chat with the agent: `python -m domains.med_adherence.bot <patient_id>`
+
+## Try a voice call
+
+Voice uses a LiveKit room with Sarvam STT/TTS (all native, no Docker).
+
+1. Create a free project at https://cloud.livekit.io and put its URL (`wss://<project>.livekit.cloud`),
+   API key and API secret in `.env` as `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+2. `pip install -r requirements.txt`, start the backend (`uvicorn backend.main:app`).
+3. Open `/operator`, click **Voice call** for a patient, open that patient's window (`/patients/<id>`)
+   and allow the microphone.

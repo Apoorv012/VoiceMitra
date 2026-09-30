@@ -21,6 +21,7 @@ from backend.live_calls import (
     get_live_call,
     snapshot_patient,
     start_call,
+    start_voice_call,
     subscribe_operator,
     subscribe_patient,
     unsubscribe_operator,
@@ -114,3 +115,12 @@ async def start_patient_call(patient_id: str) -> None:
 @router.post("/api/patients/{patient_id}/call/end", status_code=204)
 async def end_patient_call(patient_id: str) -> None:
     await end_call(patient_id)
+
+
+@router.post("/api/patients/{patient_id}/voice-call", status_code=204)
+async def start_patient_voice_call(patient_id: str) -> None:
+    try:
+        await start_voice_call(patient_id)
+    except PatientNotReady as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

@@ -11,8 +11,10 @@ python-dotenv
 # Agent core (Chunk 2: Sarvam LLM via OpenAI-compatible client)
 openai
 
-# Voice agent (added in Chunk 3)
-pipecat-ai[daily,sarvam,openai]
+# Voice: Pipecat for audio I/O (Sarvam STT/TTS), LiveKit as the room. daily-python (the Daily transport)
+# is Linux-only and not needed.
+pipecat-ai[livekit,sarvam]
+livekit-api
 aiohttp
 
 # Eval harness (added in Chunk 5)

@@ -62,7 +62,7 @@
     if (!btn) return;
     showError("");
     btn.disabled = true;
-    const path = btn.dataset.action === "call" ? "/call" : "/call/end";
+    const path = {call: "/call", voice: "/voice-call", end: "/call/end"}[btn.dataset.action];
     const res = await fetch("/api/patients/" + btn.dataset.patientId + path, {method: "POST"});
     if (!res.ok) {
       btn.disabled = false;

@@ -40,7 +40,7 @@ Design constraints:
 
 ## Stack
 
-- **Voice pipeline**: Pipecat (Chunk 3+, not yet wired).
+- **Voice pipeline**: Pipecat (audio I/O only), with LiveKit as the room (Daily was dropped, see Chunk 3).
 - **STT/TTS**: Sarvam AI (`SarvamSTTService`/`SarvamTTSService`, built into Pipecat) — best
   Hindi/Hinglish quality, matches `reference_transcripts/` style.
 - **LLM (chat-completions)**: swappable via `LLM_PROVIDER` env var in `core/providers/llm.py` —
@@ -84,8 +84,8 @@ voicemitra/
   .env.example
 
   core/                          # transport-agnostic voice-agent runtime
-    transport/                   # base.py (interface), chat_transport.py + queue_transport.py (done), daily_transport.py (Chunk 3)
-    providers/                   # llm.py (done, Sarvam+Gemini), stt.py / tts.py (Chunk 3)
+    transport/                   # base.py (interface), chat_transport.py + queue_transport.py (done), daily_transport.py (built, unverified)
+    providers/                   # llm.py (done, Sarvam+Gemini), stt.py / tts.py (built)
     agent/                       # runtime.py, tool_registry.py, policy.py, guardrails.py, context.py (all done)
 
   domains/med_adherence/         # prompts.py, policy_states.py, tools.py, guardrails.py,
@@ -271,12 +271,29 @@ can miss a follow-up the doctor mentioned, e.g. "I'll call the hospital"); docto
 authenticated; the caregiver is told on escalation whether or not a doctor ever connects; the
 `unreachable` caregiver trigger (patient never answers) isn't built.
 
-### Chunk 3 — Voice transport swap-in — **NOT STARTED**
-Plan: `core/providers/stt.py` + `tts.py` (Sarvam wiring), `core/transport/daily_transport.py`
-(wrapping Pipecat's `DailyTransport`), `backend/daily_client.py` + `bot_runner.py` + trigger
-endpoint, patient call page embedding Daily's prebuilt UI, `domains/med_adherence/bot.py` extended
-with a Daily-transport entrypoint alongside the existing chat one. No changes expected to
-`core/agent/policy.py`, `guardrails.py`, or `domains/med_adherence/tools.py`/`policy_states.py`.
+### Chunk 3 — Voice transport swap-in — **DONE (first end-to-end voice call verified by hand)**
+Built: `core/providers/{stt,tts}.py` (Sarvam via Pipecat; STT uses Sarvam's server-side VAD, mode
+`codemix`; TTS Bulbul v3 `hi-IN`), `core/transport/voice_pipeline.py` (`VoiceTransport`: a `Transport`
+wrapping the pipeline room in -> Sarvam STT -> bridge -> Sarvam TTS -> room out; the bridge turns final
+transcripts into `receive_text` and tracks bot speech so hang-up waits for the closing line),
+`core/transport/livekit_transport.py` (used) and `daily_transport.py` (kept, unused: see below),
+`backend/livekit_client.py` (mints the agent's and the patient's room tokens),
+`domains/med_adherence/bot.run_voice_call`. Backend: `POST /api/patients/<id>/voice-call` starts the
+agent in-process (`live_calls.start_voice_call`), operator **Voice call** button, and the patient page
+joins the room with `livekit-client` (CDN) and plays the agent. No changes to `core/agent/` policy/
+guardrails or the domain tools.
+
+**Design decisions:** Pipecat is used only for audio I/O; the existing turn loop (`run_chat_session`)
+still drives the agent. **Daily -> LiveKit:** Daily was the first choice, but `daily-python` has no
+Windows wheels (tried a Docker worker, which worked up to the join) and Daily rejected joins with
+`account-missing-payment-method`. LiveKit installs natively on Windows, has a free cloud tier, and is a
+multi-party room, so the Chunk 4 doctor merge still fits. Swapping is one class thanks to `Transport`.
+
+Verified: a real spoken call over LiveKit (browser mic -> Sarvam STT -> agent -> Sarvam TTS), running
+through dose logging and an escalation to the end-call tool. Not yet assessed: Hinglish STT/TTS quality,
+latency, barge-in (off: the agent finishes its line first). Not done: voice calls are tracked only as in-memory patient/operator
+events (no live-call object like chat has), reminders still start chat calls, a patient who never joins
+ends the call after 120 s.
 
 ### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **PARTLY DONE**
 Done (see "Doctor escalation flow (text chat)" above): rings the doctor's dashboard, private doctor<->agent

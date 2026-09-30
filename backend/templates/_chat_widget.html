@@ -1,3 +1,11 @@
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<div class="card" id="voice-card" hidden>
+  <h2 style="margin-top:0">Voice call with VoiceMitra</h2>
+  <p class="empty">Allow the microphone when asked, then speak after the agent greets you.</p>
+  <p id="voice-status" class="hold-note">Connecting&hellip;</p>
+  <div id="voice-audio"></div>
+</div>
+
 <div class="card" id="chat-card" hidden>
   <h2 style="margin-top:0">Call with VoiceMitra</h2>
   <div id="chat-log" class="chat-log"></div>
@@ -73,8 +81,40 @@
     }
   }
 
+  const voiceCard = document.getElementById("voice-card");
+  const voiceStatus = document.getElementById("voice-status");
+  const voiceAudio = document.getElementById("voice-audio");
+  let voiceRoom = null;
+  async function showVoice(v) {
+    if (voiceRoom) return;  // already connected (snapshot and live event can both arrive)
+    voiceCard.hidden = false;
+    voiceStatus.textContent = "Connecting...";
+    try {
+      const room = new LivekitClient.Room();
+      voiceRoom = room;
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === "audio") voiceAudio.appendChild(track.attach());  // plays the agent's voice
+      });
+      room.on(LivekitClient.RoomEvent.Disconnected, () => { voiceStatus.textContent = "Call ended."; });
+      await room.connect(v.url, v.token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+      voiceStatus.textContent = "Connected. Speak after the agent greets you.";
+    } catch (err) {
+      voiceStatus.textContent = "Could not start the call: " + err.message;
+    }
+  }
+  function hideVoice() {
+    if (voiceRoom) { voiceRoom.disconnect(); voiceRoom = null; }
+    voiceAudio.replaceChildren();
+    voiceCard.hidden = true;
+  }
+
   function onEvent(e) {
+    if (e.type === "voice_call") { showVoice(e); return; }
+    if (e.type === "voice_call_ended") { hideVoice(); return; }
+    if (e.type === "snapshot" && e.voice) { showVoice(e.voice); return; }
     if (e.type === "snapshot") {
+      hideVoice();
       if (!e.call_id) { card.hidden = true; callId = null; return; }
       startCall(e.call_id);
       if (e.escalation) applyEscalation(e.escalation);

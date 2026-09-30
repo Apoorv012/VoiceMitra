@@ -1,7 +1,7 @@
 """Entrypoint that assembles an AgentRuntime for a given patient's call.
 
 Chunk 2: chat-mode only (ChatTransport), for building/debugging the agent's logic without audio.
-Chunk 3 adds a voice entrypoint using DailyTransport alongside this, reusing everything else
+Chunk 3 added `run_voice_call` (DailyTransport) alongside this, reusing everything else
 (policy/tools/guardrails/prompts) unchanged -- only the transport differs.
 
 Usage: python -m domains.med_adherence.bot <patient_id>
@@ -107,6 +107,17 @@ async def run_call_session(session: CallSession, transport: Transport) -> None:
             {"_id": session.call.id},
             {"$set": {"logs": [e.model_dump(mode="json") for e in session.context.log_entries]}},
         )
+
+
+async def run_voice_call(session: CallSession, transport: Transport) -> None:
+    """Runs the session over a voice transport (a WebRTC room with Sarvam STT/TTS). On error or
+    cancellation the transport is dropped so the patient isn't left in a dead room."""
+    try:
+        await run_call_session(session, transport)
+    finally:
+        abort = getattr(transport, "abort", None)
+        if abort is not None:
+            await asyncio.shield(abort())
 
 
 async def run_chat_demo(patient_id: str) -> None:

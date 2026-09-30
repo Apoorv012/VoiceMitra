@@ -19,7 +19,7 @@ from backend.db import (
     patients_col,
     prescriptions_col,
 )
-from backend.live_calls import get_live_call
+from backend.live_calls import active_patient_ids, get_live_call
 from backend.models import (
     Call, Caregiver, Doctor, DoseFrequency, Dosage, Escalation, Patient, Prescription,
 )
@@ -51,7 +51,7 @@ async def home(request: Request):
 
 def _with_live_state(row: dict) -> dict:
     live = get_live_call(row["patient"].id)
-    row["in_call"] = live is not None and live.active
+    row["in_call"] = (live is not None and live.active) or row["patient"].id in active_patient_ids()
     return row
 
 

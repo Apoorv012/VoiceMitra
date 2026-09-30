@@ -20,7 +20,8 @@
     <span class="badge warn">in call</span>
     <button type="button" class="secondary" data-action="end" data-patient-id="{{ row.patient.id }}">End call</button>
     {% else %}
-    <button type="button" data-action="call" data-patient-id="{{ row.patient.id }}">Call now</button>
+    <button type="button" data-action="call" data-patient-id="{{ row.patient.id }}">Chat call</button>
+    <button type="button" data-action="voice" data-patient-id="{{ row.patient.id }}">Voice call</button>
     {% endif %}
   </td>
   <td>
