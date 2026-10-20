@@ -42,12 +42,16 @@ class CallContext(AgentContext):
     handoff_line_sent: bool = False
     wrapping_up: bool = False  # the call ends right after the next agent message
     patient_language: Language | None = None  # of their most recent message that could be told
+    last_patient_text: str = ""  # their most recent message, for guardrails that check a quote
     log_entries: list[CallLogEntry] = field(default_factory=list)
     # Set by whoever hosts the call if it can act on reminders (arm a timer); left None otherwise,
     # in which case a requested reminder is only recorded.
     on_reminder_created: Callable[[Reminder], None] | None = None
+    # Told about every log entry as it is recorded, so a live page can show the call as it happens.
+    on_log_entry: Callable[[CallLogEntry], None] | None = None
 
     def observe_user_text(self, text: str) -> None:
+        self.last_patient_text = text
         self.patient_language = detect_language(text) or self.patient_language
         if self.escalated or self.mentioned_red_flag:
             return
@@ -74,16 +78,28 @@ class CallContext(AgentContext):
         # An escalated patient isn't hung up on: they're held on the line while a doctor is brought in.
         return self.escalation is not None
 
+    def _add(self, entry: CallLogEntry) -> None:
+        self.log_entries.append(entry)
+        if self.on_log_entry is not None:
+            self.on_log_entry(entry)
+
     def record_user_text(self, text: str) -> None:
-        self.log_entries.append(CallLogEntry(type=CallLogEntryType.patient_said, content=text))
+        self._add(CallLogEntry(type=CallLogEntryType.patient_said, content=text))
 
     def record_agent_text(self, text: str) -> None:
-        self.log_entries.append(CallLogEntry(type=CallLogEntryType.agent_said, content=text))
+        self._add(CallLogEntry(type=CallLogEntryType.agent_said, content=text))
+
+    def record_interruption(self, heard: str, unheard: str) -> None:
+        self._add(CallLogEntry(
+            type=CallLogEntryType.agent_said,
+            content=f"[patient interrupted] heard only: {heard or '(nothing)'}",
+            note=f"not heard: {unheard}",
+        ))
 
     def record_tool_call(self, name: str, args: dict, result: Any, *, note: str | None = None) -> None:
         if name in WRAP_UP_TOOLS and not (isinstance(result, dict) and "error" in result):
             self.wrapping_up = True
-        self.log_entries.append(CallLogEntry(
+        self._add(CallLogEntry(
             type=CallLogEntryType.tool_call,
             tool_name=name,
             tool_args=args,

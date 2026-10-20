@@ -109,14 +109,26 @@ async def reschedule_dose(args: RescheduleDoseArgs, context: CallContext) -> dic
 class SymptomArg(BaseModel):
     name: str
     location: str | None = None
-    severity: SymptomSeverity
+    severity: SymptomSeverity = Field(
+        description="How bad the PATIENT says it is. Take their own intensity words at face value: "
+        "'bahut'/'very'/'bohot zyada' means moderate or severe, never mild.")
     duration_note: str | None = None
-    raw_quote: str | None = None
+    raw_quote: str | None = Field(default=None, description="The patient's own words about this symptom.")
 
 
 class UpdateDailyLogArgs(BaseModel):
     summary: str
-    seriousness: int = Field(ge=1, le=10)
+    seriousness: int = Field(
+        ge=1, le=10,
+        description="1-4: nothing, or mild and short-lived: just log it. 5-7: moderate -- several "
+        "symptoms together, or one the patient calls heavy/very bad ('bahut'), or anything lasting "
+        "2+ days: do NOT just log it; ask the patient whether they'd like to speak to the doctor "
+        "(call escalate_to_doctor if yes; if they decline, log it with patient_declined_doctor_quote). "
+        "8-10: severe or alarming: call escalate_to_doctor, don't log.")
+    patient_declined_doctor_quote: str | None = Field(
+        default=None,
+        description="Only for seriousness 5-7: the patient's exact words, copied from their latest "
+        "message, declining to speak to the doctor when you offered.")
     symptoms: list[SymptomArg] = Field(default_factory=list)
 
 

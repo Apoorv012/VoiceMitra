@@ -111,12 +111,13 @@ async def run_call_session(session: CallSession, transport: Transport) -> None:
 
 async def run_voice_call(session: CallSession, transport: Transport) -> None:
     """Runs the session over a voice transport (a WebRTC room with Sarvam STT/TTS). On error or
-    cancellation the transport is dropped so the patient isn't left in a dead room."""
+    cancellation the transport is dropped so the patient isn't left in a dead room -- except after a
+    hand-off to a doctor, where the patient stays in the room (the caller takes over the transport)."""
     try:
         await run_call_session(session, transport)
     finally:
         abort = getattr(transport, "abort", None)
-        if abort is not None:
+        if abort is not None and not session.context.hands_off_transport():
             await asyncio.shield(abort())
 
 

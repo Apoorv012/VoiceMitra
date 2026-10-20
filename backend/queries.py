@@ -3,6 +3,7 @@ between the JSON routers and the server-rendered dashboard pages so there's one 
 how these documents relate."""
 
 from __future__ import annotations
+from typing import cast
 
 from backend.db import (
     calls_col,
@@ -93,7 +94,7 @@ async def get_patient_row(patient_id: str) -> dict | None:
 
 async def list_patients_with_last_status() -> list[dict]:
     patients = [doc_to_model(Patient, d) async for d in patients_col().find()]
-    return [await _row_for(p) for p in patients]
+    return [await _row_for(cast(Patient, p)) for p in patients]
 
 
 async def get_doctor_bundle(doctor_id: str) -> dict | None:

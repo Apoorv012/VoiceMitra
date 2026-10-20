@@ -3,9 +3,16 @@ what each kind of check means; this module just supplies the domain-specific log
 
 from __future__ import annotations
 
+import re
+
 from core.agent.guardrails import ForcedAction, GuardrailPipeline, GuardrailViolation
 from domains.med_adherence.context import CallContext
 from domains.med_adherence.prompts import HANDOFF_LINE_ENGLISH, HANDOFF_LINE_HINGLISH
+
+# update_daily_log seriousness (1-10, scored by the LLM): below OFFER_DOCTOR just log it; from there up
+# to ESCALATE_AT the patient is asked whether they want the doctor; at ESCALATE_AT and above escalate.
+OFFER_DOCTOR_AT_SERIOUSNESS = 5
+ESCALATE_AT_SERIOUSNESS = 8
 
 DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES = [
     "dosage badha", "dosage kam", "dawai band kar do", "dawai badal do", "dose double",
@@ -74,6 +81,33 @@ def _no_severe_symptom_without_escalation(tool_name: str, args: dict, context: C
             )
 
 
+def _words(text: str) -> str:
+    return " ".join(re.sub(r"\W+", " ", text.casefold()).split())
+
+
+def _serious_needs_escalation(tool_name: str, args: dict, context: CallContext) -> None:
+    """Three tiers on the LLM's own seriousness score: low is just logged, high is escalated, and in
+    between the patient is asked and only their refusal lets it be logged."""
+    if tool_name != "update_daily_log":
+        return
+    score = args.get("seriousness")
+    if not isinstance(score, int) or score < OFFER_DOCTOR_AT_SERIOUSNESS:
+        return
+    if score >= ESCALATE_AT_SERIOUSNESS:
+        raise GuardrailViolation(
+            f"seriousness {score} is {ESCALATE_AT_SERIOUSNESS} or above, so it can't just be logged "
+            "-- call escalate_to_doctor instead"
+        )
+    quote = _words(args.get("patient_declined_doctor_quote") or "")
+    if not quote or quote not in _words(context.last_patient_text):
+        raise GuardrailViolation(
+            f"seriousness {score} is moderate: don't log it yet. Ask the patient, in one short "
+            "sentence and nothing else, whether they'd like to speak to the doctor now. If they say "
+            "yes, call escalate_to_doctor. If they decline, call update_daily_log again with "
+            "patient_declined_doctor_quote set to their exact words from that reply."
+        )
+
+
 def _missed_dose_needs_reason(tool_name: str, args: dict, context: CallContext) -> None:
     if tool_name != "log_dose_event" or args.get("status") != "not_taken":
         return
@@ -115,6 +149,7 @@ def build_guardrails() -> GuardrailPipeline:
     pipeline.add_text_check(_no_dosage_change_or_diagnosis)
     pipeline.add_text_check(_no_question_when_wrapping_up)
     pipeline.add_tool_call_check(_no_severe_symptom_without_escalation)
+    pipeline.add_tool_call_check(_serious_needs_escalation)
     pipeline.add_tool_call_check(_missed_dose_needs_reason)
     pipeline.add_tool_call_check(_symptom_needs_duration)
     pipeline.add_forced_action_check(_forced_escalation)

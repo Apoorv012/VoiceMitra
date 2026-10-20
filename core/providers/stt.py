@@ -17,4 +17,5 @@ def get_stt_service() -> SarvamSTTService:
         api_key=os.environ["SARVAM_API_KEY"],
         mode=os.environ.get("SARVAM_STT_MODE", "codemix"),
         settings=SarvamSTTService.Settings(vad_signals=True),
+        keepalive_timeout=5.0,  # a speaker's STT can sit idle for minutes (doctor before the merge)
     )

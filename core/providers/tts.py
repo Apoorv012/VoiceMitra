@@ -1,6 +1,8 @@
 """Text-to-speech provider factory (Sarvam Bulbul, via Pipecat). The agent writes Hinglish in Roman
-script; Bulbul reads that with hi-IN. Voice/language are overridable via SARVAM_TTS_VOICE /
-SARVAM_TTS_LANGUAGE."""
+script; Bulbul reads that with hi-IN. Voice/language/pace are overridable via SARVAM_TTS_VOICE /
+SARVAM_TTS_LANGUAGE / SARVAM_TTS_PACE. The default voice is female and the prompts write the agent
+in the feminine ("kar rahi hoon") to match, so change the two together. Pace defaults a little
+under 1.0: patients are often elderly and on a phone line."""
 
 from __future__ import annotations
 
@@ -15,5 +17,6 @@ def get_tts_service() -> SarvamTTSService:
         settings=SarvamTTSService.Settings(
             voice=os.environ.get("SARVAM_TTS_VOICE", "ritu"),
             language=os.environ.get("SARVAM_TTS_LANGUAGE", "hi-IN"),
+            pace=float(os.environ.get("SARVAM_TTS_PACE", "0.9")),
         ),
     )

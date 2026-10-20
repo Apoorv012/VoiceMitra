@@ -4,6 +4,7 @@
   <p class="empty">Allow the microphone when asked, then speak after the agent greets you.</p>
   <p id="voice-status" class="hold-note">Connecting&hellip;</p>
   <div id="voice-audio"></div>
+  <div id="voice-log" class="chat-log"></div>
 </div>
 
 <div class="card" id="chat-card" hidden>
@@ -84,12 +85,51 @@
   const voiceCard = document.getElementById("voice-card");
   const voiceStatus = document.getElementById("voice-status");
   const voiceAudio = document.getElementById("voice-audio");
+  const voiceLog = document.getElementById("voice-log");
   let voiceRoom = null;
+  let voiceEscalated = false;
+  let voiceCallId = null;
+  // The call as it is logged: what the agent said, what the speech-to-text heard from the patient,
+  // the doctor's words after the merge, and every tool call the agent made (with args and result).
+  function addVoiceEntry(en) {
+    if (en.channel === "doctor_briefing") return;  // the doctor's private chat with the agent
+    const div = document.createElement("div");
+    if (en.type === "agent_said") {
+      div.className = "chat-msg agent";
+      div.textContent = en.content;
+    } else if (en.type === "patient_said") {
+      div.className = "chat-msg user";
+      div.textContent = en.content;
+    } else if (en.type === "doctor_said") {
+      div.className = "chat-msg doctor";
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = doctorName;
+      div.appendChild(who);
+      div.appendChild(document.createTextNode(en.content));
+    } else if (en.type === "tool_call") {
+      div.className = "chat-msg system";
+      div.style.fontFamily = "monospace";
+      div.style.fontSize = "0.85em";
+      div.textContent = "tool: " + en.tool_name + "(" + JSON.stringify(en.tool_args || {}) + ") -> " +
+        JSON.stringify(en.tool_result) + (en.note ? "  [" + en.note + "]" : "");
+    } else {
+      div.className = "chat-msg system";
+      div.textContent = en.note || en.type;
+    }
+    voiceLog.appendChild(div);
+    voiceLog.scrollTop = voiceLog.scrollHeight;
+  }
   async function showVoice(v) {
     if (voiceRoom) return;  // already connected (snapshot and live event can both arrive)
     voiceCard.hidden = false;
-    voiceStatus.textContent = "Connecting...";
+    voiceStatus.textContent = "Please allow the microphone to start the call.";
     try {
+      // Ask for the mic BEFORE joining the room: the agent starts talking the moment the patient
+      // joins, so asking afterwards means it greets while the permission prompt is still open.
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+      probe.getTracks().forEach((t) => t.stop());
+      voiceStatus.textContent = "Connecting...";
       const room = new LivekitClient.Room();
       voiceRoom = room;
       room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
@@ -98,21 +138,48 @@
       room.on(LivekitClient.RoomEvent.Disconnected, () => { voiceStatus.textContent = "Call ended."; });
       await room.connect(v.url, v.token);
       await room.localParticipant.setMicrophoneEnabled(true);
-      voiceStatus.textContent = "Connected. Speak after the agent greets you.";
+      if (!voiceEscalated) voiceStatus.textContent = "Connected. Speak after the agent greets you.";
     } catch (err) {
       voiceStatus.textContent = "Could not start the call: " + err.message;
     }
   }
+  function voiceEscalation(e) {
+    voiceEscalated = true;
+    if (e.doctor_name) doctorName = e.doctor_name;
+    if (e.status === "merged") voiceStatus.textContent = (e.doctor_name || "The doctor") + " has joined the call. Please speak.";
+    else if (e.status === "briefing") voiceStatus.textContent = (e.doctor_name || "The doctor") + " is being briefed. Please hold.";
+    else voiceStatus.textContent = "Connecting you to the doctor. Please hold.";
+  }
+  // The call is over: leave the room but keep the transcript on screen.
+  function endVoice() {
+    if (voiceRoom) { voiceRoom.disconnect(); voiceRoom = null; }
+    voiceEscalated = false;
+    voiceAudio.replaceChildren();
+    voiceStatus.textContent = "Call ended.";
+  }
   function hideVoice() {
     if (voiceRoom) { voiceRoom.disconnect(); voiceRoom = null; }
+    voiceEscalated = false;
     voiceAudio.replaceChildren();
     voiceCard.hidden = true;
   }
 
   function onEvent(e) {
-    if (e.type === "voice_call") { showVoice(e); return; }
-    if (e.type === "voice_call_ended") { hideVoice(); return; }
-    if (e.type === "snapshot" && e.voice) { showVoice(e.voice); return; }
+    if (e.type === "log_entry") {
+      if (e.call_id !== voiceCallId) { voiceCallId = e.call_id; voiceLog.replaceChildren(); }
+      addVoiceEntry(e.entry);
+      return;
+    }
+    if (e.type === "voice_call") { voiceCallId = e.call_id; voiceLog.replaceChildren(); showVoice(e); return; }
+    if (e.type === "voice_call_ended") { endVoice(); return; }
+    if (e.type === "snapshot" && e.voice) {
+      voiceCallId = e.voice.call_id;
+      voiceLog.replaceChildren();
+      (e.log || []).forEach(addVoiceEntry);  // everything so far, including tool calls
+      showVoice(e.voice).then(() => { if (e.escalation) voiceEscalation(e.escalation); });
+      return;
+    }
+    if (e.type === "escalation" && voiceRoom) { voiceEscalation(e); return; }
     if (e.type === "snapshot") {
       hideVoice();
       if (!e.call_id) { card.hidden = true; callId = null; return; }

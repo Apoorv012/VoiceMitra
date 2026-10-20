@@ -291,17 +291,114 @@ multi-party room, so the Chunk 4 doctor merge still fits. Swapping is one class 
 
 Verified: a real spoken call over LiveKit (browser mic -> Sarvam STT -> agent -> Sarvam TTS), running
 through dose logging and an escalation to the end-call tool. Not yet assessed: Hinglish STT/TTS quality,
-latency, barge-in (off: the agent finishes its line first). Not done: voice calls are tracked only as in-memory patient/operator
+latency. (Barge-in was believed "off" here, but the flag used was a no-op -- see "Voice feel fixes"
+below; it is now really on.) Not done: voice calls are tracked only as in-memory patient/operator
 events (no live-call object like chat has), reminders still start chat calls, a patient who never joins
 ends the call after 120 s.
 
-### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **PARTLY DONE**
-Done (see "Doctor escalation flow (text chat)" above): rings the doctor's dashboard, private doctor<->agent
-briefing, confirmed merge, agent listening + summary, caregiver notification record, doctor dashboard
-queue. `escalate_to_doctor` still doesn't dial anyone by phone -- that's the voice part.
-Remaining, after Chunk 3: carry the same states onto a **Daily room** (doctor's Join call joins the
-patient's room instead of a text relay; the agent transcribes both speakers for the summary), the
-`unreachable` caregiver trigger, and a real delivery channel for caregiver alerts if wanted.
+### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **BUILT, AWAITING FIRST HANDS-ON TEST**
+The text-chat escalation flow (above) now also runs on a voice call. After the agent's hand-off line the
+patient stays in the LiveKit room on hold (`VoiceTransport.set_sink` makes the agent stop listening);
+the doctor's dashboard rings and they brief privately with the agent (text only at first; now spoken too,
+see "Voice feel fixes"). When the doctor
+confirms the merge, their page joins the patient's room with a mic (`escalations._merge` mints a doctor
+token, `voice_join` event) and doctor and patient talk directly. The agent stays in the room silently: the
+voice pipeline has one Sarvam STT per participant identity (`patient`, `doctor`), so each utterance is
+attributed and lands in `Escalation`'s transcript, the call log (channel `merged`) and live captions on the
+doctor's page; on hang-up the existing summariser writes the summary. Either side leaving the room (or the
+operator's End call) ends the escalation. New: the `unreachable` caregiver trigger -- if the patient never
+joins within 120 s, the caregiver is notified (`caregiver.notify_caregiver_unreachable`).
+Files: `core/transport/voice_pipeline.py` (per-speaker STT), `backend/escalations.py` (voice branches,
+`_room_left`, `_on_room_speech`), `backend/live_calls.py` (`VoiceCall` carries the transport and
+escalation state through hand-off, `finish_voice_call`), `backend/livekit_client.py` (`doctor_token`),
+`escalation_call.html` / `_chat_widget.html` (LiveKit join, status text).
+Not tested yet: everything above with real audio. Known risks: doctor and patient in the same physical
+room/browser will feed back; the doctor STT idles until the merge (keepalive is set); caregiver alerts
+are still records, not real SMS/WhatsApp. (The briefing used to be typed only; that and the doctor's
+silent mic were found in the first hands-on test and addressed below.)
+
+### Voice feel fixes (2026-10-21) — **BUILT, NOT YET TRIED ON A LIVE CALL**
+Triggered by a hands-on call: the agent couldn't be interrupted, opened with one very long turn, spoke bad
+Hindi, and on escalation the doctor got a text-only briefing and -- after the merge -- the doctor could
+hear the patient but the patient couldn't hear the doctor and the doctor's speech wasn't transcribed.
+- **Barge-in was dead.** `PipelineParams(allow_interruptions=False)` doesn't exist in the installed Pipecat
+  (1.11), so it did nothing; and nothing in our pipeline turned Sarvam's `ProposedUserStartedSpeakingFrame`
+  into an interruption. Now the patient's STT branch has a `UserTurnProcessor(ExternalUserTurnStrategies())`
+  (no local VAD/turn model; Sarvam's server VAD decides). Only the patient can cut the agent off, not the
+  doctor on a merged call.
+- **The agent knows where it was cut off.** A `_SpeechTracker` after `room.output()` sees each
+  `TTSTextFrame` (Sarvam TTS has no word timestamps, so one per *sentence*, emitted when that sentence has
+  finished playing). On interruption `VoiceTransport` records `heard` (sentences fully played) and `unheard`
+  (the rest) -> `Transport.take_interruption()`. `run_chat_session` rewrites the last assistant message to
+  just the heard part + "[cut off]" and prefixes the patient's reply with what they did / didn't hear;
+  `context.record_interruption` logs it. Granularity is a sentence: a sentence cut half-way counts as
+  unheard (the agent may re-say it, never assumes it was heard).
+- **Short staged opening.** `policy_states.DOSAGE_CHECK`: turn 1 is only the greeting + "am I speaking to
+  X?", the dose question comes after they confirm; wrong person -> ask for the patient, no health talk.
+  Base prompt: ~15 words, one question per turn, drop what you were saying if talked over.
+- **Hindi.** The TTS voice (`ritu`) is female but the prompts were masculine ("kar raha hun") and used SMS
+  spellings ("kr rha h"). Persona is now feminine, with clean example lines and spelling rules (Roman
+  script kept -- decision: guardrails/language-detect/escalation keywords are Roman-based; Devanagari
+  would be a rework). `HANDOFF_LINE_HINGLISH` fixed. TTS pace now `SARVAM_TTS_PACE` (default 0.9).
+- **Doctor voice briefing.** On a voice call, `escalations.join` builds a second LiveKit room
+  (`<room>-brief`, `livekit_client.create_briefing_room`) and runs the briefing over a `HybridTransport`
+  (`core/transport/hybrid_transport.py`): agent lines always appear as text and are spoken once the doctor
+  joins the room (earlier lines are spoken on join), replies can be typed or spoken (spoken ones are echoed
+  as captions); the text `QueueTransport` outlives it and keeps carrying merged-call captions. If the voice
+  leg can't be built it falls back to text. The doctor agent's prompt is now written for the ear and
+  feminine. At merge the page leaves the briefing room and joins the patient's.
+- **Doctor mic on the merged call.** Most likely cause of the silent doctor: the page set `voiceRoom` before
+  connecting, so a failed `setMicrophoneEnabled` left the doctor connected as a listener only, with the
+  error on a status line that later updates overwrote and a guard that blocked retry. `escalation_call.html`
+  now joins from a **Join voice** button (user gesture), probes `getUserMedia` first, verifies the mic
+  track was actually published, shows failures next to the button and allows retry. Server logs
+  `first audio frame from <speaker>` and `transcript from <speaker>`: a speaker missing from the first is
+  not publishing; present there but no transcript means STT. **Cause not confirmed on a live call.**
+- Risks/untuned: a cough or noise can cut the agent off (Sarvam VAD sensitivity; tune e.g. a min-words
+  start strategy); a doctor/patient on one machine will feed back; barge-in latency is Sarvam's VAD;
+  merging while the doctor's briefing-room join is still connecting can drop the merged join (rare).
+
+### Fixes after first hands-on voice test (2026-10-13)
+- **Mic before room:** the patient page now calls `getUserMedia` *before* joining the LiveKit room
+  (`_chat_widget.html`). Before, the agent greeted as soon as the page joined, while the browser's
+  mic prompt was still open, so the first answer was lost/garbled.
+- **Under-rated symptoms never escalated:** two real calls ("bahut khansi/jukam" + fever, then cold/cough/
+  headache/body pain, both for 2 days) were logged with every symptom `mild` and seriousness 3-4 -- the
+  patient's "bahut" was dropped and nothing connected the score to escalation (>4 only flipped
+  `patient_status`). A keyword rule was tried and **removed** on purpose: urgency should be the LLM's
+  judgment, not substring lists. Instead the LLM is told how to score (anchored 1-10 scale in the
+  `seriousness` field description and the symptom_check prompt; patient intensity words taken at face
+  value) and a **three-tier guardrail** on the LLM's own score (`_serious_needs_escalation`): 1-4 just
+  logged; 5-7 (`OFFER_DOCTOR_AT_SERIOUSNESS`) the agent must first ask the patient whether they want the
+  doctor -- yes -> `escalate_to_doctor`, no -> `update_daily_log` with `patient_declined_doctor_quote`
+  (must be words from the patient's latest message, same trick as `merge_call`); 8-10
+  (`ESCALATE_AT_SERIOUSNESS`) `update_daily_log` is rejected and it must escalate. The LLM still decides
+  the score; code only enforces what follows from it. Existing `RED_FLAGS` list unchanged. Guardrail
+  unit-checked, **not yet tried on a live call**; thresholds and score anchors are untuned (see the
+  confidence-gated plan below). Weakness: the quote check proves the words came from the patient's last
+  message, not that they mean "no".
+- **Live transcript on voice calls:** the patient's voice card shows the call-log entries as they are
+  recorded: agent lines, what the STT heard, every tool call (name, args, result, block notes), the
+  escalation events, and -- after the merge -- the doctor's and patient's transcribed words. The domain
+  `CallContext.on_log_entry` hook feeds `live_calls.add_voice_entry` (`log_entry` event); `VoiceCall.entries`
+  keeps them so a reloaded page gets the whole call in its snapshot, and the card stays on screen after the
+  call ends. The doctor's private briefing chat is not shown to the patient. The call log still reaches
+  Mongo when the agent's part of the call ends (plus merged-phase entries as they happen), so mid-call the
+  source for a reload is memory, not Mongo. Before this, merged-call speech reached only the doctor's page,
+  never the patient's.
+- **False promise removed:** the normal sign-off said "Doctor ko update kar diya jayega" though
+  nothing notifies a doctor on a non-escalated call; the `closing_normal` prompt now forbids that.
+  Open idea: flag seriousness>=3 logs on the doctor dashboard.
+
+### Planned (not built): confidence-gated, LLM-judged escalation
+Escalation should come from the LLM's own assessment, not hand-written term lists. Idea:
+- Have the LLM return, for each symptom report, `should_escalate` plus a **confidence score** (and its
+  reasoning), e.g. via a structured tool/JSON output.
+- **High confidence** -> follow the LLM (escalate, or don't). **Low confidence** -> fall back to a second
+  check: a rules pass, a second LLM opinion, or ask the patient one more clarifying question.
+- Keep the code guardrails as a hard backstop only for the unambiguous red flags already listed.
+- Build `eval/` scenarios around it (e.g. heavy fever + cough 2 days must escalate; mild cough must not)
+  and measure how confidence correlates with correct decisions before trusting a threshold.
 
 ### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED**
 Plan: tighten symptom-extraction tool schema, build `eval/scenarios/` (reference-derived +

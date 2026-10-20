@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 from backend.db import reminders_col
@@ -21,10 +21,11 @@ from backend.livekit_client import create_call_room as create_livekit_room
 from backend.models import Reminder, ReminderStatus
 from core.transport.queue_transport import Message, QueueTransport
 from core.transport.livekit_transport import LiveKitTransport
+from domains.med_adherence.caregiver import notify_caregiver_unreachable
 from domains.med_adherence.bot import PatientNotReady, create_call_session, run_call_session, run_voice_call
 
 __all__ = [
-    "LiveCall", "PatientNotReady", "VoiceCall", "start_voice_call", "active_patient_ids", "end_call", "finish_call", "get_live_call",
+    "LiveCall", "PatientNotReady", "VoiceCall", "start_voice_call", "get_voice_call", "finish_voice_call", "active_patient_ids", "end_call", "finish_call", "get_live_call",
     "publish_operator", "publish_patient", "rearm_pending_reminders", "set_escalation_state",
     "snapshot_patient", "start_call", "subscribe_operator", "subscribe_patient",
     "unsubscribe_operator", "unsubscribe_patient",
@@ -56,12 +57,20 @@ class LiveCall:
 
 @dataclass
 class VoiceCall:
-    """A call carried by a LiveKit room: the agent runs in-process (`task`), the patient's browser
-    joins with `patient_token`."""
+    """A call carried by a LiveKit room: the agent runs in-process (`task`, then `transport` after an
+    escalation), the patient's browser joins with `patient_token`."""
     call_id: str
+    room_name: str
     room_url: str
     patient_token: str
-    task: asyncio.Task
+    transport: LiveKitTransport
+    task: asyncio.Task | None = None
+    escalation_id: str | None = None
+    escalation_status: str | None = None
+    escalation_doctor: str | None = None
+    # Everything logged so far (transcript, tool calls, escalation events) as JSON-able dicts, so a
+    # reloaded page can show the whole call; the same entries are written to Mongo with the call.
+    entries: list[dict] = field(default_factory=list)
 
 
 _live_calls: dict[str, LiveCall] = {}
@@ -114,7 +123,8 @@ def snapshot_patient(patient_id: str) -> dict:
     voice = _voice_calls.get(patient_id)
     if voice is not None:
         return {"type": "snapshot", "call_id": None, "active": False, "messages": [], "escalation": None,
-                "voice": _voice_event(voice)}
+                "voice": _voice_event(voice), "log": voice.entries,
+                "escalation": _voice_escalation_event(voice) if voice.escalation_status else None}
     if live is None:
         return {"type": "snapshot", "call_id": None, "active": False, "messages": [], "escalation": None}
     return {
@@ -140,6 +150,15 @@ def set_escalation_state(
 ) -> None:
     """Record where the patient's escalated call has got to (ringing / briefing / merged) and tell
     their page, so it can show the hold notice or let them talk to the doctor."""
+    voice = _voice_calls.get(patient_id)
+    if voice is not None:
+        voice.escalation_status = status
+        if escalation_id is not None:
+            voice.escalation_id = escalation_id
+        if doctor_name is not None:
+            voice.escalation_doctor = doctor_name
+        publish_patient(patient_id, _voice_escalation_event(voice))
+        return
     live = _live_calls.get(patient_id)
     if live is None:
         return
@@ -149,6 +168,20 @@ def set_escalation_state(
     if doctor_name is not None:
         live.escalation_doctor = doctor_name
     publish_patient(patient_id, _escalation_event(live))
+
+
+def add_voice_entry(patient_id: str, entry) -> None:
+    """Show a call-log entry on the patient's page and keep it for pages that connect later."""
+    voice = _voice_calls.get(patient_id)
+    if voice is None:
+        return
+    data = entry.model_dump(mode="json")
+    voice.entries.append(data)
+    publish_patient(patient_id, {"type": "log_entry", "call_id": voice.call_id, "entry": data})
+
+
+def get_voice_call(patient_id: str) -> VoiceCall | None:
+    return _voice_calls.get(patient_id)
 
 
 def get_live_call(patient_id: str) -> LiveCall | None:
@@ -217,6 +250,15 @@ def _voice_event(voice: VoiceCall) -> dict:
     return {"type": "voice_call", "call_id": voice.call_id, "url": voice.room_url, "token": voice.patient_token}
 
 
+def _voice_escalation_event(voice: VoiceCall) -> dict:
+    return {
+        "type": "escalation",
+        "call_id": voice.call_id,
+        "status": voice.escalation_status,
+        "doctor_name": voice.escalation_doctor,
+    }
+
+
 async def start_voice_call(patient_id: str) -> VoiceCall:
     """Put the patient and the agent in a LiveKit room: the agent joins now (in-process), the
     patient's page joins with the token it is sent."""
@@ -228,31 +270,63 @@ async def start_voice_call(patient_id: str) -> VoiceCall:
     session = await create_call_session(patient_id)
     call_id = session.call.id
     room = create_livekit_room(f"call-{call_id}")
-    task = asyncio.create_task(_run_voice(patient_id, call_id, session, room))
-    voice = VoiceCall(call_id=call_id, room_url=room.url, patient_token=room.patient_token, task=task)
+    voice = VoiceCall(
+        call_id=call_id, room_name=room.name, room_url=room.url, patient_token=room.patient_token,
+        transport=LiveKitTransport(room.url, room.bot_token, room.name),
+    )
+    session.context.on_log_entry = lambda entry: add_voice_entry(patient_id, entry)
+    voice.task = asyncio.create_task(_run_voice(patient_id, session, voice))
     _voice_calls[patient_id] = voice
     publish_patient(patient_id, _voice_event(voice))
     publish_operator({"type": "call_started", "patient_id": patient_id})
     return voice
 
 
-async def _run_voice(patient_id: str, call_id: str, session, room) -> None:
+async def _run_voice(patient_id: str, session, voice: VoiceCall) -> None:
+    handed_off = False
     try:
-        await run_voice_call(session, LiveKitTransport(room.url, room.bot_token, room.name))
+        await run_voice_call(session, voice.transport)
+        if session.context.escalation is not None:
+            from backend import escalations  # imported here: escalations.py builds on this module
+
+            await escalations.begin(patient_id, session.patient.name, voice.call_id, session.context.escalation)
+            handed_off = True  # the patient stays in the room; escalations.py ends the call
     except asyncio.CancelledError:
         pass
+    except TimeoutError:
+        log.info("patient %s never joined call %s", patient_id, voice.call_id)
+        await notify_caregiver_unreachable(patient_id, voice.call_id)
     except Exception:
-        log.exception("voice call %s failed", call_id)
+        log.exception("voice call %s failed", voice.call_id)
     finally:
-        _voice_calls.pop(patient_id, None)
-        publish_patient(patient_id, {"type": "voice_call_ended", "call_id": call_id})
-        publish_operator({"type": "call_ended", "patient_id": patient_id})
+        if not handed_off:
+            await finish_voice_call(patient_id, voice.call_id, speak=None)
+
+
+async def finish_voice_call(patient_id: str, call_id: str, *, speak: str | None) -> None:
+    """Hang up on the patient (saying `speak` first, if given) and tell their page and the operator."""
+    voice = _voice_calls.get(patient_id)
+    if voice is None or voice.call_id != call_id:
+        return
+    del _voice_calls[patient_id]
+    if speak and not voice.transport.ended:
+        await voice.transport.send_text(speak)
+        await voice.transport.end()  # waits for the line to be spoken
+    else:
+        await voice.transport.abort()
+    publish_patient(patient_id, {"type": "voice_call_ended", "call_id": call_id})
+    publish_operator({"type": "call_ended", "patient_id": patient_id})
 
 
 async def end_call(patient_id: str) -> None:
     """The operator's End call: closes the conversation, or the doctor leg if the call has escalated."""
     if (voice := _voice_calls.get(patient_id)) is not None:
-        voice.task.cancel()  # _run_voice hangs up and announces the end
+        if voice.escalation_id is not None:
+            from backend import escalations
+
+            await escalations.end(voice.escalation_id, by="operator")
+        elif voice.task is not None:
+            voice.task.cancel()  # _run_voice hangs up and announces the end
         return
     live = _live_calls.get(patient_id)
     if live is None or not live.active:

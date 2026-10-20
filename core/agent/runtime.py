@@ -141,9 +141,25 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
         user_text = await transport.receive_text()
         if user_text is None:
             break
+        cut = transport.take_interruption()
+        if cut is not None:
+            # The model must not think the patient heard its whole line: keep only what was
+            # spoken in its own turn, and say what got lost in front of their reply.
+            messages[-1] = {
+                "role": "assistant",
+                "content": f"{cut.heard} [cut off]" if cut.heard else "[cut off before you were heard]",
+            }
+            context.record_interruption(cut.heard, cut.unheard)
+            user_content = (
+                f"[The patient interrupted you. They heard: \"{cut.heard or '(nothing)'}\". "
+                f"They did NOT hear: \"{cut.unheard}\". Answer what they said now; only repeat "
+                f"the unheard part if it is still needed.]\n{user_text}"
+            )
+        else:
+            user_content = user_text
         context.record_user_text(user_text)
         context.observe_user_text(user_text)
-        messages.append({"role": "user", "content": user_text})
+        messages.append({"role": "user", "content": user_content})
 
     if not context.hands_off_transport():
         await transport.end()

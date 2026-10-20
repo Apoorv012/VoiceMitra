@@ -3,8 +3,9 @@ summarise what was said.
 
   ringing   the patient has heard the hand-off line and is held on the line; the patient's doctor(s)
             get an incoming call on their dashboard (patient name + id, nothing more -- like a phone).
-  briefing  a doctor pressed Join call. They talk to the agent in a private chat (patient still on
-            hold): it briefs them, answers questions, and asks whether to merge.
+  briefing  a doctor pressed Join call. They talk to the agent privately (patient still on hold):
+            it briefs them, answers questions, and asks whether to merge. On a voice call this is
+            spoken in a room of its own as well as shown as text; typing always works.
   merged    the doctor said to merge. Doctor and patient talk directly; the agent stays on the line
             and just records.
   resolved  either side ended the call after a merge; the agent's summary of the conversation was
@@ -27,7 +28,11 @@ from datetime import datetime
 from backend import live_calls
 from backend.db import calls_col, doc_to_model, doctors_col, escalations_col, model_to_doc
 from backend.models import CallLogEntry, CallLogEntryType, Doctor, Escalation, EscalationStatus
+from backend.livekit_client import create_briefing_room, doctor_token
 from core.agent.runtime import run_chat_session
+from core.transport.base import Transport
+from core.transport.hybrid_transport import HybridTransport
+from core.transport.livekit_transport import DOCTOR_IDENTITY, LiveKitTransport
 from core.transport.queue_transport import QueueTransport
 from domains.med_adherence.context import EscalationRequest
 from domains.med_adherence.doctor_agent import create_doctor_session, summarize_merged_call
@@ -54,6 +59,8 @@ class LiveEscalation:
     task: asyncio.Task | None = None             # the briefing conversation
     room: list[tuple[str, str]] = field(default_factory=list)  # merged: (speaker, text)
     closing: bool = False
+    voice_join: dict | None = None               # voice calls: {url, token} for the doctor's browser once merged
+    brief_join: dict | None = None               # voice calls: {url, token} for the spoken briefing
 
     @property
     def doctor_name(self) -> str | None:
@@ -61,6 +68,7 @@ class LiveEscalation:
 
 
 _live: dict[str, LiveEscalation] = {}
+_background: set[asyncio.Task] = set()
 _doctor_subs: dict[str, set[asyncio.Queue]] = {}   # doctor id -> dashboard sockets
 _call_subs: dict[str, set[asyncio.Queue]] = {}     # escalation id -> the doctor's call-page sockets
 
@@ -144,6 +152,8 @@ def snapshot_call(escalation_id: str) -> dict | None:
         "status": esc.status.value,
         "summary": esc.summary,
         "messages": [asdict(m) for m in live.transport.messages] if live.transport else [],
+        "voice_join": live.voice_join,
+        "brief_join": live.brief_join,
     }
 
 
@@ -188,17 +198,46 @@ async def begin(patient_id: str, patient_name: str, call_id: str, request: Escal
     live = LiveEscalation(esc, patient_name, {d.id: d.name for d in doctors})
     _live[esc.id] = live
     live_calls.set_escalation_state(patient_id, "ringing", escalation_id=esc.id)
+    voice = live_calls.get_voice_call(patient_id)
+    if voice is not None:
+        # The patient is held: the agent stops listening to them until the doctor is merged in.
+        voice.transport.set_sink(lambda speaker, text: None)
+        voice.transport.on_left = lambda who: _room_left(live, who)
 
-    await _log(call_id, CallLogEntry(
+    started = CallLogEntry(
         type=CallLogEntryType.escalation_call_started,
         related_call_id=esc.id,
         note=("ringing " + ", ".join(d.name for d in doctors)) if doctors else "no doctor assigned to this patient",
-    ))
+    )
+    live_calls.add_voice_entry(patient_id, started)
+    await _log(call_id, started)
     if not doctors:
         await _close(live, NO_DOCTOR_LINE)
         return
     for doctor in doctors:
         _publish_doctor(doctor.id, {"type": "incoming_call", **_ring(live)})
+
+
+def _room_left(live: LiveEscalation, who: str) -> None:
+    """Someone left the LiveKit room: the patient ends the call at any point; the doctor's leaving
+    only matters once they've been merged in (before that they're not in the room)."""
+    if live.closing:
+        return
+    if who == "patient" or (who == "doctor" and live.escalation.status == EscalationStatus.merged):
+        asyncio.create_task(end(live.escalation.id, by=who))
+
+
+def _on_room_speech(live: LiveEscalation, speaker: str, text: str) -> None:
+    """A merged voice call's transcript, one utterance at a time (doctor or patient)."""
+    live.room.append((speaker, text))
+    # The doctor's own page shows live captions: the doctor is "user" there, the patient "patient".
+    live.transport.add_message("user" if speaker == "doctor" else "patient", text)
+    entry_type = CallLogEntryType.doctor_said if speaker == "doctor" else CallLogEntryType.patient_said
+    entry = CallLogEntry(type=entry_type, content=text, channel="merged")
+    live_calls.add_voice_entry(live.escalation.patient_id, entry)  # the patient's page shows it too
+    task = asyncio.create_task(_log(live.escalation.call_id, entry))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
 
 
 async def join(escalation_id: str, doctor_id: str) -> Escalation:
@@ -220,30 +259,51 @@ async def join(escalation_id: str, doctor_id: str) -> Escalation:
     esc.joined_at = datetime.utcnow()
     live.transport = QueueTransport(
         on_message=lambda m: _publish_call(escalation_id, {"type": "message", **asdict(m)}))
-    live.task = asyncio.create_task(_run_briefing(live, doctor_id))
+    session_transport: Transport = live.transport
+    voice_leg: HybridTransport | None = None
+    if live_calls.get_voice_call(esc.patient_id) is not None:
+        # A voice call: the briefing is spoken too, in a private room of its own. Typing still works,
+        # and if the voice side can't be built the briefing just stays text.
+        try:
+            voice_call = live_calls.get_voice_call(esc.patient_id)
+            room = create_briefing_room(voice_call.room_name)
+            voice_leg = HybridTransport(
+                live.transport,
+                LiveKitTransport(room.url, room.bot_token, room.name, speakers=(DOCTOR_IDENTITY,)))
+            session_transport = voice_leg
+            live.brief_join = {"url": room.url, "token": room.doctor_token}
+        except Exception:
+            log.exception("could not set up the voice briefing for escalation %s; using text", esc.id)
+    live.task = asyncio.create_task(_run_briefing(live, doctor_id, session_transport, voice_leg))
 
     await _save(esc, status=esc.status, doctor_id=doctor_id, joined_at=esc.joined_at)
     await calls_col().update_one({"_id": esc.call_id}, {"$set": {"doctor_id": doctor_id}})
     live_calls.set_escalation_state(esc.patient_id, "briefing", doctor_name=live.doctor_name)
     for other in esc.doctor_ids:
         _publish_doctor(other, {"type": "call_taken", "escalation_id": escalation_id})
+    if live.brief_join is not None:
+        _publish_call(escalation_id, {"type": "brief_join", **live.brief_join})
     return esc
 
 
-async def _run_briefing(live: LiveEscalation, doctor_id: str) -> None:
+async def _run_briefing(
+    live: LiveEscalation, doctor_id: str, transport: Transport, voice_leg: HybridTransport | None,
+) -> None:
     esc = live.escalation
     context = None
     crashed = False
     try:
         session = await create_doctor_session(esc, doctor_id)
         context = session.context
-        await run_chat_session(live.transport, session.config, context)
+        await run_chat_session(transport, session.config, context)
     except asyncio.CancelledError:
         raise  # end() cancelled us; the finally below still saves what was said
     except Exception:
         log.exception("doctor briefing for escalation %s crashed", esc.id)
         crashed = True
     finally:
+        if voice_leg is not None:
+            await voice_leg.abort()  # no-op after a clean end(); otherwise stops the agent's mic/speaker
         if context is not None and context.log_entries:
             await _log(esc.call_id, *context.log_entries)
 
@@ -261,18 +321,27 @@ async def _merge(live: LiveEscalation) -> None:
     esc.status = EscalationStatus.merged
     esc.merged_at = datetime.utcnow()
     await _save(esc, status=esc.status, merged_at=esc.merged_at)
-    await _log(esc.call_id, CallLogEntry(
+    merged = CallLogEntry(
         type=CallLogEntryType.escalation_call_merged,
         related_call_id=esc.id,
         note=f"{live.doctor_name} merged into the patient's call",
         channel="merged",
-    ))
+    )
+    live_calls.add_voice_entry(esc.patient_id, merged)
+    await _log(esc.call_id, merged)
     patient_side = _patient_transport(live)
     if patient_side is not None:
         patient_side.add_message(
             "system", f"{live.doctor_name} has joined the call. VoiceMitra stays on the line to take notes.")
     live.transport.add_message(
         "system", f"Merged: you're now talking to {live.patient_name}. VoiceMitra is listening and taking notes.")
+    voice = live_calls.get_voice_call(esc.patient_id)
+    if voice is not None:
+        # Voice: the doctor's browser joins the patient's LiveKit room; the agent stays in it,
+        # transcribing each speaker for the summary.
+        voice.transport.set_sink(lambda speaker, text: _on_room_speech(live, speaker, text))
+        live.voice_join = {"url": voice.room_url, "token": doctor_token(voice.room_name)}
+        _publish_call(esc.id, {"type": "voice_join", **live.voice_join})
     live_calls.set_escalation_state(esc.patient_id, "merged")
     _publish_call(esc.id, {"type": "status", "status": "merged"})
 
@@ -322,7 +391,7 @@ async def end(escalation_id: str, *, by: str) -> None:
         live.task.cancel()
         await asyncio.gather(live.task, return_exceptions=True)
 
-    await _close(live, ENDED_LINE if was_merged else NOT_CONNECTED_LINE)
+    await _close(live, ENDED_LINE if was_merged else NOT_CONNECTED_LINE, patient_left=(by == "patient"))
 
     if was_merged:
         _publish_call(esc.id, {"type": "status", "status": "summarising"})
@@ -343,14 +412,18 @@ async def end(escalation_id: str, *, by: str) -> None:
     _publish_call(esc.id, {"type": "status", "status": esc.status.value, "summary": esc.summary})
 
 
-async def _close(live: LiveEscalation, patient_line: str) -> None:
+async def _close(live: LiveEscalation, patient_line: str, *, patient_left: bool = False) -> None:
     """Hang up both legs: tell the patient why, close the doctor's chat, clear any ringing cards."""
     esc = live.escalation
     live.closing = True
     patient_side = _patient_transport(live)
     if patient_side is not None:
         patient_side.add_message("system", patient_line)
-    await live_calls.finish_call(esc.patient_id, esc.call_id)
+    if live_calls.get_voice_call(esc.patient_id) is not None:
+        await live_calls.finish_voice_call(
+            esc.patient_id, esc.call_id, speak=None if patient_left else patient_line)
+    else:
+        await live_calls.finish_call(esc.patient_id, esc.call_id)
     if live.transport is not None:
         live.transport.add_message("system", "The call has ended.")
         await live.transport.end()

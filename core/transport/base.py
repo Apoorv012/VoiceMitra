@@ -12,6 +12,16 @@ that imports Transport.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Interruption:
+    """The other party talked over the agent's last line. `heard` is the part that was fully spoken
+    before they cut in (sentence granularity), `unheard` the rest."""
+
+    heard: str
+    unheard: str
 
 
 class Transport(ABC):
@@ -22,6 +32,11 @@ class Transport(ABC):
     @abstractmethod
     async def receive_text(self) -> str | None:
         """Return the other party's next utterance, or None once the call/session has ended."""
+
+    def take_interruption(self) -> Interruption | None:
+        """If the last `send_text` line was cut off by the other party, say how far it got (once).
+        Only a spoken medium can be interrupted, so the default is never."""
+        return None
 
     async def start(self) -> None:
         """Optional hook: join a room, print a banner, etc. No-op by default."""

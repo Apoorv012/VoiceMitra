@@ -8,6 +8,8 @@ know anything about conversation transcripts, persistence, or domain state shape
 - observe_user_text: once per turn, right after receiving the other party's raw text, before
   invoking the LLM (e.g. red-flag symptom keyword scanning that feeds a forced-action guardrail).
 - record_user_text / record_agent_text: once per turn, for whichever side just spoke.
+- record_interruption: when the other party cut the agent off mid-line, with the part they heard
+  and the part they didn't (the line itself was already passed to record_agent_text in full).
 - record_tool_call: once per tool dispatch (LLM-issued or guardrail-forced), with its args and
   result.
 - prompt_suffix: asked for on every LLM call; whatever it returns is appended to the end of that
@@ -32,6 +34,9 @@ class AgentContext:
         pass
 
     def record_agent_text(self, text: str) -> None:
+        pass
+
+    def record_interruption(self, heard: str, unheard: str) -> None:
         pass
 
     def record_tool_call(self, name: str, args: dict, result: Any, *, note: str | None = None) -> None:

@@ -15,5 +15,5 @@ class DailyTransport(VoiceTransport):
             room_url, token, bot_name, DailyParams(audio_in_enabled=True, audio_out_enabled=True)
         )
         super().__init__(
-            room, joined_events=("on_first_participant_joined",), left_events=("on_participant_left",)
+            room, speakers=("patient",), joined_events=("on_first_participant_joined",), left_events=("on_participant_left",)
         )
