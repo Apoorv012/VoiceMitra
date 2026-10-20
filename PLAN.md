@@ -48,10 +48,16 @@ Design constraints:
   higher free quota, used to conserve Sarvam credits during iterative chat-based testing). Both
   are OpenAI-compatible chat-completions endpoints, so `core/agent/runtime.py` is identical either
   way.
-- **Transport**: Daily.co WebRTC for the POC (native multi-participant rooms make the doctor
+- **Transport**: LiveKit WebRTC rooms for the POC (native multi-participant rooms make the doctor
   "merge" trivial); Twilio swap-in later via the same `Transport` interface.
-- **Data store**: MongoDB via Motor (async).
-- **Backend**: FastAPI — JSON routers + server-rendered Jinja2 dashboards.
+- **Data store**: MongoDB via Motor (async). Dates are stored as ISO *strings* (`model_to_doc` dumps in
+  JSON mode), so range queries must compare strings.
+- **Backend**: FastAPI — API only: JSON (CRUD routers + the screen read-models in `backend/views.py`) and
+  WebSockets. It serves no HTML. (The old Jinja pages were deleted on 2026-10-21; see "Web app" below.)
+- **Frontend**: Next.js 16 (React 19, TypeScript, App Router) in `web/`. Client-driven screens: SWR for
+  data, direct WebSockets for live events, `livekit-client` for the call. The design system is one plain
+  CSS file (`web/src/app/globals.css`, palette from the dataviz reference, light + dark). Types are generated
+  from the API's OpenAPI schema.
 
 ## Data model
 
@@ -84,7 +90,7 @@ voicemitra/
   .env.example
 
   core/                          # transport-agnostic voice-agent runtime
-    transport/                   # base.py (interface), chat_transport.py + queue_transport.py (done), daily_transport.py (built, unverified)
+    transport/                   # base.py (interface), chat_transport.py + queue_transport.py + hybrid_transport.py (done), voice_pipeline.py + livekit_transport.py (voice)
     providers/                   # llm.py (done, Sarvam+Gemini), stt.py / tts.py (built)
     agent/                       # runtime.py, tool_registry.py, policy.py, guardrails.py, context.py (all done)
 
@@ -93,11 +99,17 @@ voicemitra/
                                   # doctor_agent.py (briefing agent + summariser), caregiver.py (done)
 
   backend/
-    main.py, db.py, models.py, queries.py, seed.py, live_calls.py, escalations.py
+    main.py, db.py, models.py, queries.py, seed.py, seed_demo.py, live_calls.py, escalations.py
+    insights.py                  # dose schedule, adherence, "needs attention" rules (pure, tested)
+    views.py                     # read models: what each screen is told (the API contract)
+    dump_openapi.py              # writes web/openapi.json for the frontend's generated types
     routers/                     # patients.py, doctors.py, calls.py (JSON API), live.py (WebSockets + call controls),
-                                 # escalations.py (doctor WebSockets + join/end)
-    pages.py                     # server-rendered dashboards
-    templates/, static/
+                                 # escalations.py (doctor WebSockets + join/end), app_api.py (/api/app/* read endpoints)
+
+  web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
+                                 # public/ (icons, service worker, offline page), scripts/make_icons.py
+  tests/                         # pytest: insights.py and views.py
+  package.json, scripts/dev.mjs  # `npm run dev|demo|start` runs API + web app + tunnel in one terminal (see README)
 
   eval/                          # not yet built (Chunk 5)
   reference_transcripts/         # sample Hindi/Hinglish transcripts, prompt/eval grounding material
@@ -133,7 +145,7 @@ Two real bugs found and fixed during this chunk:
   `list[CallLogEntry]`), not just derived summaries. Wired via `AgentContext.record_*` hooks in
   `core/agent/context.py`, domain implementation in `domains/med_adherence/context.py`, flushed to
   Mongo in `bot.py`.
-- **Three server-rendered dashboards** (`backend/pages.py` + `backend/templates/`):
+- **Three server-rendered dashboards** (`backend/pages.py` + `backend/templates/`; **replaced by the Next.js web app and deleted 2026-10-21**, this entry is history):
   - Operator (`/operator`): patient roster with adherence-status badges, add-patient +
     add-prescription forms.
   - Patient/family self-view (`/patients/<id>`): read-only adherence history, symptoms over time,
@@ -276,7 +288,7 @@ Built: `core/providers/{stt,tts}.py` (Sarvam via Pipecat; STT uses Sarvam's serv
 `codemix`; TTS Bulbul v3 `hi-IN`), `core/transport/voice_pipeline.py` (`VoiceTransport`: a `Transport`
 wrapping the pipeline room in -> Sarvam STT -> bridge -> Sarvam TTS -> room out; the bridge turns final
 transcripts into `receive_text` and tracks bot speech so hang-up waits for the closing line),
-`core/transport/livekit_transport.py` (used) and `daily_transport.py` (kept, unused: see below),
+`core/transport/livekit_transport.py` (the Daily transport was deleted 2026-10-21: see below),
 `backend/livekit_client.py` (mints the agent's and the patient's room tokens),
 `domains/med_adherence/bot.run_voice_call`. Backend: `POST /api/patients/<id>/voice-call` starts the
 agent in-process (`live_calls.start_voice_call`), operator **Voice call** button, and the patient page
@@ -389,6 +401,54 @@ hear the patient but the patient couldn't hear the doctor and the doctor's speec
 - **False promise removed:** the normal sign-off said "Doctor ko update kar diya jayega" though
   nothing notifies a doctor on a non-escalated call; the `closing_normal` prompt now forbids that.
   Open idea: flag seriousness>=3 logs on the doctor dashboard.
+
+### Web app (2026-10-21) — **BUILT AND VERIFIED IN A BROWSER; REAL VOICE CALLS NOT YET TRIED IN IT**
+Why: the backend-served Jinja pages were a cluttered dump of tables (one template served patient, doctor
+and operator with flags) and not installable. Replaced by a separate frontend, `web/` (Next.js), with the
+backend reduced to an API.
+- **Roles, no accounts (decision):** the first screen asks who you are (patient / doctor / staff); the choice
+  is kept in `localStorage` so the installed app opens straight to its home. Not security: anyone can pick
+  anyone. Staff open a patient's app with `?preview=1` so that doesn't overwrite their own remembered role.
+- **Patient app** (`/patients/[id]`, mobile-first, Hindi + English): Today = one big "Talk to VoiceMitra"
+  button, next dose, today's medicines with state chips, the week at a glance, how you're doing, reminders;
+  Medicines (schedule in words, days left, 7-day meter); History (timeline of check-ins, conversations, family
+  alerts); Me (language, install, switch user). The call is a full-screen sheet owned by `CallProvider` in the
+  layout, so it survives tab changes; raw tool calls are never shown to patients. Installable PWA (manifest,
+  icons, service worker, offline page; service worker is production-build only).
+- **Doctor app** (`/doctors/[id]`): overview built around "who do I look at now" -- tiles, a Needs-attention list
+  with the reasons in words, Stable patients, recent escalations; the incoming-call ring is in the layout so a
+  call can be picked up from any screen. Patient record (`PatientClinicalView`): flags + allergies first,
+  headline numbers, 14-day dose grid (with the reason for each missed dose), symptoms with a seriousness chart
+  and timeline, prescriptions (add one), calls/escalations/family alerts. Live call screen: steps (Briefing ->
+  On the call -> Summary), conversation, patient context beside it; voice join is button-driven, probes the mic
+  and **verifies the mic track was published** (the earlier silent-doctor bug), with errors shown. A finished
+  call shows its saved summary.
+- **Operator** (`/operator`): roster with live call controls (voice / chat / end), add patient, manage a patient
+  (the same clinical view).
+- **Backend:** `insights.py` (a dose with no check-in is "no check-in", never "missed"; events are matched to
+  the nearest slot of the day, latest wins; attention rules) and `views.py` (one read model per screen),
+  exposed under `/api/app/*`. 14 pytest tests cover both. Found and fixed on the way: date range queries
+  matched nothing because dates are stored as strings.
+- **Run:** `npm run dev` (or `demo` / `start`, see README) starts API (:8000), web app (:3000) and the tunnel in one
+  terminal with prefixed logs, Ctrl+C stops all of it (`scripts/dev.mjs`, built on `concurrently`; Turborepo was
+  rejected, it is for JS-package builds, not a Python API + Next app); one public hostname,
+  `test-voicemitra.apoorvm.com`, routes `/api`, `/ws`, `/health` to :8000 and the rest to :3000 (Cloudflare
+  ingress rules). Verified through the public URL: pages, API, a live WebSocket, active service worker,
+  manifest, no console errors. the `demo` commands use `voicemitra_demo` (`backend/seed_demo.py`: five patients
+  incl. a resolved emergency; refuses to wipe the real database).
+- **Verified:** 20 scripted browser checks (identity, Hindi/English, patient tabs, doctor overview + adding a
+  prescription, operator adding a patient); `next build`, lint and typecheck clean.
+- **Not verified / known gaps:** a real voice call and a real escalation + merge through the *new* screens
+  (the old pages are the only ones proven with real audio); the iPhone install path (manual Share steps);
+  Hindi strings were written by the assistant and need a native read; no auth; times use `APP_TIMEZONE`
+  (default Asia/Kolkata) which is one zone for everyone; "every X days" prescriptions are treated as daily
+  (the model has no interval).
+- **Cleanup done (2026-10-21, with the user's go-ahead):** deleted the old UI (`backend/pages.py`, `backend/templates/`,
+  `backend/static/`, the `/static` mount, the page-only helpers in `queries.py`, and the `jinja2` / `python-multipart`
+  dependencies), `run_backend.bat` and then `run.bat` (replaced by the npm scripts), the Daily transport, the Next.js starter boilerplate and the
+  unused Jinja helper draft. **The old pages were the only UI proven with real audio, and they were deleted before the new
+  screens had a real call run through them** -- the user chose this over waiting; `git log` has the old call/voice-join
+  code (`_chat_widget.html`, `escalation_call.html`) to compare against if a call misbehaves.
 
 ### Planned (not built): confidence-gated, LLM-judged escalation
 Escalation should come from the LLM's own assessment, not hand-written term lists. Idea:

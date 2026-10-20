@@ -13,7 +13,7 @@ Who receives the transcripts depends on the mode:
   - after `set_sink(fn)`: every transcript goes to `fn(speaker, text)` instead, and the agent no longer
     hears anything -- used to put the patient on hold, then to record a merged doctor<->patient call.
 
-Which room provider carries the audio is the subclass's business (livekit_transport.py, daily_transport.py).
+Which room provider carries the audio is the subclass's business (livekit_transport.py).
 """
 
 from __future__ import annotations

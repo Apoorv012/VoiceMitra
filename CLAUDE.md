@@ -23,8 +23,13 @@ the work as not actually finished.
 - `domains/med_adherence/` — the actual agent: prompts, concrete policy states, tools
   (`log_dose_event`, `escalate_to_doctor`, `notify_caregiver`, ...), escalation rules, guardrail
   rules.
-- `backend/` — FastAPI app: patient/doctor/caregiver/prescription CRUD, admin form, call
-  triggering, doctor dashboard, MongoDB persistence.
+- `backend/` — FastAPI **API only** (no HTML): patient/doctor/caregiver/prescription CRUD, call
+  triggering, live WebSockets, MongoDB persistence, and `views.py`/`insights.py` -- the read models
+  each screen needs (served under `/api/app/*`). Its OpenAPI schema is the contract with the frontend.
+- `web/` — Next.js (React, TypeScript) app: the patient app (installable PWA, Hindi/English), the doctor
+  screens and the operator screens. Talks to the backend over `/api/*` and WebSockets. Its API types are
+  generated (`python -m backend.dump_openapi`, then `npm run gen:api` in `web/`); next 16 differs from older
+  versions, so read `web/node_modules/next/dist/docs/` before changing framework-level code.
 - `eval/` — scripted scenarios replayed against the live agent to check it takes the correct
   tool-call path.
 - `reference_transcripts/` — sample Hindi/Hinglish call transcripts used as prompt/eval grounding
@@ -47,7 +52,7 @@ container needed; `MONGODB_URI`/`MONGODB_DB_NAME` in `.env` point at it.
 
 ## Transport swap path
 
-The call medium for the POC is browser-based WebRTC via Daily.co (`core/transport/daily_transport.py`).
+The call medium for the POC is browser-based WebRTC via a LiveKit room (`core/transport/livekit_transport.py`).
 A future phone-call version swaps in a Twilio-backed transport implementing the same
 `core/transport/base.py` interface — no changes needed in `core/agent/` or `domains/`.
 

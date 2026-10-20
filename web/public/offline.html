@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VoiceMitra</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 24px;
+           font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Devanagari", "Nirmala UI", sans-serif;
+           background: #f9f9f7; color: #0b0b0b; }
+    @media (prefers-color-scheme: dark) { body { background: #0d0d0d; color: #f0efec; } }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p { margin: 4px 0; color: #6f6d68; }
+    button { margin-top: 20px; min-height: 48px; padding: 0 28px; border: 0; border-radius: 999px;
+             background: #256abf; color: #fff; font: inherit; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>You're offline</h1>
+    <p>VoiceMitra needs the internet to show your medicines and to call you.</p>
+    <p>आप ऑफ़लाइन हैं। कृपया इंटरनेट चालू करके फिर कोशिश करें।</p>
+    <button onclick="location.reload()">Try again · फिर कोशिश करें</button>
+  </main>
+</body>
+</html>

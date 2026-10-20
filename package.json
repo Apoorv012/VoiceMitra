@@ -1,0 +1,17 @@
+{
+  "name": "voicemitra",
+  "private": true,
+  "description": "Run the whole VoiceMitra stack (API, web app, tunnel) from one terminal. See README.md.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "demo": "node scripts/dev.mjs --demo",
+    "start": "node scripts/dev.mjs --prod",
+    "start:demo": "node scripts/dev.mjs --prod --demo",
+    "dev:local": "node scripts/dev.mjs --no-tunnel",
+    "start:local": "node scripts/dev.mjs --prod --no-tunnel",
+    "postinstall": "cd web && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

@@ -1,9 +1,7 @@
-"""Read-side queries that assemble a patient's/doctor's full picture across collections. Shared
-between the JSON routers and the server-rendered dashboard pages so there's one place that knows
-how these documents relate."""
+"""Read-side queries that assemble a patient's/doctor's full picture across collections, for the plain
+JSON routers (/api/patients/{id}, /api/doctors/{id}). The screens' read models are in views.py."""
 
 from __future__ import annotations
-from typing import cast
 
 from backend.db import (
     calls_col,
@@ -80,21 +78,6 @@ async def get_patient_bundle(patient_id: str) -> dict | None:
         "calls": calls,
         "reminders": reminders,
     }
-
-
-async def _row_for(patient: Patient) -> dict:
-    last_call_doc = await calls_col().find_one({"patient_id": patient.id}, sort=[("date_time", -1)])
-    return {"patient": patient, "last_call": doc_to_model(Call, last_call_doc)}
-
-
-async def get_patient_row(patient_id: str) -> dict | None:
-    patient = doc_to_model(Patient, await patients_col().find_one({"_id": patient_id}))
-    return None if patient is None else await _row_for(patient)
-
-
-async def list_patients_with_last_status() -> list[dict]:
-    patients = [doc_to_model(Patient, d) async for d in patients_col().find()]
-    return [await _row_for(cast(Patient, p)) for p in patients]
 
 
 async def get_doctor_bundle(doctor_id: str) -> dict | None:

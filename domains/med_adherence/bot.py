@@ -1,7 +1,7 @@
 """Entrypoint that assembles an AgentRuntime for a given patient's call.
 
 Chunk 2: chat-mode only (ChatTransport), for building/debugging the agent's logic without audio.
-Chunk 3 added `run_voice_call` (DailyTransport) alongside this, reusing everything else
+Chunk 3 added `run_voice_call` (LiveKitTransport) alongside this, reusing everything else
 (policy/tools/guardrails/prompts) unchanged -- only the transport differs.
 
 Usage: python -m domains.med_adherence.bot <patient_id>

@@ -4,16 +4,13 @@ uvicorn[standard]
 motor
 pydantic
 pydantic-settings
-jinja2
-python-multipart
 python-dotenv
 tzdata  # Windows has no system timezone database; the UI shows times in APP_TIMEZONE
 
 # Agent core (Chunk 2: Sarvam LLM via OpenAI-compatible client)
 openai
 
-# Voice: Pipecat for audio I/O (Sarvam STT/TTS), LiveKit as the room. daily-python (the Daily transport)
-# is Linux-only and not needed.
+# Voice: Pipecat for audio I/O (Sarvam STT/TTS), LiveKit as the room.
 pipecat-ai[livekit,sarvam]
 livekit-api
 aiohttp

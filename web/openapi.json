@@ -1,0 +1,3053 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VoiceMitra",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/app/people": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "People",
+        "description": "Everyone you can sign in as -- there are no accounts, you just pick who you are.",
+        "operationId": "people_api_app_people_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/People"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/patients/{patient_id}/home": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Patient Home",
+        "operationId": "patient_home_api_app_patients__patient_id__home_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientHome"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/patients/{patient_id}/medicines": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Patient Medicines",
+        "operationId": "patient_medicines_api_app_patients__patient_id__medicines_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientMedicines"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/patients/{patient_id}/history": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Patient History",
+        "operationId": "patient_history_api_app_patients__patient_id__history_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientHistory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/doctors/{doctor_id}/overview": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Doctor Overview",
+        "operationId": "doctor_overview_api_app_doctors__doctor_id__overview_get",
+        "parameters": [
+          {
+            "name": "doctor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doctor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoctorOverview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/doctors/{doctor_id}/patients/{patient_id}": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Doctor Patient",
+        "operationId": "doctor_patient_api_app_doctors__doctor_id__patients__patient_id__get",
+        "parameters": [
+          {
+            "name": "doctor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doctor Id"
+            }
+          },
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientClinical"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/doctors/{doctor_id}/escalations/{escalation_id}": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Doctor Escalation",
+        "operationId": "doctor_escalation_api_app_doctors__doctor_id__escalations__escalation_id__get",
+        "parameters": [
+          {
+            "name": "doctor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doctor Id"
+            }
+          },
+          {
+            "name": "escalation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Escalation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscalationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/calls/{call_id}": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Call Transcript",
+        "operationId": "call_transcript_api_app_calls__call_id__get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallTranscript"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/operator/roster": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Operator Roster",
+        "operationId": "operator_roster_api_app_operator_roster_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorRoster"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app/operator/patients/{patient_id}": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Operator Patient",
+        "description": "The same clinical picture a doctor gets, for hospital staff (no doctor is the viewer).",
+        "operationId": "operator_patient_api_app_operator_patients__patient_id__get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientClinical"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "List Patients",
+        "operationId": "list_patients_api_patients_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Patient"
+                  },
+                  "type": "array",
+                  "title": "Response List Patients Api Patients Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Create Patient",
+        "operationId": "create_patient_api_patients_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePatientRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get Patient Detail",
+        "operationId": "get_patient_detail_api_patients__patient_id__get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Patient Detail Api Patients  Patient Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/prescriptions": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Add Prescription",
+        "operationId": "add_prescription_api_patients__patient_id__prescriptions_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPrescriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prescription"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/doctors": {
+      "get": {
+        "tags": [
+          "doctors"
+        ],
+        "summary": "List Doctors",
+        "operationId": "list_doctors_api_doctors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Doctor"
+                  },
+                  "type": "array",
+                  "title": "Response List Doctors Api Doctors Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/doctors/{doctor_id}": {
+      "get": {
+        "tags": [
+          "doctors"
+        ],
+        "summary": "Get Doctor Detail",
+        "operationId": "get_doctor_detail_api_doctors__doctor_id__get",
+        "parameters": [
+          {
+            "name": "doctor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doctor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Doctor Detail Api Doctors  Doctor Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calls/{call_id}": {
+      "get": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Get Call",
+        "operationId": "get_call_api_calls__call_id__get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Call"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/call": {
+      "post": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Start Patient Call",
+        "operationId": "start_patient_call_api_patients__patient_id__call_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/call/end": {
+      "post": {
+        "tags": [
+          "live"
+        ],
+        "summary": "End Patient Call",
+        "operationId": "end_patient_call_api_patients__patient_id__call_end_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/voice-call": {
+      "post": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Start Patient Voice Call",
+        "operationId": "start_patient_voice_call_api_patients__patient_id__voice_call_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/escalations/{escalation_id}/join": {
+      "post": {
+        "tags": [
+          "escalations"
+        ],
+        "summary": "Join Escalation",
+        "operationId": "join_escalation_api_escalations__escalation_id__join_post",
+        "parameters": [
+          {
+            "name": "escalation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Escalation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Join Escalation Api Escalations  Escalation Id  Join Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/escalations/{escalation_id}/end": {
+      "post": {
+        "tags": [
+          "escalations"
+        ],
+        "summary": "End Escalation",
+        "operationId": "end_escalation_api_escalations__escalation_id__end_post",
+        "parameters": [
+          {
+            "name": "escalation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Escalation Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddPrescriptionRequest": {
+        "properties": {
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/DosageInput"
+            },
+            "type": "array",
+            "title": "Medicines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicines"
+        ],
+        "title": "AddPrescriptionRequest"
+      },
+      "AdherenceView": {
+        "properties": {
+          "taken": {
+            "type": "integer",
+            "title": "Taken"
+          },
+          "missed": {
+            "type": "integer",
+            "title": "Missed"
+          },
+          "unrecorded": {
+            "type": "integer",
+            "title": "Unrecorded"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taken",
+          "missed",
+          "unrecorded",
+          "rate"
+        ],
+        "title": "AdherenceView"
+      },
+      "AlertView": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver"
+          },
+          "trigger": {
+            "type": "string",
+            "title": "Trigger"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "message",
+          "caregiver",
+          "trigger",
+          "call_id"
+        ],
+        "title": "AlertView"
+      },
+      "AttentionView": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "reasons"
+        ],
+        "title": "AttentionView"
+      },
+      "Call": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Time"
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/CallLogEntry"
+            },
+            "type": "array",
+            "title": "Logs"
+          },
+          "doctor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doctor Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CallType"
+          },
+          "medicine_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MedicineStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patient_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PatientStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "escalation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Reason"
+          },
+          "caregiver_notified": {
+            "type": "boolean",
+            "title": "Caregiver Notified",
+            "default": false
+          },
+          "room_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id",
+          "type"
+        ],
+        "title": "Call"
+      },
+      "CallLogEntry": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/CallLogEntryType"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "tool_args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Args"
+          },
+          "tool_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Result"
+          },
+          "related_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Call Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "CallLogEntry"
+      },
+      "CallLogEntryType": {
+        "type": "string",
+        "enum": [
+          "patient_said",
+          "agent_said",
+          "tool_call",
+          "escalation_call_started",
+          "escalation_call_merged",
+          "doctor_said",
+          "escalation_summary"
+        ],
+        "title": "CallLogEntryType"
+      },
+      "CallTranscript": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "medicine_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medicine Status"
+          },
+          "patient_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Status"
+          },
+          "escalation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Reason"
+          },
+          "caregiver_notified": {
+            "type": "boolean",
+            "title": "Caregiver Notified"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "id",
+          "patient",
+          "at",
+          "type",
+          "medicine_status",
+          "patient_status",
+          "escalation_reason",
+          "caregiver_notified",
+          "entries"
+        ],
+        "title": "CallTranscript"
+      },
+      "CallType": {
+        "type": "string",
+        "enum": [
+          "medicine_reminder",
+          "just_catch_up",
+          "inbound_call",
+          "other"
+        ],
+        "title": "CallType"
+      },
+      "CaregiverInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "relation",
+          "phone_number"
+        ],
+        "title": "CaregiverInput"
+      },
+      "CaregiverView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "relation",
+          "phone_number"
+        ],
+        "title": "CaregiverView"
+      },
+      "CheckinView": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "medicine_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medicine Status"
+          },
+          "patient_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Status"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "symptoms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Symptoms"
+          },
+          "seriousness": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seriousness"
+          },
+          "escalated": {
+            "type": "boolean",
+            "title": "Escalated",
+            "default": false
+          },
+          "doctor_connected": {
+            "type": "boolean",
+            "title": "Doctor Connected",
+            "default": false
+          },
+          "escalation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call_id",
+          "at",
+          "type",
+          "medicine_status",
+          "patient_status",
+          "summary",
+          "symptoms",
+          "seriousness",
+          "escalated",
+          "doctor_connected",
+          "escalation_reason"
+        ],
+        "title": "CheckinView"
+      },
+      "CreatePatientRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaregiverInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "age",
+          "phone_number"
+        ],
+        "title": "CreatePatientRequest"
+      },
+      "DayView": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "taken": {
+            "type": "integer",
+            "title": "Taken"
+          },
+          "due": {
+            "type": "integer",
+            "title": "Due"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotView"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "state",
+          "taken",
+          "due",
+          "slots"
+        ],
+        "title": "DayView"
+      },
+      "Doctor": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "secondary_phone_numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Secondary Phone Numbers"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "patient_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Patient Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "phone_number"
+        ],
+        "title": "Doctor"
+      },
+      "DoctorOverview": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "doctor": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "tiles": {
+            "$ref": "#/components/schemas/Tiles"
+          },
+          "patients": {
+            "items": {
+              "$ref": "#/components/schemas/PatientRow"
+            },
+            "type": "array",
+            "title": "Patients"
+          },
+          "escalations": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationRow"
+            },
+            "type": "array",
+            "title": "Escalations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "doctor",
+          "tiles",
+          "patients",
+          "escalations"
+        ],
+        "title": "DoctorOverview"
+      },
+      "Dosage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "prescription_id": {
+            "type": "string",
+            "title": "Prescription Id"
+          },
+          "medicine_name": {
+            "type": "string",
+            "title": "Medicine Name"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage"
+          },
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/DoseFrequency"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Times"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prescription_id",
+          "medicine_name",
+          "dosage",
+          "from_date",
+          "frequency"
+        ],
+        "title": "Dosage"
+      },
+      "DosageInput": {
+        "properties": {
+          "medicine_name": {
+            "type": "string",
+            "title": "Medicine Name"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage"
+          },
+          "from_date": {
+            "type": "string",
+            "title": "From Date"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/DoseFrequency"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Times"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicine_name",
+          "dosage",
+          "from_date",
+          "frequency"
+        ],
+        "title": "DosageInput"
+      },
+      "DoseFrequency": {
+        "type": "string",
+        "enum": [
+          "daily",
+          "weekly",
+          "every_x_day",
+          "fixed_times"
+        ],
+        "title": "DoseFrequency"
+      },
+      "EscalationRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "patient_name": {
+            "type": "string",
+            "title": "Patient Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "urgency": {
+            "type": "string",
+            "title": "Urgency"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "doctor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doctor Name"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "title": "Is Mine"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "patient_id",
+          "patient_name",
+          "status",
+          "created_at",
+          "reason",
+          "summary",
+          "urgency",
+          "call_id",
+          "doctor_name",
+          "is_mine"
+        ],
+        "title": "EscalationRow"
+      },
+      "EscalationView": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "brief_summary": {
+            "type": "string",
+            "title": "Brief Summary"
+          },
+          "urgency": {
+            "type": "string",
+            "title": "Urgency"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "doctor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/MedicineView"
+            },
+            "type": "array",
+            "title": "Medicines"
+          },
+          "week": {
+            "items": {
+              "$ref": "#/components/schemas/DayView"
+            },
+            "type": "array",
+            "title": "Week"
+          },
+          "adherence": {
+            "$ref": "#/components/schemas/AdherenceView"
+          },
+          "recent_logs": {
+            "items": {
+              "$ref": "#/components/schemas/LogView"
+            },
+            "type": "array",
+            "title": "Recent Logs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "id",
+          "status",
+          "created_at",
+          "reason",
+          "brief_summary",
+          "urgency",
+          "summary",
+          "call_id",
+          "doctor",
+          "patient",
+          "phone_number",
+          "allergies",
+          "medicines",
+          "week",
+          "adherence",
+          "recent_logs"
+        ],
+        "title": "EscalationView"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HowDoing": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "band": {
+            "type": "string",
+            "title": "Band"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "summary",
+          "band"
+        ],
+        "title": "HowDoing"
+      },
+      "JoinRequest": {
+        "properties": {
+          "doctor_id": {
+            "type": "string",
+            "title": "Doctor Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "doctor_id"
+        ],
+        "title": "JoinRequest"
+      },
+      "LogView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "seriousness": {
+            "type": "integer",
+            "title": "Seriousness"
+          },
+          "band": {
+            "type": "string",
+            "title": "Band"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "symptoms": {
+            "items": {
+              "$ref": "#/components/schemas/SymptomView"
+            },
+            "type": "array",
+            "title": "Symptoms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "call_id",
+          "at",
+          "seriousness",
+          "band",
+          "summary",
+          "symptoms"
+        ],
+        "title": "LogView"
+      },
+      "MedicineStatus": {
+        "type": "string",
+        "enum": [
+          "taken",
+          "confusion",
+          "not_taken",
+          "dont_know"
+        ],
+        "title": "MedicineStatus"
+      },
+      "MedicineView": {
+        "properties": {
+          "dosage_id": {
+            "type": "string",
+            "title": "Dosage Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dose": {
+            "type": "string",
+            "title": "Dose"
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Times"
+          },
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          },
+          "taken": {
+            "type": "integer",
+            "title": "Taken"
+          },
+          "known": {
+            "type": "integer",
+            "title": "Known"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosage_id",
+          "name",
+          "dose",
+          "frequency",
+          "times",
+          "from_date",
+          "to_date",
+          "active",
+          "days_left",
+          "taken",
+          "known"
+        ],
+        "title": "MedicineView"
+      },
+      "OperatorRoster": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "patients": {
+            "items": {
+              "$ref": "#/components/schemas/RosterRow"
+            },
+            "type": "array",
+            "title": "Patients"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "patients"
+        ],
+        "title": "OperatorRoster"
+      },
+      "Patient": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "caregiver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Id"
+          },
+          "prescription_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prescription Ids"
+          },
+          "daily_log_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Daily Log Ids"
+          },
+          "call_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Call Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "age",
+          "phone_number"
+        ],
+        "title": "Patient"
+      },
+      "PatientClinical": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaregiverView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attention": {
+            "$ref": "#/components/schemas/AttentionView"
+          },
+          "adherence": {
+            "$ref": "#/components/schemas/AdherenceView"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayView"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/LogView"
+            },
+            "type": "array",
+            "title": "Logs"
+          },
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/MedicineView"
+            },
+            "type": "array",
+            "title": "Medicines"
+          },
+          "checkins": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinView"
+            },
+            "type": "array",
+            "title": "Checkins"
+          },
+          "escalations": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationRow"
+            },
+            "type": "array",
+            "title": "Escalations"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertView"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "reminders": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Reminders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "patient",
+          "phone_number",
+          "address",
+          "allergies",
+          "caregiver",
+          "attention",
+          "adherence",
+          "days",
+          "logs",
+          "medicines",
+          "checkins",
+          "escalations",
+          "alerts",
+          "reminders"
+        ],
+        "title": "PatientClinical"
+      },
+      "PatientHistory": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "checkins": {
+            "items": {
+              "$ref": "#/components/schemas/CheckinView"
+            },
+            "type": "array",
+            "title": "Checkins"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertView"
+            },
+            "type": "array",
+            "title": "Alerts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "patient",
+          "checkins",
+          "alerts"
+        ],
+        "title": "PatientHistory"
+      },
+      "PatientHome": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/SlotView"
+            },
+            "type": "array",
+            "title": "Today"
+          },
+          "next_dose": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SlotView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "items": {
+              "$ref": "#/components/schemas/DayView"
+            },
+            "type": "array",
+            "title": "Week"
+          },
+          "adherence": {
+            "$ref": "#/components/schemas/AdherenceView"
+          },
+          "last_checkin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "how_doing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HowDoing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reminders": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Reminders"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaregiverView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "patient",
+          "allergies",
+          "today",
+          "next_dose",
+          "week",
+          "adherence",
+          "last_checkin",
+          "how_doing",
+          "reminders",
+          "caregiver"
+        ],
+        "title": "PatientHome"
+      },
+      "PatientMedicines": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/MedicineView"
+            },
+            "type": "array",
+            "title": "Medicines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "patient",
+          "allergies",
+          "medicines"
+        ],
+        "title": "PatientMedicines"
+      },
+      "PatientRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "attention": {
+            "$ref": "#/components/schemas/AttentionView"
+          },
+          "adherence": {
+            "$ref": "#/components/schemas/AdherenceView"
+          },
+          "week": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Week"
+          },
+          "last_checkin_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkin At"
+          },
+          "latest_seriousness": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Seriousness"
+          },
+          "live_escalation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Escalation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "age",
+          "attention",
+          "adherence",
+          "week",
+          "last_checkin_at",
+          "latest_seriousness",
+          "live_escalation_id"
+        ],
+        "title": "PatientRow"
+      },
+      "PatientStatus": {
+        "type": "string",
+        "enum": [
+          "good",
+          "remedy",
+          "urgent"
+        ],
+        "title": "PatientStatus"
+      },
+      "People": {
+        "properties": {
+          "patients": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array",
+            "title": "Patients"
+          },
+          "doctors": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array",
+            "title": "Doctors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patients",
+          "doctors"
+        ],
+        "title": "People"
+      },
+      "Person": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "age",
+          "description"
+        ],
+        "title": "Person"
+      },
+      "Prescription": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/Dosage"
+            },
+            "type": "array",
+            "title": "Medicines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_id"
+        ],
+        "title": "Prescription"
+      },
+      "RosterRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "last_call_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Call At"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
+          },
+          "in_call": {
+            "type": "boolean",
+            "title": "In Call"
+          },
+          "attention": {
+            "$ref": "#/components/schemas/AttentionView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "age",
+          "phone_number",
+          "last_call_at",
+          "last_status",
+          "in_call",
+          "attention"
+        ],
+        "title": "RosterRow"
+      },
+      "SlotView": {
+        "properties": {
+          "dosage_id": {
+            "type": "string",
+            "title": "Dosage Id"
+          },
+          "medicine": {
+            "type": "string",
+            "title": "Medicine"
+          },
+          "dose": {
+            "type": "string",
+            "title": "Dose"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dosage_id",
+          "medicine",
+          "dose",
+          "at",
+          "state",
+          "note",
+          "recorded_at"
+        ],
+        "title": "SlotView"
+      },
+      "SymptomView": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "duration_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "location",
+          "severity",
+          "duration_note"
+        ],
+        "title": "SymptomView"
+      },
+      "Tiles": {
+        "properties": {
+          "patients": {
+            "type": "integer",
+            "title": "Patients"
+          },
+          "needing_attention": {
+            "type": "integer",
+            "title": "Needing Attention"
+          },
+          "checkins_today": {
+            "type": "integer",
+            "title": "Checkins Today"
+          },
+          "adherence_rate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adherence Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patients",
+          "needing_attention",
+          "checkins_today",
+          "adherence_rate"
+        ],
+        "title": "Tiles"
+      },
+      "TranscriptEntry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "leg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "tool_args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Args"
+          },
+          "tool_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Result"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "at",
+          "text",
+          "leg",
+          "tool_name",
+          "tool_args",
+          "tool_result",
+          "note"
+        ],
+        "title": "TranscriptEntry"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

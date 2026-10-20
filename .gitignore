@@ -6,3 +6,6 @@ venv/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+
+# Root tooling (scripts/dev.mjs runner)
+node_modules/

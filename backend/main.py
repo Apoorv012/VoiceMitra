@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -8,13 +7,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
-from backend import escalations, pages
+from backend import escalations
 from backend.db import ensure_indexes
 from backend.live_calls import rearm_pending_reminders
-from backend.routers import calls, doctors, live, patients
+from backend.routers import app_api, calls, doctors, live, patients
 from backend.routers import escalations as escalation_routes
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,15 +23,15 @@ async def lifespan(app: FastAPI):
     yield
 
 
+# The backend is an API only: JSON and WebSockets. The screens live in the web app (web/).
 app = FastAPI(title="VoiceMitra", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
+app.include_router(app_api.router)
 app.include_router(patients.router)
 app.include_router(doctors.router)
 app.include_router(calls.router)
 app.include_router(live.router)
 app.include_router(escalation_routes.router)
-app.include_router(pages.router)
 
 
 @app.get("/health")
