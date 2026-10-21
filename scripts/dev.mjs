@@ -1,20 +1,28 @@
 // Runs the whole stack in this terminal: the API, the web app and (if installed) the tunnel, with
 // prefixed, colour-coded logs. Ctrl+C stops all of it. Use through the npm scripts (see README.md):
 //
-//   npm run dev          web app with hot reload          npm run demo        same, on the demo database
-//   npm start            production web app (installable) npm run start:demo  same, on the demo database
-//   npm run dev:local / start:local   the same without the tunnel
+//   npm run dev        the web app as a production build (fast pages, the installable app works)
+//   npm run demo       the same on the demo database
+//   npm run dev:local  the same without the tunnel
+//
+// Flags go after npm's `--`:   npm run dev -- --hot
+//   --hot       run the web app with hot reload (`next dev`), for when you are editing the frontend.
+//               Slower to load: it compiles pages on demand. The HOT=1 environment variable does the same.
+//   --rebuild   build the web app even if nothing has changed since the last build.
+// (`npm run dev:hot` and `npm run demo:hot` are shortcuts for the --hot forms.)
 
 import concurrently from "concurrently";
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const flags = new Set(process.argv.slice(2));
-const prod = flags.has("--prod");
+const isSet = (value) => value !== undefined && !["", "0", "false", "no"].includes(String(value).toLowerCase());
+const hot = flags.has("--hot") || isSet(process.env.HOT);
+const rebuild = flags.has("--rebuild");
 const demo = flags.has("--demo");
 const wantTunnel = !flags.has("--no-tunnel");
 
@@ -61,22 +69,46 @@ function findCloudflared() {
 }
 const cloudflared = wantTunnel ? findCloudflared() : null;
 
+// --- build the web app only when something changed -------------------------------------------------------
+// `next build` is the slow part of a start; if the last build is newer than every source file, reuse it.
+function newestChange(paths) {
+  let newest = 0;
+  const walk = (p) => {
+    let info;
+    try { info = statSync(p); } catch { return; }
+    if (info.isDirectory()) readdirSync(p).forEach((name) => walk(path.join(p, name)));
+    else newest = Math.max(newest, info.mtimeMs);
+  };
+  paths.forEach(walk);
+  return newest;
+}
+
+function needsBuild() {
+  const marker = path.join(root, "web", ".next", "BUILD_ID"); // written by `next build`, never by `next dev`
+  if (rebuild || !existsSync(marker)) return true;
+  const inputs = ["src", "public", "next.config.ts", "package.json", "tsconfig.json", "openapi.json"];
+  return newestChange(inputs.map((p) => path.join(root, "web", p))) > statSync(marker).mtimeMs;
+}
+
+const building = !hot && needsBuild();
+const webMode = hot ? "hot reload (next dev)" : building ? "production build (building first)" : "production build (up to date, not rebuilding)";
+
 // --- what to run ----------------------------------------------------------------------------------------
 const commands = [
   {
     name: "api",
     prefixColor: "cyan",
     // 127.0.0.1 only: the web app and the tunnel both reach it through localhost, so it needn't be on the LAN.
-    command: `"${python}" -m uvicorn backend.main:app --host 127.0.0.1 --port ${API_PORT}${prod ? "" : " --reload"}`,
+    command: `"${python}" -m uvicorn backend.main:app --host 127.0.0.1 --port ${API_PORT} --reload`,
     cwd: root,
     env: demo ? { MONGODB_DB_NAME: "voicemitra_demo" } : {},
   },
   {
     name: "web",
     prefixColor: "magenta",
-    command: prod
-      ? `npm run build && npm run start -- --port ${WEB_PORT}`
-      : `npm run dev -- --port ${WEB_PORT}`,
+    command: hot
+      ? `npm run dev -- --port ${WEB_PORT}`
+      : `${building ? "npm run build && " : ""}npm run start -- --port ${WEB_PORT}`,
     cwd: path.join(root, "web"),
   },
 ];
@@ -92,10 +124,11 @@ if (cloudflared) {
 }
 
 console.log(`
-  VoiceMitra  ·  ${prod ? "production web app (installable)" : "dev mode (hot reload)"}  ·  ${demo ? "DEMO database (voicemitra_demo)" : "your real database"}
+  VoiceMitra  ·  web app: ${webMode}  ·  ${demo ? "DEMO database (voicemitra_demo)" : "your real database"}
   This computer:  http://localhost:${WEB_PORT}
   Phone:          ${cloudflared ? PHONE_URL : wantTunnel ? "no phone URL: install cloudflared (winget install Cloudflare.cloudflared)" : "tunnel off"}
-  Ctrl+C stops everything.${prod ? "\n  The web app builds first, so give it about 30 seconds." : ""}
+  Ctrl+C stops everything.${building ? "\n  Building the web app first (usually 10-30 seconds)." : ""}
+  ${hot ? "Hot reload is slower to load pages. Drop --hot for the built app." : "Editing the frontend? Add --hot for hot reload:  npm run dev -- --hot"}
 `);
 
 const { result } = concurrently(commands, {

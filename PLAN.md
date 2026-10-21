@@ -109,7 +109,7 @@ voicemitra/
   web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
                                  # public/ (icons, service worker, offline page), scripts/make_icons.py
   tests/                         # pytest: insights.py and views.py
-  package.json, scripts/dev.mjs  # `npm run dev|demo|start` runs API + web app + tunnel in one terminal (see README)
+  package.json, scripts/dev.mjs  # `npm run dev|demo` runs API + web app + tunnel in one terminal; `-- --hot` for hot reload (see README)
 
   eval/                          # not yet built (Chunk 5)
   reference_transcripts/         # sample Hindi/Hinglish transcripts, prompt/eval grounding material
@@ -429,9 +429,13 @@ backend reduced to an API.
   the nearest slot of the day, latest wins; attention rules) and `views.py` (one read model per screen),
   exposed under `/api/app/*`. 14 pytest tests cover both. Found and fixed on the way: date range queries
   matched nothing because dates are stored as strings.
-- **Run:** `npm run dev` (or `demo` / `start`, see README) starts API (:8000), web app (:3000) and the tunnel in one
+- **Run:** `npm run dev` (or `demo`, see README) starts API (:8000), web app (:3000) and the tunnel in one
   terminal with prefixed logs, Ctrl+C stops all of it (`scripts/dev.mjs`, built on `concurrently`; Turborepo was
-  rejected, it is for JS-package builds, not a Python API + Next app); one public hostname,
+  rejected, it is for JS-package builds, not a Python API + Next app). **The web app is built and served by default**
+  (hot reload, `next dev`, was too slow to load pages); `-- --hot` / `npm run dev:hot` switches to hot reload, and the build is
+  skipped when no web source file is newer than `.next/BUILD_ID` (`-- --rebuild` forces it). Hot mode removes any leftover
+  service worker/cache from an earlier built run (verified; first version raced with the old worker re-creating its cache).
+  The API always runs with `--reload`; one public hostname,
   `test-voicemitra.apoorvm.com`, routes `/api`, `/ws`, `/health` to :8000 and the rest to :3000 (Cloudflare
   ingress rules). Verified through the public URL: pages, API, a live WebSocket, active service worker,
   manifest, no console errors. the `demo` commands use `voicemitra_demo` (`backend/seed_demo.py`: five patients
@@ -449,6 +453,17 @@ backend reduced to an API.
   unused Jinja helper draft. **The old pages were the only UI proven with real audio, and they were deleted before the new
   screens had a real call run through them** -- the user chose this over waiting; `git log` has the old call/voice-join
   code (`_chat_widget.html`, `escalation_call.html`) to compare against if a call misbehaves.
+
+### Web visual redesign (2026-10-21) — **BUILT, build/tsc/eslint pass; NOT YET EYEBALLED IN A BROWSER**
+Restyled the Next app from three reference designs (soft sage palette, large rounded cards, pill nav with a
+green active tab, dark-green primary button, floating pill tab bar on mobile). Only patterns that map to our
+screens were taken; AI-assistant, shift, billing, vitals and capacity widgets were deliberately left out.
+Plus Jakarta Sans + Noto Sans Devanagari via `next/font`; green brand accent, dark-green primary action;
+status colours still reserved for state and always icon + word. Doctor overview tiles gained icons and the
+header shows the date. Token-level change in `web/src/app/globals.css`; markup changes limited to the doctor
+overview, the new-patient form and brand-mark sizing. Also applied Web Interface Guidelines fixes
+(focus-visible, explicit transitions, reduced motion, `touch-action`, form `autocomplete`/`inputMode`,
+`translate="no"` on the brand).
 
 ### Planned (not built): confidence-gated, LLM-judged escalation
 Escalation should come from the LLM's own assessment, not hand-written term lists. Idea:

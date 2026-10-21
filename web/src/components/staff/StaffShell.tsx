@@ -20,8 +20,8 @@ export function StaffShell({
       <header className="s-head">
         <div className="s-head-inner">
           <Link href={nav[0].href} className="s-brand">
-            <span className="brand-mark" style={{ width: 34, height: 34, borderRadius: 10 }}><Icon name="mic" /></span>
-            VoiceMitra
+            <span className="brand-mark" style={{ width: 36, height: 36, borderRadius: 12 }}><Icon name="mic" /></span>
+            <span translate="no">VoiceMitra</span>
           </Link>
           <nav className="s-nav" aria-label="Main">
             {nav.map((n) => {

@@ -14,7 +14,7 @@ export default function NewPatient() {
   return (
     <>
       <Link href="/operator" className="crumb"><Icon name="chevron-left" />Patients</Link>
-      <h1>Add a patient</h1>
+      <h1>Add a Patient</h1>
       <form
         className="stack"
         style={{ maxWidth: 640 }}
@@ -46,27 +46,27 @@ export default function NewPatient() {
         <section className="card stack">
           <h2>Patient</h2>
           <div className="form-grid">
-            <div className="field"><label htmlFor="name">Full name</label><input id="name" name="name" type="text" required autoComplete="off" /></div>
-            <div className="field"><label htmlFor="age">Age</label><input id="age" name="age" type="number" min={0} max={120} required /></div>
-            <div className="field"><label htmlFor="phone">Phone number</label><input id="phone" name="phone_number" type="tel" required /></div>
-            <div className="field"><label htmlFor="address">Address</label><input id="address" name="address" type="text" /></div>
+            <div className="field"><label htmlFor="name">Full name</label><input id="name" name="name" type="text" required autoComplete="off" placeholder="e.g. Asha Verma" /></div>
+            <div className="field"><label htmlFor="age">Age</label><input id="age" name="age" type="number" inputMode="numeric" min={0} max={120} required /></div>
+            <div className="field"><label htmlFor="phone">Phone number</label><input id="phone" name="phone_number" type="tel" required autoComplete="off" spellCheck={false} placeholder="+91 98765 43210" /></div>
+            <div className="field"><label htmlFor="address">Address</label><input id="address" name="address" type="text" autoComplete="off" /></div>
           </div>
-          <div className="field"><label htmlFor="allergies">Allergies</label><input id="allergies" name="allergies" type="text" placeholder="Penicillin, Aspirin" /><span className="hint">Comma separated. Leave empty if none are known.</span></div>
-          <div className="field"><label htmlFor="desc">Notes</label><textarea id="desc" name="description" rows={2} placeholder="Conditions, anything the doctor should know" /></div>
+          <div className="field"><label htmlFor="allergies">Allergies</label><input id="allergies" name="allergies" type="text" placeholder="Penicillin, Aspirin…" autoComplete="off" /><span className="hint">Comma separated. Leave empty if none are known.</span></div>
+          <div className="field"><label htmlFor="desc">Notes</label><textarea id="desc" name="description" rows={2} placeholder="Conditions, anything the doctor should know…" /></div>
         </section>
 
         <section className="card stack">
           <div><h2>Family contact</h2><p className="small muted">Told if the patient can&apos;t be reached or needs a doctor. Optional.</p></div>
           <div className="form-grid">
-            <div className="field"><label htmlFor="cg-name">Name</label><input id="cg-name" name="caregiver_name" type="text" /></div>
-            <div className="field"><label htmlFor="cg-rel">Relation</label><input id="cg-rel" name="caregiver_relation" type="text" placeholder="son, daughter, spouse" /></div>
-            <div className="field"><label htmlFor="cg-phone">Phone number</label><input id="cg-phone" name="caregiver_phone" type="tel" /></div>
+            <div className="field"><label htmlFor="cg-name">Name</label><input id="cg-name" name="caregiver_name" type="text" autoComplete="off" /></div>
+            <div className="field"><label htmlFor="cg-rel">Relation</label><input id="cg-rel" name="caregiver_relation" type="text" placeholder="son, daughter, spouse…" autoComplete="off" /></div>
+            <div className="field"><label htmlFor="cg-phone">Phone number</label><input id="cg-phone" name="caregiver_phone" type="tel" autoComplete="off" spellCheck={false} /></div>
           </div>
         </section>
 
         {error && <div className="callout crit" role="alert"><Icon name="alert" /><p>{error}</p></div>}
         <div className="row">
-          <button className="btn" type="submit" disabled={busy}>{busy ? "Adding…" : "Add patient"}</button>
+          <button className="btn" type="submit" disabled={busy}>{busy ? "Adding…" : "Add Patient"}</button>
           <Link href="/operator" className="btn ghost">Cancel</Link>
         </div>
       </form>

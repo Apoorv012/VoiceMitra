@@ -52,19 +52,28 @@ export default function DoctorHome() {
       <div className="page-head">
         <div>
           <h1>{data.doctor.name}</h1>
-          {data.doctor.description && <p className="ink-2">{data.doctor.description}</p>}
+          <p className="ink-2 hero-sub">{data.doctor.description || "Patients who need you, and how everyone else is doing."}</p>
         </div>
+        <p className="small muted page-date">{new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date())}</p>
       </div>
 
       <div className="tiles">
-        <div className="tile"><span className="label">Patients</span><span className="value">{t.patients}</span></div>
+        <div className="tile">
+          <span className="tile-ico"><Icon name="users" /></span>
+          <span className="label">Patients</span><span className="value">{t.patients}</span>
+        </div>
         <div className={`tile ${t.needing_attention ? "attn" : ""}`}>
+          <span className="tile-ico"><Icon name="alert" /></span>
           <span className="label">Need attention</span>
           <span className="value">{t.needing_attention}</span>
           <span className="sub">{t.needing_attention ? "Reviewed below" : "All clear"}</span>
         </div>
-        <div className="tile"><span className="label">Check-ins today</span><span className="value">{t.checkins_today}</span></div>
         <div className="tile">
+          <span className="tile-ico"><Icon name="phone" /></span>
+          <span className="label">Check-ins today</span><span className="value">{t.checkins_today}</span>
+        </div>
+        <div className="tile">
+          <span className="tile-ico"><Icon name="activity" /></span>
           <span className="label">Adherence, last 7 days</span>
           <span className="value">{t.adherence_rate === null ? "—" : <>{t.adherence_rate}<small>%</small></>}</span>
           <span className="sub">Of doses we heard about</span>

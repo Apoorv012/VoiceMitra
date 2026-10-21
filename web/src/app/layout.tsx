@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/PwaRegister";
+
+const latin = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-latin", display: "swap" });
+const devanagari = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "VoiceMitra", template: "%s · VoiceMitra" },
@@ -15,14 +19,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f9f9f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d0d0d" },
+    { media: "(prefers-color-scheme: light)", color: "#e9ece7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c110c" },
   ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${latin.variable} ${devanagari.variable}`}>
       <body>
         {children}
         <PwaRegister />

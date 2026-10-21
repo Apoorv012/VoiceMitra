@@ -24,15 +24,18 @@ Two programs, one repo:
 3. Start everything with one command, in one terminal. The API (:8000), the web app (:3000) and the HTTPS
    tunnel run together with colour-coded `[api]` `[web]` `[tunnel]` logs, and **Ctrl+C stops all of it**:
 
-   | Command | Web app | Database |
-   |---|---|---|
-   | `npm run dev` | hot reload (use while changing the frontend; the installable app is off) | your real one |
-   | `npm run demo` | hot reload | the demo database (below) |
-   | `npm start` | production build (the installable app works; builds first, ~30 s) | your real one |
-   | `npm run start:demo` | production build | the demo database |
+   | Command | What it does |
+   |---|---|
+   | `npm run dev` | your real database; the web app is **built and served** (fast pages, and the installable app works) |
+   | `npm run demo` | the same on the demo database (below) |
+   | `npm run dev:local` | the same as `dev` without the tunnel |
+   | `npm run dev:hot`, `npm run demo:hot` | the web app with **hot reload** instead: use while editing the frontend |
 
-   `npm run dev:local` and `npm run start:local` are the same without the tunnel. The tunnel
-   also starts only if `cloudflared` is installed; otherwise you just get no phone URL. Open
+   The built app is the default because hot reload (`next dev`) compiles pages on demand and is slow to load.
+   Flags go after npm's `--`, e.g. `npm run dev -- --hot` (or set `HOT=1`); `-- --rebuild` forces a rebuild.
+   The build is skipped when no web source file has changed since the last one, so restarting is quick. The API
+   always reloads when you change backend code. The tunnel also starts only if `cloudflared` is installed;
+   otherwise you just get no phone URL. Open
    http://localhost:3000, or on a phone `https://test-voicemitra.apoorvm.com` (see "Phone and install").
    If a port is already taken (a server left over from earlier), it tells you and stops instead of starting a
    second one.
@@ -56,7 +59,8 @@ programs: Cloudflare Tunnel sends `/api`, `/ws` and `/health` to :8000 and every
 The URL is public and there is no login, so close the tunnel window when you're not testing.
 
 On the phone, "Me → Install" (Android) or Share → Add to Home Screen (iPhone) puts it on the home screen. The
-service worker only runs in the production build (`npm start`, not `npm run dev`).
+service worker only runs in the built app (the default), not with `--hot`; hot mode also removes any worker left
+from an earlier run so it can't serve stale files.
 
 ## Changing the API
 

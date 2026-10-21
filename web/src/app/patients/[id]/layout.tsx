@@ -35,8 +35,8 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
       <div className="phone patient-app">
         <header className="p-head">
           <span className="row" style={{ gap: 10 }}>
-            <span className="brand-mark" style={{ width: 34, height: 34, borderRadius: 10 }}><Icon name="mic" /></span>
-            <strong>VoiceMitra</strong>
+            <span className="brand-mark" style={{ width: 36, height: 36, borderRadius: 12 }}><Icon name="mic" /></span>
+            <strong translate="no">VoiceMitra</strong>
           </span>
           <LangSwitch />
         </header>
