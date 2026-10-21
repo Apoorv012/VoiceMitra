@@ -467,7 +467,99 @@
         }
       }
     },
+    "/api/patients/{patient_id}/profile": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Get Profile",
+        "operationId": "get_profile_api_patients__patient_id__profile_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/patients/{patient_id}": {
+      "patch": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Update Patient",
+        "operationId": "update_patient_api_patients__patient_id__patch",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePatientRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
           "patients"
@@ -1503,6 +1595,13 @@
                 "type": "null"
               }
             ]
+          },
+          "doctor_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doctor Ids"
           }
         },
         "type": "object",
@@ -2542,6 +2641,86 @@
         ],
         "title": "PatientMedicines"
       },
+      "PatientProfile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          },
+          "phone_number": {
+            "type": "string",
+            "title": "Phone Number"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaregiverInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doctor_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doctor Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "age",
+          "phone_number",
+          "address",
+          "description",
+          "allergies",
+          "caregiver",
+          "doctor_ids"
+        ],
+        "title": "PatientProfile",
+        "description": "What the edit form shows: the patient's own details, the family contact and who the doctors are."
+      },
       "PatientRow": {
         "properties": {
           "id": {
@@ -3007,6 +3186,106 @@
           "note"
         ],
         "title": "TranscriptEntry"
+      },
+      "UpdatePatientRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "phone_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Number"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "allergies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allergies"
+          },
+          "caregiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaregiverInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doctor_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doctor Ids"
+          }
+        },
+        "type": "object",
+        "title": "UpdatePatientRequest",
+        "description": "Only the fields sent are changed. `caregiver: null` removes the family contact."
       },
       "ValidationError": {
         "properties": {

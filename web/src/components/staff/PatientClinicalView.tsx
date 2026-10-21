@@ -184,7 +184,10 @@ export function PatientClinicalView({
             <p className="ink-2">{data.patient.age} years · {data.phone_number}{data.address ? ` · ${data.address}` : ""}</p>
           </div>
         </div>
-        <AttentionChip level={data.attention.level} />
+        <div className="row" style={{ gap: 12 }}>
+          {base === "/operator" && <Link href={`/operator/patients/${data.patient.id}/edit`} className="btn ghost sm">Edit details &amp; doctors</Link>}
+          <AttentionChip level={data.attention.level} />
+        </div>
       </div>
 
       <div className="row wrap top" style={{ gap: 12, alignItems: "stretch" }}>

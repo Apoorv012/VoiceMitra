@@ -45,7 +45,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
           <div className="tabbar-inner">
             {TABS.map((tab) => {
               const href = base + tab.href;
-              const on = tab.href === "" ? pathname === base : pathname.startsWith(href);
+              const on = tab.href === "" ? pathname === base : pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link key={tab.label} href={href} className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
                   <Icon name={tab.icon} />

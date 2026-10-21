@@ -31,3 +31,4 @@ export type SlotState =
   | "taken" | "partial" | "missed" | "later" | "unknown" | "skipped" | "upcoming" | "due" | "no_checkin";
 export type DayState = "good" | "mixed" | "missed" | "unknown" | "upcoming" | "none";
 export type AttentionLevel = "critical" | "warning" | "ok";
+export type PatientProfile = S["PatientProfile"];

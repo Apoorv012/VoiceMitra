@@ -465,6 +465,18 @@ overview, the new-patient form and brand-mark sizing. Also applied Web Interface
 (focus-visible, explicit transitions, reduced motion, `touch-action`, form `autocomplete`/`inputMode`,
 `translate="no"` on the brand).
 
+### Operator fixes after first hands-on look (2026-10-21) -- **BUILT; checked by script + tsc/eslint, NOT YET SEEN IN A BROWSER**
+- **Patient tab bar:** "Me" stayed lit on the Medicines tab (`/medicines`.startsWith(`/me`)); tabs now match whole path segments.
+- **Doctors + editing:** there was no way to assign a doctor (`Doctor.patient_ids` is the link, and an escalation rings
+  whoever lists the patient) or to edit a patient after creating it. Backend: `doctor_ids` on create,
+  `GET /api/patients/{id}/profile`, `PATCH /api/patients/{id}` (only sent fields change; `caregiver: null` removes the
+  contact; `doctor_ids` replaces the set). Web: shared `PatientForm` (doctor checkboxes, family contact) used by
+  Add patient and the new `/operator/patients/[id]/edit`, reached from "Edit details & doctors" on the manage page.
+  Not built: adding/editing doctors themselves, deleting a patient.
+- **Slowness (diagnosis, not fixed):** locally the API answers in ~20 ms and pages in ~6 ms; through the Cloudflare tunnel
+  every request costs 0.3-1.1 s, so each screen (page + data call) takes 1-2 s. Fix options: use `localhost:3000` on the
+  PC, and fewer sequential requests per screen (e.g. preload data on hover/prefetch).
+
 ### Planned (not built): confidence-gated, LLM-judged escalation
 Escalation should come from the LLM's own assessment, not hand-written term lists. Idea:
 - Have the LLM return, for each symptom report, `should_escalate` plus a **confidence score** (and its

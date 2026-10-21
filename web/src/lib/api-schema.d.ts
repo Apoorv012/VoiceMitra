@@ -198,6 +198,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/patients/{patient_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile */
+        get: operations["get_profile_api_patients__patient_id__profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/patients/{patient_id}": {
         parameters: {
             query?: never;
@@ -212,7 +229,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Patient */
+        patch: operations["update_patient_api_patients__patient_id__patch"];
         trace?: never;
     };
     "/api/patients/{patient_id}/prescriptions": {
@@ -587,6 +605,8 @@ export interface components {
             /** Allergies */
             allergies?: string[];
             caregiver?: components["schemas"]["CaregiverInput"] | null;
+            /** Doctor Ids */
+            doctor_ids?: string[];
         };
         /** DayView */
         DayView: {
@@ -914,6 +934,29 @@ export interface components {
             /** Medicines */
             medicines: components["schemas"]["MedicineView"][];
         };
+        /**
+         * PatientProfile
+         * @description What the edit form shows: the patient's own details, the family contact and who the doctors are.
+         */
+        PatientProfile: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Age */
+            age: number;
+            /** Phone Number */
+            phone_number: string;
+            /** Address */
+            address: string | null;
+            /** Description */
+            description: string | null;
+            /** Allergies */
+            allergies: string[];
+            caregiver: components["schemas"]["CaregiverInput"] | null;
+            /** Doctor Ids */
+            doctor_ids: string[];
+        };
         /** PatientRow */
         PatientRow: {
             /** Id */
@@ -1050,6 +1093,27 @@ export interface components {
             } | null;
             /** Note */
             note: string | null;
+        };
+        /**
+         * UpdatePatientRequest
+         * @description Only the fields sent are changed. `caregiver: null` removes the family contact.
+         */
+        UpdatePatientRequest: {
+            /** Name */
+            name?: string | null;
+            /** Age */
+            age?: number | null;
+            /** Phone Number */
+            phone_number?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Allergies */
+            allergies?: string[] | null;
+            caregiver?: components["schemas"]["CaregiverInput"] | null;
+            /** Doctor Ids */
+            doctor_ids?: string[] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1416,6 +1480,37 @@ export interface operations {
             };
         };
     };
+    get_profile_api_patients__patient_id__profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_patient_detail_api_patients__patient_id__get: {
         parameters: {
             query?: never;
@@ -1436,6 +1531,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_patient_api_patients__patient_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePatientRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientProfile"];
                 };
             };
             /** @description Validation Error */
