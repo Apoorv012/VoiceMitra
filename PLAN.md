@@ -73,7 +73,9 @@ Extends the original `reference_transcripts/original_schema.txt` draft:
   -> `merged` -> `resolved` (or `abandoned`), which doctor joined, timestamps, and the agent's summary
   of the merged conversation.
 - `caregiver_notification` (new collection): one record per alert sent to a caregiver (delivery is
-  simulated; the record is the notification).
+  simulated; the record is the notification). `urgent` marks the pilot's urgent alerts.
+- `patient.care_mode` (pilot step 2): `caregiver` (default -- the pilot: alert the caregiver, no doctor)
+  or `doctor` (ring the doctor into the call, the original flow).
 - `CallLogEntry` gained a `channel` (`None` = patient<->agent, `doctor_briefing`, `merged`) and two
   types, `doctor_said` and `escalation_summary`, so one call log tells the whole escalated story.
 
@@ -531,7 +533,7 @@ LLM loop (this one does), and an `eval` command.
 - **Hosting** -- the backend can move to AWS (or similar) instead of the home PC; needed anyway once
   reminders must fire while the PC is off, and WhatsApp webhooks need a stable public URL.
 
-### Pilot: patients + caregivers, no doctor — **IN PROGRESS: step 1 of 9 done** (user's first priority, 2026-11-03)
+### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-2 of 9 done** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation
 flow stays in the code (tested, working) but is switched off for pilot patients.
 
@@ -621,8 +623,32 @@ screen or role; escalation always means "ring the doctor".
      symptom check kar leti hoon"), asks two questions in one turn, and slipped into Hinglish once while the
      patient spoke English. With a fixed script it keeps re-asking about an unanswered medicine -- correct, but
      there is no limit on how often.
-2. **Pilot mode: caregiver instead of doctor** -- per-patient (or global) switch; "not well" -> log + tell the
-   patient + caregiver alert, no doctor ring. New lines in the prompts (Hinglish + English).
+2. **Pilot mode: caregiver instead of doctor** -- **DONE (2026-11-03): tests + scripted calls pass; not yet tried
+   by the user.**
+   - Switch: per patient, `Patient.care_mode` = `caregiver` (default, so patients already in the DB are now in
+     pilot mode) or `doctor`. Set on the operator's patient form ("When the patient isn't well"); the demo
+     seed (`seed_demo.py`) keeps its patients on `doctor` so the doctor demo still works.
+   - Caregiver mode: the symptom step offers `alert_caregiver` instead of `escalate_to_doctor` and never offers a
+     doctor. Seriousness 1-4 -> `update_daily_log` as before; 5+ -> `alert_caregiver` (guardrail: a 5+ score
+     can't just be logged), without asking the patient's permission; alarming symptoms -> straight away with
+     8+. `alert_caregiver` writes the daily log (symptoms, score), sets the call's patient status (remedy /
+     urgent), and stores a `CaregiverNotification` (`urgent` from 8 up; message says what is wrong). A red-flag
+     phrase forces it (seriousness 9) the same way it forced the doctor escalation. Urgent alerts skip the
+     "since when" question.
+   - Then the call ends with a fixed line (`prompts.caregiver_line`, Hinglish/English, not LLM-written):
+     "Maine yeh note kar liya hai aur Rahul ji ko bata diya hai…"; **urgent adds "call 112"** (India's
+     emergency number, `prompts.EMERGENCY_NUMBER`) since no doctor is on the call -- a safety line the user
+     may want to review. No caregiver on file (or opted out) -> the line doesn't claim anyone was told.
+   - Doctor mode is unchanged (same prompts and tiers; the shared follow-up text was only factored out).
+   - Prompt fix found while testing, both modes: the agent kept asking the patient to pick "mild, moderate or
+     severe" after they had said "bahut dard... kaafi tez"; it now takes their own words and stops asking once
+     it has location, severity and duration.
+   - Verified: 11 new pytest tests (35 total); scripted calls against the live LLM (Sarvam) in a throwaway DB --
+     two-day bad headache -> caregiver alerted (x2), same with no caregiver on file, chest pain -> urgent alert
+     + 112 line, "all fine" -> just logged, doctor mode -> still escalates to the doctor. Seen, not fixed: it
+     re-asks "since when" after the patient already said "do din se", and twice wrote "parson se" (day before
+     yesterday) as "since yesterday". The caregiver only sees the alert where alerts already show (patient
+     history, operator view) until step 3.
 3. **Caregiver app** -- a caregiver role in the app (`/caregivers/[id]`): alerts with what the issue is,
    today's doses for their patient, mark an alert as seen. Live over a WebSocket.
 4. **Dose-time reminders + notification** -- a scheduler that arms a timer for each dose slot (same timer

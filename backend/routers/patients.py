@@ -11,7 +11,7 @@ from backend.db import (
     patients_col,
     prescriptions_col,
 )
-from backend.models import Caregiver, DoseFrequency, Dosage, Patient, Prescription
+from backend.models import Caregiver, CareMode, DoseFrequency, Dosage, Patient, Prescription
 from backend.queries import get_patient_bundle
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
@@ -38,6 +38,7 @@ class CreatePatientRequest(BaseModel):
     allergies: list[str] = Field(default_factory=list)
     caregiver: CaregiverInput | None = None
     doctor_ids: list[str] = Field(default_factory=list)
+    care_mode: CareMode = CareMode.caregiver
 
 
 async def _assign_doctors(patient_id: str, doctor_ids: list[str]) -> None:
@@ -57,6 +58,7 @@ async def create_patient(body: CreatePatientRequest) -> Patient:
         phone_number=body.phone_number,
         address=body.address,
         allergies=body.allergies,
+        care_mode=body.care_mode,
     )
     if body.caregiver:
         caregiver = Caregiver(patient_id=patient.id, **body.caregiver.model_dump())
@@ -78,6 +80,7 @@ class PatientProfile(BaseModel):
     allergies: list[str]
     caregiver: CaregiverInput | None
     doctor_ids: list[str]
+    care_mode: CareMode  # who is brought in when the patient isn't well
 
 
 async def _profile(patient: Patient) -> PatientProfile:
@@ -90,7 +93,7 @@ async def _profile(patient: Patient) -> PatientProfile:
         address=patient.address, description=patient.description, allergies=patient.allergies,
         caregiver=CaregiverInput(name=caregiver.name, relation=caregiver.relation, phone_number=caregiver.phone_number)
         if caregiver else None,
-        doctor_ids=doctor_ids,
+        doctor_ids=doctor_ids, care_mode=patient.care_mode,
     )
 
 
@@ -112,6 +115,7 @@ class UpdatePatientRequest(BaseModel):
     allergies: list[str] | None = None
     caregiver: CaregiverInput | None = None
     doctor_ids: list[str] | None = None
+    care_mode: CareMode | None = None
 
 
 @router.patch("/{patient_id}", response_model=PatientProfile)
@@ -123,6 +127,8 @@ async def update_patient(patient_id: str, body: UpdatePatientRequest) -> Patient
 
     changes = {k: getattr(body, k) for k in ("name", "age", "phone_number", "address", "description", "allergies")
                if k in sent and (getattr(body, k) is not None or k in ("address", "description"))}
+    if body.care_mode is not None:
+        changes["care_mode"] = body.care_mode.value
     if "caregiver" in sent:
         if body.caregiver is None:
             if patient.caregiver_id:

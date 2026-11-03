@@ -7,10 +7,13 @@ import re
 
 from core.agent.guardrails import ForcedAction, GuardrailPipeline, GuardrailViolation
 from domains.med_adherence.context import CallContext
-from domains.med_adherence.prompts import HANDOFF_LINE_ENGLISH, HANDOFF_LINE_HINGLISH
+from backend.models import CareMode
+from domains.med_adherence.prompts import HANDOFF_LINE_ENGLISH, HANDOFF_LINE_HINGLISH, caregiver_line
 
 # update_daily_log seriousness (1-10, scored by the LLM): below OFFER_DOCTOR just log it; from there up
 # to ESCALATE_AT the patient is asked whether they want the doctor; at ESCALATE_AT and above escalate.
+# In caregiver mode (the pilot) there is no doctor to offer: from OFFER_DOCTOR up the caregiver is
+# alerted (urgently from ESCALATE_AT, see tools.alert_caregiver).
 OFFER_DOCTOR_AT_SERIOUSNESS = 5
 ESCALATE_AT_SERIOUSNESS = 8
 
@@ -32,12 +35,20 @@ ADVICE_OR_REASSURANCE_PHRASES = [
 ]
 
 
-def _fixed_handoff_line(text: str, context: CallContext) -> str:
-    """The first thing said after escalating is always the fixed hand-off line, whatever the model wrote."""
-    if context.escalation is None or context.handoff_line_sent:
+def _fixed_closing_line(text: str, context: CallContext) -> str:
+    """The first thing said after escalating (doctor hand-off) or alerting the caregiver is always a
+    fixed line, whatever the model wrote."""
+    if context.closing_line_sent:
         return text
-    context.handoff_line_sent = True
-    return HANDOFF_LINE_ENGLISH if context.patient_language == "english" else HANDOFF_LINE_HINGLISH
+    english = context.patient_language == "english"
+    if context.escalation is not None:
+        context.closing_line_sent = True
+        return HANDOFF_LINE_ENGLISH if english else HANDOFF_LINE_HINGLISH
+    alert = context.caregiver_alert
+    if alert is not None:
+        context.closing_line_sent = True
+        return caregiver_line(english=english, caregiver_name=alert.caregiver_name, urgent=alert.urgent)
+    return text
 
 
 def _no_dosage_change_or_diagnosis(text: str, context: CallContext) -> str:
@@ -77,7 +88,7 @@ def _no_severe_symptom_without_escalation(tool_name: str, args: dict, context: C
         if symptom.get("severity") == "severe":
             raise GuardrailViolation(
                 "a 'severe' symptom can't be logged via update_daily_log -- call "
-                "escalate_to_doctor instead"
+                f"{context.escalation_tool} instead"
             )
 
 
@@ -93,6 +104,11 @@ def _serious_needs_escalation(tool_name: str, args: dict, context: CallContext) 
     score = args.get("seriousness")
     if not isinstance(score, int) or score < OFFER_DOCTOR_AT_SERIOUSNESS:
         return
+    if context.care_mode == CareMode.caregiver:
+        raise GuardrailViolation(
+            f"seriousness {score} is {OFFER_DOCTOR_AT_SERIOUSNESS} or above, so it can't just be "
+            "logged -- call alert_caregiver instead (same details)"
+        )
     if score >= ESCALATE_AT_SERIOUSNESS:
         raise GuardrailViolation(
             f"seriousness {score} is {ESCALATE_AT_SERIOUSNESS} or above, so it can't just be logged "
@@ -119,7 +135,9 @@ def _missed_dose_needs_reason(tool_name: str, args: dict, context: CallContext) 
 
 
 def _symptom_needs_duration(tool_name: str, args: dict, context: CallContext) -> None:
-    if tool_name != "update_daily_log":
+    # An urgent alert isn't held up to ask "since when".
+    urgent_alert = tool_name == "alert_caregiver" and (args.get("seriousness") or 0) >= ESCALATE_AT_SERIOUSNESS
+    if tool_name not in ("update_daily_log", "alert_caregiver") or urgent_alert:
         return
     for symptom in args.get("symptoms", []):
         if not (symptom.get("duration_note") or "").strip():
@@ -130,22 +148,25 @@ def _symptom_needs_duration(tool_name: str, args: dict, context: CallContext) ->
 
 
 def _forced_escalation(context: CallContext) -> ForcedAction | None:
-    if context.mentioned_red_flag and not context.escalated:
+    if not context.mentioned_red_flag or context.escalated or context.caregiver_alert is not None:
+        return None
+    reason = context.red_flag_reason or "red-flag symptom reported"
+    if context.care_mode == CareMode.caregiver:
         return ForcedAction(
-            tool_name="escalate_to_doctor",
-            args={
-                "reason": context.red_flag_reason or "red-flag symptom reported",
-                "brief_summary": f"Patient reported: {context.red_flag_reason}",
-                "urgency": "high",
-            },
-            reason=f"red-flag symptom detected ({context.red_flag_reason})",
+            tool_name="alert_caregiver",
+            args={"reason": reason, "summary": f"Patient reported: {reason}", "seriousness": 9},
+            reason=f"red-flag symptom detected ({reason})",
         )
-    return None
+    return ForcedAction(
+        tool_name="escalate_to_doctor",
+        args={"reason": reason, "brief_summary": f"Patient reported: {reason}", "urgency": "high"},
+        reason=f"red-flag symptom detected ({reason})",
+    )
 
 
 def build_guardrails() -> GuardrailPipeline:
     pipeline = GuardrailPipeline()
-    pipeline.add_text_check(_fixed_handoff_line)
+    pipeline.add_text_check(_fixed_closing_line)
     pipeline.add_text_check(_no_dosage_change_or_diagnosis)
     pipeline.add_text_check(_no_question_when_wrapping_up)
     pipeline.add_tool_call_check(_no_severe_symptom_without_escalation)

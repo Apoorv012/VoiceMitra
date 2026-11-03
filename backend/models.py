@@ -85,6 +85,12 @@ class SymptomSeverity(str, Enum):
     severe = "severe"
 
 
+class CareMode(str, Enum):
+    """Who is brought in when the patient isn't well."""
+    caregiver = "caregiver"  # the pilot: the caregiver is alerted, no doctor is rung
+    doctor = "doctor"        # the doctor is rung and merged into the call
+
+
 class CaregiverNotifyOn(str, Enum):
     unreachable = "unreachable"
     escalation = "escalation"
@@ -239,6 +245,7 @@ class CaregiverNotification(MongoDocument):
     call_id: str
     trigger: CaregiverNotifyOn
     message: str
+    urgent: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -268,6 +275,7 @@ class Patient(MongoDocument):
     address: str | None = None
     allergies: list[str] = Field(default_factory=list)
     caregiver_id: str | None = None
+    care_mode: CareMode = CareMode.caregiver
     prescription_ids: list[str] = Field(default_factory=list)
     daily_log_ids: list[str] = Field(default_factory=list)
     call_ids: list[str] = Field(default_factory=list)

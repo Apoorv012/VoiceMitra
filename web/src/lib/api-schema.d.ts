@@ -540,6 +540,12 @@ export interface components {
          * @enum {string}
          */
         CallType: "medicine_reminder" | "just_catch_up" | "inbound_call" | "other";
+        /**
+         * CareMode
+         * @description Who is brought in when the patient isn't well.
+         * @enum {string}
+         */
+        CareMode: "caregiver" | "doctor";
         /** CaregiverInput */
         CaregiverInput: {
             /** Name */
@@ -611,6 +617,8 @@ export interface components {
             caregiver?: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids?: string[];
+            /** @default caregiver */
+            care_mode: components["schemas"]["CareMode"];
         };
         /** DayView */
         DayView: {
@@ -869,6 +877,8 @@ export interface components {
             allergies?: string[];
             /** Caregiver Id */
             caregiver_id?: string | null;
+            /** @default caregiver */
+            care_mode: components["schemas"]["CareMode"];
             /** Prescription Ids */
             prescription_ids?: string[];
             /** Daily Log Ids */
@@ -966,6 +976,7 @@ export interface components {
             caregiver: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids: string[];
+            care_mode: components["schemas"]["CareMode"];
         };
         /** PatientRow */
         PatientRow: {
@@ -1124,6 +1135,7 @@ export interface components {
             caregiver?: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids?: string[] | null;
+            care_mode?: components["schemas"]["CareMode"] | null;
         };
         /** ValidationError */
         ValidationError: {

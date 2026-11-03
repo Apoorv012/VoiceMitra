@@ -3,6 +3,7 @@ shown in reference_transcripts/ (casual, warm, code-mixed Hindi-English, short t
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,6 +21,26 @@ UNSUPPORTED_LANGUAGE_LINE = (
 HANDOFF_LINE_HINGLISH = "Main abhi aapko doctor se connect kar rahi hoon. Kripya line par bane rahiye."
 HANDOFF_LINE_ENGLISH = "I'm connecting you to the doctor now. Please stay on the line."
 
+# Said with an urgent caregiver alert: with no doctor on the call, the patient is pointed at the
+# emergency number (India's single emergency number) rather than left with only "we told your family".
+EMERGENCY_NUMBER = "112"
+
+
+def caregiver_line(*, english: bool, caregiver_name: str | None, urgent: bool) -> str:
+    """The last thing the patient hears after the caregiver was alerted (pilot mode). Fixed, not
+    LLM-written, for the same reason as the hand-off line; `caregiver_name` None means nobody could be
+    told, so the line doesn't claim anyone was."""
+    name = re.sub(r"\s*\(.*?\)", "", caregiver_name).strip() if caregiver_name else None
+    if english:
+        told = f"I've noted that and let {name} know" if name else "I've noted that"
+        if urgent:
+            return f"{told} right away. If it's getting worse, please call {EMERGENCY_NUMBER} now. Goodbye."
+        return f"{told}. Take care, goodbye."
+    told = f"Maine yeh note kar liya hai aur {name} ji ko bata diya hai" if name else "Maine yeh note kar liya hai"
+    if urgent:
+        return f"{told}. Agar takleef badh rahi hai to abhi {EMERGENCY_NUMBER} par call kijiye. Namaste."
+    return f"Samajh gayi. {told}. Apna dhyan rakhiyega, namaste."
+
 
 def spoken_time(hh_mm: str) -> str:
     """How to say a dose time out loud ("13:00" -> "dopahar 1 baje" / "1 PM"). Worked out here: left
@@ -36,11 +57,19 @@ def spoken_time(hh_mm: str) -> str:
 
 def build_base_system_prompt(
     *, patient_name: str, due: list[DueMedicine], slot_local: str, allergies: list[str],
-    now_local: str,
+    now_local: str, doctor_in_loop: bool = True, caregiver: str | None = None,
 ) -> str:
     allergy_line = (
         f"Known allergies: {', '.join(allergies)}." if allergies else "No known allergies on file."
     )
+    if doctor_in_loop:
+        concern_rule = ("If something the patient says sounds concerning, move to escalating to the "
+                        "doctor rather than trying to reassure or advise them yourself.")
+    else:
+        family = f"their family contact, {caregiver}" if caregiver else "their family contact"
+        concern_rule = ("No doctor takes these calls. If the patient isn't well or says something "
+                        f"concerning, the step instructions say when to alert {family} -- never "
+                        "try to reassure or advise them yourself, and never offer to connect a doctor.")
     due_lines = "\n".join(f"- {m.name} ({m.dose})" for m in due)
     due_block = (
         f"This call is about the {slot_local} dose ({spoken_time(slot_local)}). "
@@ -92,6 +121,5 @@ home remedies, no "rest" or "drink water", no telling them what to do about a sy
 diagnosis, and no reassurance about how things will turn out ("sab theek ho jayega", "don't \
 worry"). If they ask you for advice, say you can't advise on that and they should ask their doctor.
 - You are not a doctor. Never diagnose a condition or tell the patient what illness they might have.
-- If something the patient says sounds concerning, move to escalating to the doctor rather than \
-trying to reassure or advise them yourself.
+- {concern_rule}
 - Keep responses brief -- this is a phone call, not a chat window."""

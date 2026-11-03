@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from backend.models import CallLogEntry, CallLogEntryType, DoseStatus, Reminder
+from backend.models import CallLogEntry, CallLogEntryType, CareMode, DoseStatus, Reminder
 from core.agent.context import AgentContext
 from domains.med_adherence.escalation_rules import detect_red_flag
 from domains.med_adherence.language import Language, detect_language
@@ -14,7 +14,7 @@ from domains.med_adherence.prompts import UNSUPPORTED_LANGUAGE_LINE
 
 # Tools after which the policy moves to a terminal state: whatever the agent says next is the last
 # thing the patient hears.
-WRAP_UP_TOOLS = frozenset({"update_daily_log", "escalate_to_doctor"})
+WRAP_UP_TOOLS = frozenset({"update_daily_log", "escalate_to_doctor", "alert_caregiver"})
 
 
 @dataclass
@@ -37,18 +37,31 @@ class EscalationRequest:
 
 
 @dataclass
+class CaregiverAlert:
+    """The caregiver was alerted (pilot mode) -- kept for the line the patient hears last."""
+
+    reason: str
+    urgent: bool
+    caregiver_name: str | None  # None: no caregiver on file (or they opted out), nobody was told
+
+
+@dataclass
 class CallContext(AgentContext):
     patient_id: str
     call_id: str
     due: list[DueMedicine]
     slot_at: datetime  # the dose slot the call is about (naive UTC)
     allergies: list[str] = field(default_factory=list)
+    # Who is brought in when the patient isn't well: the doctor (rung into the call) or, in the pilot,
+    # the caregiver (alerted; the call then ends).
+    care_mode: CareMode = CareMode.caregiver
     dose_statuses: dict[str, DoseStatus] = field(default_factory=dict)  # dosage_id -> what was logged
     mentioned_red_flag: bool = False
     red_flag_reason: str | None = None
     escalated: bool = False
     escalation: EscalationRequest | None = None
-    handoff_line_sent: bool = False
+    caregiver_alert: CaregiverAlert | None = None
+    closing_line_sent: bool = False  # the fixed line after escalating / alerting has been said
     wrapping_up: bool = False  # the call ends right after the next agent message
     patient_language: Language | None = None  # of their most recent message that could be told
     last_patient_text: str = ""  # their most recent message, for guardrails that check a quote
@@ -58,6 +71,11 @@ class CallContext(AgentContext):
     on_reminder_created: Callable[[Reminder], None] | None = None
     # Told about every log entry as it is recorded, so a live page can show the call as it happens.
     on_log_entry: Callable[[CallLogEntry], None] | None = None
+
+    @property
+    def escalation_tool(self) -> str:
+        """The tool for "this needs someone": ring the doctor, or alert the caregiver."""
+        return "escalate_to_doctor" if self.care_mode == CareMode.doctor else "alert_caregiver"
 
     @property
     def unanswered(self) -> list[DueMedicine]:

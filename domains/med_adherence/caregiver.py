@@ -17,7 +17,9 @@ from backend.models import Caregiver, CaregiverNotification, CaregiverNotifyOn, 
 from domains.med_adherence.context import CallContext
 
 
-async def _notify(patient_id: str, call_id: str, trigger: CaregiverNotifyOn, message) -> dict:
+async def _notify(
+    patient_id: str, call_id: str, trigger: CaregiverNotifyOn, message, *, urgent: bool = False,
+) -> dict:
     """Store a notification for the patient's caregiver if they have one and haven't opted out of this
     trigger. `message` is called with the patient's name to build the text."""
     patient = doc_to_model(Patient, await patients_col().find_one({"_id": patient_id}))
@@ -35,6 +37,7 @@ async def _notify(patient_id: str, call_id: str, trigger: CaregiverNotifyOn, mes
         call_id=call_id,
         trigger=trigger,
         message=message(patient.name),
+        urgent=urgent,
     )
     await caregiver_notifications_col().insert_one(model_to_doc(notification))
     await calls_col().update_one({"_id": call_id}, {"$set": {"caregiver_notified": True}})
@@ -49,6 +52,18 @@ async def notify_caregiver_of_escalation(context: CallContext, reason: str) -> d
             "Their doctor is being brought onto the call."
         ),
     )
+
+
+async def notify_caregiver_unwell(context: CallContext, reason: str, *, urgent: bool) -> dict:
+    """Pilot (care_mode caregiver): the patient isn't well and no doctor takes the call. Uses the
+    escalation trigger, so a caregiver who opted out of escalation alerts doesn't get these either."""
+    def message(name: str) -> str:
+        if urgent:
+            return (f"URGENT: {name} reported {reason} on today's medicine call. "
+                    "Please check on them right away.")
+        return f"{name} isn't feeling well: {reason} (from today's medicine call)."
+    return await _notify(context.patient_id, context.call_id, CaregiverNotifyOn.escalation, message,
+                         urgent=urgent)
 
 
 async def notify_caregiver_unreachable(patient_id: str, call_id: str) -> dict:

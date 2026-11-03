@@ -38,6 +38,7 @@ export function PatientForm({ patient }: { patient?: PatientProfile }) {
                 ? { name: s("caregiver_name"), relation: s("caregiver_relation") || "family", phone_number: s("caregiver_phone") }
                 : null,
               doctor_ids: doctorIds,
+              care_mode: s("care_mode") === "doctor" ? "doctor" : "caregiver",
             },
           });
           router.push(back);
@@ -57,6 +58,18 @@ export function PatientForm({ patient }: { patient?: PatientProfile }) {
         </div>
         <div className="field"><label htmlFor="allergies">Allergies</label><input id="allergies" name="allergies" type="text" placeholder="Penicillin, Aspirin…" autoComplete="off" defaultValue={patient?.allergies.join(", ")} /><span className="hint">Comma separated. Leave empty if none are known.</span></div>
         <div className="field"><label htmlFor="desc">Notes</label><textarea id="desc" name="description" rows={2} placeholder="Conditions, anything the doctor should know…" defaultValue={patient?.description ?? ""} /></div>
+      </section>
+
+      <section className="card stack">
+        <h2>When the patient isn&apos;t well</h2>
+        <div className="field">
+          <label htmlFor="care-mode">Who is brought in</label>
+          <select id="care-mode" name="care_mode" defaultValue={patient?.care_mode ?? "caregiver"}>
+            <option value="caregiver">Alert the family contact (pilot, no doctor)</option>
+            <option value="doctor">Ring the doctor into the call</option>
+          </select>
+          <span className="hint">With the family contact, the call logs the symptoms, alerts them and ends; no doctor is rung.</span>
+        </div>
       </section>
 
       <section className="card stack">

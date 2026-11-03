@@ -1407,6 +1407,15 @@
         ],
         "title": "CallType"
       },
+      "CareMode": {
+        "type": "string",
+        "enum": [
+          "caregiver",
+          "doctor"
+        ],
+        "title": "CareMode",
+        "description": "Who is brought in when the patient isn't well."
+      },
       "CaregiverInput": {
         "properties": {
           "name": {
@@ -1621,6 +1630,10 @@
             },
             "type": "array",
             "title": "Doctor Ids"
+          },
+          "care_mode": {
+            "$ref": "#/components/schemas/CareMode",
+            "default": "caregiver"
           }
         },
         "type": "object",
@@ -2385,6 +2398,10 @@
             ],
             "title": "Caregiver Id"
           },
+          "care_mode": {
+            "$ref": "#/components/schemas/CareMode",
+            "default": "caregiver"
+          },
           "prescription_ids": {
             "items": {
               "type": "string"
@@ -2760,6 +2777,9 @@
             },
             "type": "array",
             "title": "Doctor Ids"
+          },
+          "care_mode": {
+            "$ref": "#/components/schemas/CareMode"
           }
         },
         "type": "object",
@@ -2772,7 +2792,8 @@
           "description",
           "allergies",
           "caregiver",
-          "doctor_ids"
+          "doctor_ids",
+          "care_mode"
         ],
         "title": "PatientProfile",
         "description": "What the edit form shows: the patient's own details, the family contact and who the doctors are."
@@ -3337,6 +3358,16 @@
               }
             ],
             "title": "Doctor Ids"
+          },
+          "care_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CareMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

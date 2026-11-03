@@ -20,8 +20,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend import insights
-from backend.db import calls_col, doc_to_model, dose_events_col, model_to_doc, patients_col, prescriptions_col
-from backend.models import Call, CallType, Dosage, DoseEvent, Patient, Prescription, Reminder
+from backend.db import (
+    caregivers_col, calls_col, doc_to_model, dose_events_col, model_to_doc, patients_col, prescriptions_col,
+)
+from backend.models import Call, CallType, Caregiver, CareMode, Dosage, DoseEvent, Patient, Prescription, Reminder
 from core.agent.runtime import AgentConfig, run_chat_session
 from core.providers.llm import get_llm_client_and_model
 from core.transport.base import Transport
@@ -104,6 +106,10 @@ async def create_call_session(
     patient, dosages = await _load_patient_and_dosages(patient_id)
     slot_utc, chosen = await _due_slot(patient, dosages, slot_at, dosage_ids)
     due = [DueMedicine(dosage_id=d.id, name=d.medicine_name, dose=d.dosage) for d in chosen]
+    caregiver = None
+    if patient.caregiver_id:
+        caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": patient.caregiver_id}))
+    caregiver_label = f"{caregiver.name} ({caregiver.relation})" if caregiver else None
 
     call = Call(
         patient_id=patient.id, type=CallType.medicine_reminder, slot_at=slot_utc,
@@ -117,6 +123,7 @@ async def create_call_session(
         due=due,
         slot_at=slot_utc,
         allergies=patient.allergies,
+        care_mode=patient.care_mode,
         on_reminder_created=on_reminder_created,
     )
 
@@ -130,9 +137,11 @@ async def create_call_session(
             slot_local=insights.to_local(slot_utc).strftime("%H:%M"),
             allergies=patient.allergies,
             now_local=insights.now_local().strftime("%A %H:%M (UTC%z)"),
+            doctor_in_loop=patient.care_mode == CareMode.doctor,
+            caregiver=caregiver_label,
         ),
         tool_registry=tool_registry,
-        policy=build_policy(),
+        policy=build_policy(patient.care_mode),
         guardrails=build_guardrails(),
     )
     return CallSession(patient=patient, call=call, context=context, config=config)

@@ -5,7 +5,10 @@ dosage_check (start)
      the call has an answer -> symptom_check (until then it stays in dosage_check)
 symptom_check
   -> update_daily_log (nothing concerning)   -> closing_normal (terminal)
-  -> escalate_to_doctor (concerning symptom) -> escalation_active (terminal)
+  doctor mode:
+  -> escalate_to_doctor (concerning symptom) -> escalation_active (terminal; the doctor is rung)
+  caregiver mode (the pilot -- no doctor takes the calls):
+  -> alert_caregiver (not well, 5+)          -> caregiver_alerted (terminal; the call ends)
 
 escalation_active is terminal itself, with no tools allowed, rather than routing through an
 end_call tool call -- a function-calling LLM generally can't both speak text and call a tool in
@@ -19,11 +22,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.models import CareMode
 from core.agent.policy import PolicyEngine, PolicyState
 
 DOSAGE_CHECK = "dosage_check"
 SYMPTOM_CHECK = "symptom_check"
 ESCALATION_ACTIVE = "escalation_active"
+CAREGIVER_ALERTED = "caregiver_alerted"
 CLOSING_NORMAL = "closing_normal"
 
 
@@ -31,7 +36,79 @@ def _when_all_doses_answered(context: Any) -> str | None:
     return SYMPTOM_CHECK if context.all_doses_answered else None
 
 
-def build_policy() -> PolicyEngine:
+_SYMPTOM_INTRO = (
+    "Current step: symptom check. Ask how the patient is feeling / whether they've "
+    "had any discomfort since their last dose. If a reminder was just set (see the "
+    "reschedule_dose result), first confirm it in a few words ('theek hai, X baje "
+    "yaad dilaungi') in the same message as your question.\n"
+)
+
+_FOLLOW_UPS = (
+    "- They mention any discomfort, even mild: do not log yet. Ask short follow-ups, "
+    "one per turn -- where is it, how bad, since when -- until you can fill in the "
+    "symptom's location, severity and duration (at most 3 questions; duration -- "
+    "since when -- is mandatory, don't skip it). How bad it is comes in the patient's own "
+    "words ('bahut', 'kaafi tez', 'thoda sa') -- never ask them to pick mild / moderate / "
+    "severe, and don't ask for anything they have already told you, in any order. Once "
+    "you have the three, decide -- no more questions. Then score it 1-10 (seriousness) from "
+    "those details -- take the patient's own intensity words at face value ('bahut "
+    "khansi' is not mild), and score 5-7 for several symptoms together, a symptom they "
+    "call heavy, or anything lasting 2+ days. "
+)
+
+_NO_ADVICE = (
+    "Just acknowledge what they told you: don't suggest remedies or rest, and don't promise it "
+    "will be fine.\n"
+)
+
+_SYMPTOM_CHECK_DOCTOR = (
+    _SYMPTOM_INTRO
+    + "Before calling update_daily_log, make a deliberate escalation check: consider "
+    "everything the patient has said in this call and confirm there is no concerning, "
+    "severe, unusual, or red-flag symptom. If escalation might be needed or you are "
+    "not sure, do not log yet -- ask the necessary short follow-up or call "
+    "escalate_to_doctor. Only call update_daily_log once you are sure escalation is "
+    "not needed.\n"
+    "- They say they're fine and there are no red flags: call update_daily_log with a "
+    "low seriousness score.\n"
+    + _FOLLOW_UPS
+    + "1-4: log it with update_daily_log. 5-7: ask them in one short sentence whether "
+    "they'd like to speak to the doctor now -- if yes call escalate_to_doctor, if no "
+    "log it with their refusal as patient_declined_doctor_quote. 8-10: call "
+    "escalate_to_doctor instead of logging. "
+    + _NO_ADVICE
+    + "- They mention something concerning (e.g. chest pain, breathlessness, "
+    "severe/unusual symptoms): call escalate_to_doctor instead -- do not diagnose or "
+    "reassure them yourself first.\n"
+    "If they ask for advice or a medical question, say you can't advise on that and "
+    "they should ask their doctor."
+)
+
+_SYMPTOM_CHECK_CAREGIVER = (
+    _SYMPTOM_INTRO
+    + "No doctor takes these calls: when the patient isn't well, their family member "
+    "(caregiver) is alerted instead. Never offer to connect a doctor.\n"
+    "- They say they're fine and nothing is wrong: call update_daily_log with a low "
+    "seriousness score.\n"
+    + _FOLLOW_UPS
+    + "1-4: log it with update_daily_log. 5-10: call alert_caregiver with the same "
+    "details and the score, and a plain `reason` for the family -- don't ask the "
+    "patient's permission first; the patient is told afterwards. "
+    + _NO_ADVICE
+    + "- They mention something alarming (e.g. chest pain, breathlessness, fainting, "
+    "severe or unusual symptoms): call alert_caregiver straight away with seriousness 8 "
+    "or more -- no follow-up questions first, no diagnosis, no reassurance.\n"
+    "- They ask you to tell their family: call alert_caregiver.\n"
+    "If they ask for advice or a medical question, say you can't advise on that and "
+    "they should ask their doctor."
+)
+
+
+def build_policy(care_mode: CareMode = CareMode.caregiver) -> PolicyEngine:
+    doctor = care_mode == CareMode.doctor
+    escalation_tool, escalated_state = (
+        ("escalate_to_doctor", ESCALATION_ACTIVE) if doctor else ("alert_caregiver", CAREGIVER_ALERTED)
+    )
     states = [
         PolicyState(
             name=DOSAGE_CHECK,
@@ -77,51 +154,20 @@ def build_policy() -> PolicyEngine:
                 "log_dose_event": _when_all_doses_answered,
                 "reschedule_dose": _when_all_doses_answered,
                 # Not offered to the LLM in this state (not in allowed_tools above), but a
-                # forced-action guardrail can still dispatch escalate_to_doctor directly if a
+                # forced-action guardrail can still dispatch the escalation tool directly if a
                 # red-flag symptom is blurted out before the dosage question is even answered --
                 # this transition just makes sure the policy ends up in the right place if that
                 # happens.
-                "escalate_to_doctor": ESCALATION_ACTIVE,
+                escalation_tool: escalated_state,
             },
         ),
         PolicyState(
             name=SYMPTOM_CHECK,
-            prompt_fragment=(
-                "Current step: symptom check. Ask how the patient is feeling / whether they've "
-                "had any discomfort since their last dose. If a reminder was just set (see the "
-                "reschedule_dose result), first confirm it in a few words ('theek hai, X baje "
-                "yaad dilaungi') in the same message as your question.\n"
-                "Before calling update_daily_log, make a deliberate escalation check: consider "
-                "everything the patient has said in this call and confirm there is no concerning, "
-                "severe, unusual, or red-flag symptom. If escalation might be needed or you are "
-                "not sure, do not log yet -- ask the necessary short follow-up or call "
-                "escalate_to_doctor. Only call update_daily_log once you are sure escalation is "
-                "not needed.\n"
-                "- They say they're fine and there are no red flags: call update_daily_log with a "
-                "low seriousness score.\n"
-                "- They mention any discomfort, even mild: do not log yet. Ask short follow-ups, "
-                "one per turn -- where is it, how bad, since when -- until you can fill in the "
-                "symptom's location, severity and duration (at most 3 questions; duration -- "
-                "since when -- is mandatory, don't skip it). Then call update_daily_log with "
-                "those details and a seriousness score (1-10) that reflects them -- take the "
-                "patient's own intensity words at face value ('bahut khansi' is not mild), and "
-                "score 5-7 for several symptoms together, a symptom they call heavy, or anything "
-                "lasting 2+ days. 1-4: just log it. 5-7: ask them in one short sentence whether "
-                "they'd like to speak to the doctor now -- if yes call escalate_to_doctor, if no "
-                "log it with their refusal as patient_declined_doctor_quote. 8-10: call "
-                "escalate_to_doctor instead of logging. Just acknowledge what "
-                "they told you: don't suggest remedies or rest, and don't promise it will be "
-                "fine.\n"
-                "- They mention something concerning (e.g. chest pain, breathlessness, "
-                "severe/unusual symptoms): call escalate_to_doctor instead -- do not diagnose or "
-                "reassure them yourself first.\n"
-                "If they ask for advice or a medical question, say you can't advise on that and "
-                "they should ask their doctor."
-            ),
-            allowed_tools=["update_daily_log", "escalate_to_doctor"],
+            prompt_fragment=_SYMPTOM_CHECK_DOCTOR if doctor else _SYMPTOM_CHECK_CAREGIVER,
+            allowed_tools=["update_daily_log", escalation_tool],
             on_tool_called={
                 "update_daily_log": CLOSING_NORMAL,
-                "escalate_to_doctor": ESCALATION_ACTIVE,
+                escalation_tool: escalated_state,
             },
         ),
         PolicyState(
@@ -131,6 +177,14 @@ def build_policy() -> PolicyEngine:
                 "doctor now and to hold for a couple of minutes. That's it -- do not call any "
                 "tools, do not say anything else (the doctor-merge itself happens outside this "
                 "conversation loop)."
+            ),
+            allowed_tools=[],
+            is_terminal=True,
+        ) if doctor else PolicyState(
+            name=CAREGIVER_ALERTED,
+            prompt_fragment=(
+                "Current step: in one short line, tell the patient you've noted it and let their "
+                "family member know. Do not call any tools, ask anything, or give any advice."
             ),
             allowed_tools=[],
             is_terminal=True,

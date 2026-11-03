@@ -22,8 +22,8 @@ from backend.models import (
     SymptomSeverity,
 )
 from core.agent.tool_registry import ToolCallError, ToolRegistry
-from domains.med_adherence.caregiver import notify_caregiver_of_escalation
-from domains.med_adherence.context import CallContext, DueMedicine, EscalationRequest
+from domains.med_adherence.caregiver import notify_caregiver_of_escalation, notify_caregiver_unwell
+from domains.med_adherence.context import CallContext, CaregiverAlert, DueMedicine, EscalationRequest
 
 registry = ToolRegistry()
 
@@ -149,15 +149,14 @@ class UpdateDailyLogArgs(BaseModel):
     summary: str
     seriousness: int = Field(
         ge=1, le=10,
-        description="1-4: nothing, or mild and short-lived: just log it. 5-7: moderate -- several "
-        "symptoms together, or one the patient calls heavy/very bad ('bahut'), or anything lasting "
-        "2+ days: do NOT just log it; ask the patient whether they'd like to speak to the doctor "
-        "(call escalate_to_doctor if yes; if they decline, log it with patient_declined_doctor_quote). "
-        "8-10: severe or alarming: call escalate_to_doctor, don't log.")
+        description="1-4: nothing, or mild and short-lived. 5-7: moderate -- several symptoms "
+        "together, or one the patient calls heavy/very bad ('bahut'), or anything lasting 2+ days. "
+        "8-10: severe or alarming. Only 1-4 can always be logged here; for 5 and up follow the "
+        "current step's instructions.")
     patient_declined_doctor_quote: str | None = Field(
         default=None,
-        description="Only for seriousness 5-7: the patient's exact words, copied from their latest "
-        "message, declining to speak to the doctor when you offered.")
+        description="Only when you offered the doctor (seriousness 5-7) and the patient said no: "
+        "their exact words, copied from their latest message.")
     symptoms: list[SymptomArg] = Field(default_factory=list)
 
 
@@ -216,6 +215,53 @@ async def escalate_to_doctor(args: EscalateToDoctorArgs, context: CallContext) -
     # heard the hand-off line; the caregiver is told here, unconditionally.
     caregiver = await notify_caregiver_of_escalation(context, args.reason)
     return {"escalation_recorded": True, "reason": args.reason, "caregiver": caregiver}
+
+
+_URGENT_AT_SERIOUSNESS = 8
+
+
+class AlertCaregiverArgs(BaseModel):
+    reason: str = Field(description="What is wrong, in a few plain words for the family member, e.g. "
+                        "'headache since 2 days, says it is bad'.")
+    summary: str = Field(description="A short summary of how the patient is doing, for the day's log.")
+    seriousness: int = Field(
+        ge=1, le=10,
+        description="Same scale as update_daily_log: 5-7 moderate, 8-10 severe or alarming (the "
+        "family is told it is urgent).")
+    symptoms: list[SymptomArg] = Field(default_factory=list)
+
+
+@registry.register(
+    name="alert_caregiver",
+    description=(
+        "The patient isn't well: record the symptoms and alert their family member (caregiver) with "
+        "what is wrong. Ends the call."
+    ),
+    args_model=AlertCaregiverArgs,
+)
+async def alert_caregiver(args: AlertCaregiverArgs, context: CallContext) -> dict:
+    urgent = args.seriousness >= _URGENT_AT_SERIOUSNESS
+    log = DailyLog(
+        patient_id=context.patient_id,
+        call_id=context.call_id,
+        summary=args.summary,
+        symptoms=[Symptom(**s.model_dump()) for s in args.symptoms],
+        seriousness=args.seriousness,
+    )
+    await daily_logs_col().insert_one(model_to_doc(log))
+    await calls_col().update_one(
+        {"_id": context.call_id},
+        {"$set": {
+            "patient_status": (PatientStatus.urgent if urgent else PatientStatus.remedy).value,
+            "medicine_status": _medicine_status(context),
+        }},
+    )
+    caregiver = await notify_caregiver_unwell(context, args.reason, urgent=urgent)
+    context.caregiver_alert = CaregiverAlert(
+        reason=args.reason, urgent=urgent,
+        caregiver_name=caregiver.get("caregiver") if caregiver.get("notified") else None,
+    )
+    return {"daily_log_id": log.id, "urgent": urgent, "caregiver": caregiver}
 
 
 class EndCallArgs(BaseModel):
