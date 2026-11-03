@@ -176,7 +176,7 @@ async def _run_tool(
         # and retries within the same state.
         result = {"error": str(e)}
     else:
-        config.policy.advance(name)
+        config.policy.advance(name, context)
     result = result if result is not None else {"ok": True}
     context.record_tool_call(name, args, result, note=note)
     return result

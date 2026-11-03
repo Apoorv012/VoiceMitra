@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from backend.db import (
     caregivers_col,
@@ -164,6 +164,15 @@ class DosageInput(BaseModel):
     to_date: str | None = None
     frequency: DoseFrequency
     times: list[str] = Field(default_factory=list)
+    interval_days: int | None = Field(default=None, ge=1, le=90)  # required for every_x_days
+
+    @model_validator(mode="after")
+    def _interval_for_every_x_days(self) -> "DosageInput":
+        if self.frequency == DoseFrequency.every_x_days and not self.interval_days:
+            raise ValueError("'every few days' needs interval_days (how many days apart)")
+        if self.frequency != DoseFrequency.every_x_days:
+            self.interval_days = None
+        return self
 
 
 class AddPrescriptionRequest(BaseModel):

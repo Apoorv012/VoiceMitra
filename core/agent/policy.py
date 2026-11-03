@@ -10,7 +10,13 @@ walk between them.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
+
+# Where a tool call leads: a state name, or a function of the domain's context returning one (or
+# None to stay put) -- e.g. "move on only once every item has been answered".
+Transition = str | Callable[[Any], str | None]
 
 
 @dataclass
@@ -18,8 +24,8 @@ class PolicyState:
     name: str
     prompt_fragment: str
     allowed_tools: list[str]
-    # tool_name -> next state name. A tool call not in this map keeps the state unchanged.
-    on_tool_called: dict[str, str] = field(default_factory=dict)
+    # tool_name -> next state. A tool call not in this map keeps the state unchanged.
+    on_tool_called: dict[str, Transition] = field(default_factory=dict)
     is_terminal: bool = False
 
 
@@ -40,12 +46,14 @@ class PolicyEngine:
     def is_tool_allowed(self, tool_name: str) -> bool:
         return tool_name in self.current.allowed_tools
 
-    def advance(self, tool_name: str) -> str:
+    def advance(self, tool_name: str, context: Any = None) -> str:
         """Apply a state transition triggered by `tool_name` having been called.
 
         Returns the (possibly unchanged) new state name.
         """
         next_state = self.current.on_tool_called.get(tool_name)
+        if callable(next_state):
+            next_state = next_state(context)
         if next_state is not None:
             if next_state not in self._states:
                 raise ValueError(f"transition from '{self.current_state_name}' on '{tool_name}' "

@@ -4,10 +4,10 @@ and whether a doctor should look at this patient now.
 Everything stored is naive UTC; people see times in APP_TIMEZONE (default Asia/Kolkata). The raw
 collections only say *what was reported*, so two things are decided here and nowhere else:
 
-* A scheduled dose ("slot") is matched to the dose events recorded on that local day for that
-  medicine. `DoseEvent.scheduled_at` is just the moment the agent logged it, not the slot, so an
-  event goes to the nearest slot of the day and the latest event for a slot wins (a "not yet"
-  followed by "taken" reads as taken).
+* A scheduled dose ("slot") is matched to the dose events for that medicine on that local day.
+  `DoseEvent.scheduled_at` is the slot the call was about (for older events, just the moment the
+  agent logged it), so an event goes to the slot nearest its `scheduled_at` and the latest event for
+  a slot wins (a "not yet" followed by "taken" reads as taken).
 * A dose nobody asked about is "no check-in", never "missed": absence of data is not a miss.
 """
 
@@ -77,7 +77,10 @@ def dosage_slots_on(dosage: Dosage, day: date) -> list[datetime]:
         return []
     if dosage.frequency == DoseFrequency.weekly and (day - dosage.from_date).days % 7:
         return []
-    # "every X days" has no interval stored, so it is treated as daily rather than guessed.
+    # "every X days" without a stored interval (older records) is treated as daily rather than guessed.
+    if (dosage.frequency == DoseFrequency.every_x_days and dosage.interval_days
+            and (day - dosage.from_date).days % dosage.interval_days):
+        return []
     slots = []
     for text in sorted(dosage.times or ["09:00"]):
         try:
@@ -124,13 +127,41 @@ def build_slots(
     for slot in slots:
         groups[(slot.dosage.id, slot.day)].append(slot)
     for ev in sorted(events, key=lambda e: e.recorded_at):
-        local = to_local(ev.recorded_at)
+        local = to_local(ev.scheduled_at)
         group = groups.get((ev.dosage_id, local.date()))
         if group:
             min(group, key=lambda s: abs((s.at - local).total_seconds())).event = ev
     for slot in slots:
         slot.state = _state(slot, now)
     return sorted(slots, key=lambda s: s.at)
+
+
+CALL_LEAD = timedelta(minutes=30)  # a call this long before a slot is already about that slot
+_OPEN = {UPCOMING, DUE, NO_CHECKIN, LATER}  # nobody has an answer for these yet
+
+
+def pick_call_slot(
+    dosages: list[Dosage], events: list[DoseEvent], now: datetime | None = None,
+) -> tuple[datetime, list[Dosage]] | None:
+    """Which of today's dose slots a call that wasn't told one should be about, and which medicines.
+
+    The most recent slot (up to CALL_LEAD ahead) that still has medicines without an answer, asking
+    only about those. If every slot that has come due is answered: the next one coming up, or else
+    the day's last slot again. None when nothing is scheduled today."""
+    now = now or now_local()
+    slots = build_slots(dosages, events, now.date(), now.date(), now)
+    if not slots:
+        return None
+    by_time: dict[datetime, list[Slot]] = defaultdict(list)
+    for slot in slots:
+        by_time[slot.at].append(slot)
+    for at in sorted((t for t in by_time if t <= now + CALL_LEAD), reverse=True):
+        open_slots = [s for s in by_time[at] if s.state in _OPEN]
+        if open_slots:
+            return at, [s.dosage for s in open_slots]
+    coming = sorted(t for t in by_time if t > now + CALL_LEAD)
+    at = coming[0] if coming else max(by_time)
+    return at, [s.dosage for s in by_time[at]]
 
 
 @dataclass

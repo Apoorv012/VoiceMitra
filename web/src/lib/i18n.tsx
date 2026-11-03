@@ -112,6 +112,7 @@ export const MESSAGES = {
   med_daily: { en: "Every day at {times}", hi: "रोज़ {times}" },
   med_weekly: { en: "Once a week at {times}", hi: "हफ़्ते में एक बार, {times}" },
   med_fixed: { en: "At {times}", hi: "{times} पर" },
+  med_every: { en: "Every {n} days at {times}", hi: "हर {n} दिन, {times}" },
   med_until: { en: "until {date}", hi: "{date} तक" },
   med_days_left: { en: "{n} days left", hi: "{n} दिन बाकी" },
   med_last_day: { en: "Last day today", hi: "आज आख़िरी दिन है" },

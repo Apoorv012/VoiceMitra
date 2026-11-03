@@ -123,6 +123,9 @@ class Dosage(BaseModel):
     to_date: date | None = None
     frequency: DoseFrequency
     times: list[str] = Field(default_factory=list)  # e.g. ["08:00", "20:00"]
+    # For frequency=every_x_days: due every `interval_days` days counting from `from_date`. Older
+    # records have none, and are then treated as daily.
+    interval_days: int | None = Field(default=None, ge=1)
 
 
 class Prescription(MongoDocument):
@@ -133,6 +136,8 @@ class Prescription(MongoDocument):
 class DoseEvent(MongoDocument):
     patient_id: str
     dosage_id: str
+    # The dose slot this event is about (UTC). Events from calls made before calls knew their slot
+    # carry the moment they were logged instead.
     scheduled_at: datetime
     status: DoseStatus
     confidence: DoseConfidence
@@ -194,6 +199,9 @@ class Call(MongoDocument):
     escalation_reason: str | None = None
     caregiver_notified: bool = False
     room_url: str | None = None
+    # The dose slot the call is about (UTC) and the medicines due in it.
+    slot_at: datetime | None = None
+    dosage_ids: list[str] = Field(default_factory=list)
 
 
 class EscalationStatus(str, Enum):
@@ -244,7 +252,9 @@ class Reminder(MongoDocument):
     """A follow-up call the patient asked for (e.g. "I'll take it later, remind me in an hour")."""
 
     patient_id: str
-    dosage_id: str
+    dosage_ids: list[str] = Field(default_factory=list)  # the medicines still to be taken
+    slot_at: datetime | None = None  # the dose slot they belong to (UTC)
+    dosage_id: str | None = None     # older records: a single medicine and no slot
     call_id: str                     # the call in which the patient asked for it
     remind_at: datetime              # UTC, like every other timestamp here
     status: ReminderStatus = ReminderStatus.pending

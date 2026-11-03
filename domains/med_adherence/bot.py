@@ -13,19 +13,20 @@ import asyncio
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from backend.db import calls_col, doc_to_model, model_to_doc, patients_col, prescriptions_col
-from backend.models import Call, CallType, Patient, Prescription, Reminder
+from backend import insights
+from backend.db import calls_col, doc_to_model, dose_events_col, model_to_doc, patients_col, prescriptions_col
+from backend.models import Call, CallType, Dosage, DoseEvent, Patient, Prescription, Reminder
 from core.agent.runtime import AgentConfig, run_chat_session
 from core.providers.llm import get_llm_client_and_model
 from core.transport.base import Transport
 from core.transport.chat_transport import ChatTransport
-from domains.med_adherence.context import CallContext
+from domains.med_adherence.context import CallContext, DueMedicine
 from domains.med_adherence.guardrails import build_guardrails
 from domains.med_adherence.policy_states import build_policy
 from domains.med_adherence.prompts import build_base_system_prompt
@@ -44,37 +45,77 @@ class CallSession:
     config: AgentConfig
 
 
-async def _load_patient_and_dosage(patient_id: str) -> tuple[Patient, Prescription]:
+async def _load_patient_and_dosages(patient_id: str) -> tuple[Patient, list[Dosage]]:
     patient = doc_to_model(Patient, await patients_col().find_one({"_id": patient_id}))
     if patient is None:
         raise PatientNotReady(f"no patient with id {patient_id}")
     if not patient.prescription_ids:
         raise PatientNotReady(f"patient {patient.name} has no prescriptions")
-    prescription = doc_to_model(
-        Prescription, await prescriptions_col().find_one({"_id": patient.prescription_ids[0]})
-    )
-    if not prescription or not prescription.medicines:
-        raise PatientNotReady(f"patient {patient.name}'s prescription has no dosages")
-    return patient, prescription
+    dosages = [
+        m
+        async for doc in prescriptions_col().find({"_id": {"$in": patient.prescription_ids}})
+        for m in doc_to_model(Prescription, doc).medicines
+    ]
+    if not dosages:
+        raise PatientNotReady(f"patient {patient.name}'s prescriptions have no medicines")
+    return patient, dosages
+
+
+async def _todays_events(patient_id: str) -> list[DoseEvent]:
+    # Stored as ISO strings, so the range is a string comparison (see backend/views.py).
+    since = (datetime.utcnow() - timedelta(days=2)).isoformat()
+    return [
+        doc_to_model(DoseEvent, d)
+        async for d in dose_events_col().find({"patient_id": patient_id, "scheduled_at": {"$gte": since}})
+    ]
+
+
+def _to_utc(local: datetime) -> datetime:
+    return local.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+async def _due_slot(
+    patient: Patient, dosages: list[Dosage], slot_at: datetime | None, dosage_ids: list[str] | None,
+) -> tuple[datetime, list[Dosage]]:
+    """The slot (naive UTC) and medicines a call is about: given by the caller (a reminder), or the
+    one insights.pick_call_slot chooses for right now."""
+    if dosage_ids:
+        chosen = [d for d in dosages if d.id in dosage_ids]
+        if not chosen:
+            raise PatientNotReady(f"none of the medicines for this reminder are on {patient.name}'s prescriptions")
+        return slot_at or datetime.utcnow(), chosen
+    picked = insights.pick_call_slot(dosages, await _todays_events(patient.id))
+    if picked is None:
+        raise PatientNotReady(f"no medicine is due for {patient.name} today")
+    at, chosen = picked
+    return _to_utc(at), chosen
 
 
 async def create_call_session(
-    patient_id: str, *, on_reminder_created: Callable[[Reminder], None] | None = None
+    patient_id: str,
+    *,
+    slot_at: datetime | None = None,
+    dosage_ids: list[str] | None = None,
+    on_reminder_created: Callable[[Reminder], None] | None = None,
 ) -> CallSession:
     """Creates the Call document and assembles everything a session needs, independent of which
-    transport will carry it."""
-    patient, prescription = await _load_patient_and_dosage(patient_id)
-    dosage = prescription.medicines[0]
+    transport will carry it. The call is about one dose slot and every medicine due in it: pass
+    `slot_at` (naive UTC) and `dosage_ids` to choose them, or leave them out to use the slot due now."""
+    patient, dosages = await _load_patient_and_dosages(patient_id)
+    slot_utc, chosen = await _due_slot(patient, dosages, slot_at, dosage_ids)
+    due = [DueMedicine(dosage_id=d.id, name=d.medicine_name, dose=d.dosage) for d in chosen]
 
-    call = Call(patient_id=patient.id, type=CallType.medicine_reminder)
+    call = Call(
+        patient_id=patient.id, type=CallType.medicine_reminder, slot_at=slot_utc,
+        dosage_ids=[m.dosage_id for m in due],
+    )
     await calls_col().insert_one(model_to_doc(call))
 
     context = CallContext(
         patient_id=patient.id,
         call_id=call.id,
-        dosage_id=dosage.id,
-        medicine_name=dosage.medicine_name,
-        medicine_dosage=dosage.dosage,
+        due=due,
+        slot_at=slot_utc,
         allergies=patient.allergies,
         on_reminder_created=on_reminder_created,
     )
@@ -85,10 +126,10 @@ async def create_call_session(
         model=model,
         base_system_prompt=build_base_system_prompt(
             patient_name=patient.name,
-            medicine_name=dosage.medicine_name,
-            medicine_dosage=dosage.dosage,
+            due=due,
+            slot_local=insights.to_local(slot_utc).strftime("%H:%M"),
             allergies=patient.allergies,
-            now_local=datetime.now().astimezone().strftime("%A %H:%M (UTC%z)"),
+            now_local=insights.now_local().strftime("%A %H:%M (UTC%z)"),
         ),
         tool_registry=tool_registry,
         policy=build_policy(),

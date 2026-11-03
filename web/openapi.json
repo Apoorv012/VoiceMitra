@@ -1178,6 +1178,25 @@
               }
             ],
             "title": "Room Url"
+          },
+          "slot_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot At"
+          },
+          "dosage_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dosage Ids"
           }
         },
         "type": "object",
@@ -1799,6 +1818,18 @@
             },
             "type": "array",
             "title": "Times"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
           }
         },
         "type": "object",
@@ -1845,6 +1876,19 @@
             },
             "type": "array",
             "title": "Times"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 90.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
           }
         },
         "type": "object",
@@ -2186,6 +2230,17 @@
             "type": "string",
             "title": "Frequency"
           },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          },
           "times": {
             "items": {
               "type": "string"
@@ -2240,6 +2295,7 @@
           "name",
           "dose",
           "frequency",
+          "interval_days",
           "times",
           "from_date",
           "to_date",

@@ -3,6 +3,11 @@ shown in reference_transcripts/ (casual, warm, code-mixed Hindi-English, short t
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from domains.med_adherence.context import DueMedicine
+
 UNSUPPORTED_LANGUAGE_LINE = (
     "Sorry, abhi hum sirf Hindi aur English support kar rahe hain. "
     "Right now we only support Hindi and English -- kya aap inmein se kisi ek mein baat kar sakte hain?"
@@ -16,12 +21,31 @@ HANDOFF_LINE_HINGLISH = "Main abhi aapko doctor se connect kar rahi hoon. Kripya
 HANDOFF_LINE_ENGLISH = "I'm connecting you to the doctor now. Please stay on the line."
 
 
+def spoken_time(hh_mm: str) -> str:
+    """How to say a dose time out loud ("13:00" -> "dopahar 1 baje" / "1 PM"). Worked out here: left
+    to the model, 13:00 came out as "subah" and "do baje"."""
+    hour, minute = (int(p) for p in hh_mm.split(":")[:2])
+    part = ("subah" if 4 <= hour < 12 else "dopahar" if 12 <= hour < 16
+            else "shaam" if 16 <= hour < 20 else "raat")
+    h12 = hour % 12 or 12
+    hindi = (f"{part} {h12} baje" if minute == 0 else f"{part} saadhe {h12} baje" if minute == 30
+             else f"{part} {h12} baj kar {minute} minute")
+    english = f"{h12} {'AM' if hour < 12 else 'PM'}" if minute == 0 else f"{h12}:{minute:02d} {'AM' if hour < 12 else 'PM'}"
+    return f'say it as "{hindi}" in Hindi, "{english}" in English'
+
+
 def build_base_system_prompt(
-    *, patient_name: str, medicine_name: str, medicine_dosage: str, allergies: list[str],
+    *, patient_name: str, due: list[DueMedicine], slot_local: str, allergies: list[str],
     now_local: str,
 ) -> str:
     allergy_line = (
         f"Known allergies: {', '.join(allergies)}." if allergies else "No known allergies on file."
+    )
+    due_lines = "\n".join(f"- {m.name} ({m.dose})" for m in due)
+    due_block = (
+        f"This call is about the {slot_local} dose ({spoken_time(slot_local)}). "
+        + ("Medicine due:" if len(due) == 1 else f"{len(due)} medicines are due together:")
+        + f"\n{due_lines}"
     )
     return f"""You are VoiceMitra, a voice-based medicine-adherence assistant calling {patient_name} \
 on behalf of their hospital.
@@ -57,7 +81,7 @@ acknowledge what they said first ("achha", "samajh gayi") so they feel heard. Ne
 next topic, and never end the call while something they said is still unclear.
 
 Current local time: {now_local}.
-Today's due medicine: {medicine_name}, dosage: {medicine_dosage}.
+{due_block}
 {allergy_line}
 
 Hard rules, no exceptions:

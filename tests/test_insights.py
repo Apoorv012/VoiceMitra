@@ -117,3 +117,53 @@ def test_attention_flags_live_calls_symptoms_and_missed_doses():
     call = Call(patient_id="p", type=CallType.medicine_reminder, date_time=utc(now - timedelta(hours=3)))
     a = ins.assess(slots=slots, logs=[], escalations=[], calls=[call], now=now)
     assert a.level == "warning" and any("Missed 2 doses" in r for r in a.reasons)
+
+
+def test_every_x_days_uses_the_interval():
+    d = dosage(frequency=DoseFrequency.every_x_days, times=("08:00",))
+    d.interval_days = 3
+    assert [len(ins.dosage_slots_on(d, DAY + timedelta(days=n))) for n in range(7)] == [1, 0, 0, 1, 0, 0, 1]
+    d.interval_days = None  # older records: treated as daily
+    assert len(ins.dosage_slots_on(d, DAY + timedelta(days=1))) == 1
+
+
+def test_event_goes_to_the_slot_it_was_about_not_when_it_was_logged():
+    d = dosage()
+    late = event(d, DoseStatus.taken, local(9))
+    late.recorded_at = utc(local(20, 50))  # the morning dose, reported in an evening call
+    slots = ins.build_slots([d], [late], DAY, DAY, now=local(21, 30))
+    assert [s.state for s in slots] == [ins.TAKEN, ins.DUE]
+
+
+def test_pick_call_slot_groups_medicines_due_together():
+    a = dosage(times=("08:00", "20:00"))
+    b = dosage(times=("08:00",))
+    c = dosage(times=("14:00",))
+    at, meds = ins.pick_call_slot([a, b, c], [], now=local(8, 10))
+    assert at == local(8) and {m.id for m in meds} == {a.id, b.id}
+
+
+def test_pick_call_slot_asks_only_about_unanswered_medicines():
+    a = dosage(times=("08:00",))
+    b = dosage(times=("08:00",))
+    at, meds = ins.pick_call_slot([a, b], [event(a, DoseStatus.taken, local(8))], now=local(8, 20))
+    assert at == local(8) and [m.id for m in meds] == [b.id]
+
+
+def test_pick_call_slot_counts_a_slot_starting_soon_and_falls_back_when_all_answered():
+    a = dosage(times=("08:00", "20:00"))
+    # 19:45: the 20:00 slot is within the lead time, so it is the one to ask about
+    at, _ = ins.pick_call_slot([a], [event(a, DoseStatus.taken, local(8))], now=local(19, 45))
+    assert at == local(20)
+    # 12:00, morning answered: nothing open has come due, so the next slot coming up
+    at, _ = ins.pick_call_slot([a], [event(a, DoseStatus.taken, local(8))], now=local(12))
+    assert at == local(20)
+    # 22:00, both answered: the day's last slot again
+    evs = [event(a, DoseStatus.taken, local(8)), event(a, DoseStatus.taken, local(20))]
+    at, _ = ins.pick_call_slot([a], evs, now=local(22))
+    assert at == local(20)
+
+
+def test_pick_call_slot_none_when_nothing_is_scheduled_today():
+    w = dosage(frequency=DoseFrequency.weekly, times=("08:00",))
+    assert ins.pick_call_slot([w], [], now=local(9, 0, DAY + timedelta(days=2))) is None

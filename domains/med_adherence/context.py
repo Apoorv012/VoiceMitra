@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from backend.models import CallLogEntry, CallLogEntryType, DoseStatus, Reminder
@@ -14,6 +15,15 @@ from domains.med_adherence.prompts import UNSUPPORTED_LANGUAGE_LINE
 # Tools after which the policy moves to a terminal state: whatever the agent says next is the last
 # thing the patient hears.
 WRAP_UP_TOOLS = frozenset({"update_daily_log", "escalate_to_doctor"})
+
+
+@dataclass
+class DueMedicine:
+    """One medicine the call is asking about."""
+
+    dosage_id: str
+    name: str
+    dose: str
 
 
 @dataclass
@@ -30,11 +40,10 @@ class EscalationRequest:
 class CallContext(AgentContext):
     patient_id: str
     call_id: str
-    dosage_id: str
-    medicine_name: str
-    medicine_dosage: str
+    due: list[DueMedicine]
+    slot_at: datetime  # the dose slot the call is about (naive UTC)
     allergies: list[str] = field(default_factory=list)
-    dose_status: DoseStatus | None = None
+    dose_statuses: dict[str, DoseStatus] = field(default_factory=dict)  # dosage_id -> what was logged
     mentioned_red_flag: bool = False
     red_flag_reason: str | None = None
     escalated: bool = False
@@ -49,6 +58,30 @@ class CallContext(AgentContext):
     on_reminder_created: Callable[[Reminder], None] | None = None
     # Told about every log entry as it is recorded, so a live page can show the call as it happens.
     on_log_entry: Callable[[CallLogEntry], None] | None = None
+
+    @property
+    def unanswered(self) -> list[DueMedicine]:
+        return [m for m in self.due if m.dosage_id not in self.dose_statuses]
+
+    @property
+    def all_doses_answered(self) -> bool:
+        return not self.unanswered
+
+    def resolve_medicines(self, names: list[str]) -> list[DueMedicine]:
+        """The due medicines a tool call names (exact names, case and spacing ignored); no names
+        means every one still without an answer. Raises ValueError naming the valid choices."""
+        if not names:
+            return self.unanswered or list(self.due)
+        # The prompt lists them as "Name (dose)", and the model often copies that whole.
+        by_name = {_key(label): m for m in self.due for label in (m.name, f"{m.name} ({m.dose})")}
+        found, unknown = [], []
+        for name in names:
+            med = by_name.get(_key(name))
+            (found if med else unknown).append(med or name)
+        if unknown:
+            valid = ", ".join(m.name for m in self.due)
+            raise ValueError(f"not a medicine due in this call: {', '.join(unknown)}. Use these names: {valid}")
+        return _unique(found)
 
     def observe_user_text(self, text: str) -> None:
         self.last_patient_text = text
@@ -106,3 +139,17 @@ class CallContext(AgentContext):
             tool_result=result if isinstance(result, dict) else {"value": result},
             note=note,
         ))
+
+
+def _key(label: str) -> str:
+    return " ".join(label.lower().split())
+
+
+def _unique(meds: list[DueMedicine]) -> list[DueMedicine]:
+    seen: set[str] = set()
+    out = []
+    for m in meds:
+        if m.dosage_id not in seen:
+            seen.add(m.dosage_id)
+            out.append(m)
+    return out

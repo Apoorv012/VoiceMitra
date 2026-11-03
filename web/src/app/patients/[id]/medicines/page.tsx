@@ -10,9 +10,10 @@ import type { MedicineView, PatientMedicines } from "@/lib/types";
 
 function Schedule({ m }: { m: MedicineView }) {
   const { t } = useT();
-  const key: MessageKey = m.frequency === "weekly" ? "med_weekly" : m.frequency === "fixed_times" ? "med_fixed" : "med_daily";
+  const every = m.frequency === "every_x_day" && m.interval_days;
+  const key: MessageKey = every ? "med_every" : m.frequency === "weekly" ? "med_weekly" : m.frequency === "fixed_times" ? "med_fixed" : "med_daily";
   const times = m.times.length ? m.times.map(clockLabel).join(` ${t("and")} `) : "—";
-  return <>{t(key, { times })}</>;
+  return <>{t(key, { times, n: every || 0 })}</>;
 }
 
 function Medicine({ m }: { m: MedicineView }) {

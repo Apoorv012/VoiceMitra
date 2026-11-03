@@ -9,7 +9,8 @@ of truth for progress, not chat history.
 VoiceMitra is a voice-first medicine-adherence system for hospitals: patients get called to be
 reminded to take medicine, the agent logs whether they took it and how they're feeling, and if
 something's wrong it escalates by bringing a doctor live into the same call, with a secondary
-caregiver (e.g. an adult child) kept in the loop. Built as a capstone project — beyond working
+caregiver (e.g. an adult child) kept in the loop. (For the pilot there is no doctor: reminders, a call when
+the patient doesn't respond, and caregiver alerts -- see "Pilot: patients + caregivers" in Status.) Built as a capstone project — beyond working
 demo behavior, it needs to read as real AI/systems engineering, not a thin prompt-and-API wrapper.
 
 Design constraints:
@@ -229,7 +230,7 @@ whole number of minutes chosen by the LLM. Doctor briefing on escalation is deli
 built here -- the doctor's role in the final product isn't settled, so `escalate_to_doctor` still
 only records the decision (see Chunk 4).
 
-### Doctor escalation flow (text chat) — **DONE**, verified by scripted runs; **awaiting user testing**
+### Doctor escalation flow (text chat) — **DONE**, verified by scripted runs and **tested by the user by hand (2026-11-03): working**
 Built ahead of voice (Chunk 4's doctor/caregiver logic, on the chat transport) so the flow is demoable
 now and maps onto a Daily room later. The flow:
 
@@ -308,7 +309,8 @@ below; it is now really on.) Not done: voice calls are tracked only as in-memory
 events (no live-call object like chat has), reminders still start chat calls, a patient who never joins
 ends the call after 120 s.
 
-### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **BUILT, AWAITING FIRST HANDS-ON TEST**
+### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **DONE: user tested the doctor escalation by hand (2026-11-03), working**
+(For the pilot the doctor is out of the loop -- see "Pilot: patients + caregivers" below. This flow stays in the code.)
 The text-chat escalation flow (above) now also runs on a voice call. After the agent's hand-off line the
 patient stays in the LiveKit room on hold (`VoiceTransport.set_sink` makes the agent stop listening);
 the doctor's dashboard rings and they brief privately with the agent (text only at first; now spoken too,
@@ -329,7 +331,9 @@ room/browser will feed back; the doctor STT idles until the merge (keepalive is 
 are still records, not real SMS/WhatsApp. (The briefing used to be typed only; that and the doctor's
 silent mic were found in the first hands-on test and addressed below.)
 
-### Voice feel fixes (2026-10-21) — **BUILT, NOT YET TRIED ON A LIVE CALL**
+### Voice feel fixes (2026-10-21) — **BUILT; barge-in tried by the user (2026-11-03)**
+User test: interrupting the agent worked and conversations were decent. Not checked: whether the agent
+knew where it was cut off (the heard/unheard split). Good enough for now; deeper testing deferred.
 Triggered by a hands-on call: the agent couldn't be interrupted, opened with one very long turn, spoke bad
 Hindi, and on escalation the doctor got a text-only briefing and -- after the merge -- the doctor could
 hear the patient but the patient couldn't hear the doctor and the doctor's speech wasn't transcribed.
@@ -389,6 +393,13 @@ hear the patient but the patient couldn't hear the doctor and the doctor's speec
   unit-checked, **not yet tried on a live call**; thresholds and score anchors are untuned (see the
   confidence-gated plan below). Weakness: the quote check proves the words came from the patient's last
   message, not that they mean "no".
+- **User test (2026-11-03): escalation felt inconsistent and keyword-driven** -- "severe headache" did not
+  escalate while other symptoms did. Cause, from the code: there are two separate paths. (1) `RED_FLAGS` in
+  `escalation_rules.py` is a substring list (chest pain, breathlessness, fainting/"chakkar", bleeding, allergic
+  reaction); a match forces escalation no matter what the LLM thinks (`context.py` -> `_forced_escalation`).
+  Headache is not on it. (2) Everything else rides on the LLM's 1-10 score, and 5-7 only *offers* the doctor.
+  So the user's impression was right for the red-flag path, and a "severe headache" likely scored 5-7 (offer)
+  or lower. To be replaced by the LLM-judged approach below.
 - **Live transcript on voice calls:** the patient's voice card shows the call-log entries as they are
   recorded: agent lines, what the STT heard, every tool call (name, args, result, block notes), the
   escalation events, and -- after the merge -- the doctor's and patient's transcribed words. The domain
@@ -402,7 +413,7 @@ hear the patient but the patient couldn't hear the doctor and the doctor's speec
   nothing notifies a doctor on a non-escalated call; the `closing_normal` prompt now forbids that.
   Open idea: flag seriousness>=3 logs on the doctor dashboard.
 
-### Web app (2026-10-21) — **BUILT AND VERIFIED IN A BROWSER; REAL VOICE CALLS NOT YET TRIED IN IT**
+### Web app (2026-10-21) — **BUILT AND VERIFIED IN A BROWSER; the user has since run a doctor escalation and voice calls through it (2026-11-03)**
 Why: the backend-served Jinja pages were a cluttered dump of tables (one template served patient, doctor
 and operator with flags) and not installable. Replaced by a separate frontend, `web/` (Next.js), with the
 backend reduced to an API.
@@ -445,8 +456,7 @@ backend reduced to an API.
 - **Not verified / known gaps:** a real voice call and a real escalation + merge through the *new* screens
   (the old pages are the only ones proven with real audio); the iPhone install path (manual Share steps);
   Hindi strings were written by the assistant and need a native read; no auth; times use `APP_TIMEZONE`
-  (default Asia/Kolkata) which is one zone for everyone; "every X days" prescriptions are treated as daily
-  (the model has no interval).
+  (default Asia/Kolkata) which is one zone for everyone. ("Every X days" now has an interval: pilot step 1.)
 - **Cleanup done (2026-10-21, with the user's go-ahead):** deleted the old UI (`backend/pages.py`, `backend/templates/`,
   `backend/static/`, the `/static` mount, the page-only helpers in `queries.py`, and the `jinja2` / `python-multipart`
   dependencies), `run_backend.bat` and then `run.bat` (replaced by the npm scripts), the Daily transport, the Next.js starter boilerplate and the
@@ -454,7 +464,8 @@ backend reduced to an API.
   screens had a real call run through them** -- the user chose this over waiting; `git log` has the old call/voice-join
   code (`_chat_widget.html`, `escalation_call.html`) to compare against if a call misbehaves.
 
-### Web visual redesign (2026-10-21) — **BUILT, build/tsc/eslint pass; NOT YET EYEBALLED IN A BROWSER**
+### Web visual redesign (2026-10-21) — **BUILT, build/tsc/eslint pass; seen by the user**
+User's verdict (2026-11-03): doesn't like the look, but fine for piloting. No further redesign planned.
 Restyled the Next app from three reference designs (soft sage palette, large rounded cards, pill nav with a
 green active tab, dark-green primary button, floating pill tab bar on mobile). Only patterns that map to our
 screens were taken; AI-assistant, shift, billing, vitals and capacity widgets were deliberately left out.
@@ -477,17 +488,177 @@ overview, the new-patient form and brand-mark sizing. Also applied Web Interface
   every request costs 0.3-1.1 s, so each screen (page + data call) takes 1-2 s. Fix options: use `localhost:3000` on the
   PC, and fewer sequential requests per screen (e.g. preload data on hover/prefetch).
 
-### Planned (not built): confidence-gated, LLM-judged escalation
-Escalation should come from the LLM's own assessment, not hand-written term lists. Idea:
+### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
+**User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's
+`seriousness` field description in `tools.py` has exactly that cue, and `RED_FLAGS` is a substring list --
+both go). The agent should decide whether escalation is needed and say how confident it is. This is our own
+logic, not `pipecat-guardrails` (that package is for output only). Idea:
 - Have the LLM return, for each symptom report, `should_escalate` plus a **confidence score** (and its
   reasoning), e.g. via a structured tool/JSON output.
 - **High confidence** -> follow the LLM (escalate, or don't). **Low confidence** -> fall back to a second
   check: a rules pass, a second LLM opinion, or ask the patient one more clarifying question.
+- **Few-shot examples** in the prompt (user idea, 2026-11-03): labelled cases (what the patient said ->
+  decision + short reasoning) to anchor the judgment and cut run-to-run variance. Keep them varied so the
+  model learns the reasoning, not trigger words, and keep them **separate from the eval scenarios**
+  (otherwise the eval tests the examples it was shown).
 - Keep the code guardrails as a hard backstop only for the unambiguous red flags already listed.
 - Build `eval/` scenarios around it (e.g. heavy fever + cough 2 days must escalate; mild cough must not)
   and measure how confidence correlates with correct decisions before trusting a threshold.
 
-### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED**
+### To-do (not now): move output guardrails to `pipecat-guardrails`
+The user maintains `pipecat-guardrails` (PyPI, 0.3.0, sibling folder `../pipecat-guardrails`), built for this
+project. It has rules (banned terms with a Hinglish word pattern, regex, PII, India pack), yes/no
+**policies** answered by a classifier -> LLM-judge cascade with confidence thresholds (`block_above` 0.8 /
+`allow_below` 0.2, the judge decides in between), shadow mode, `guard.check()` for apps that run their own
+LLM loop (this one does), and an `eval` command.
+- **Fits:** our text checks on what the agent says -- `_no_dosage_change_or_diagnosis`,
+  `ADVICE_OR_REASSURANCE_PHRASES` -- become package rules plus policies ("does this reply advise on
+  medication?"), replacing the narrow phrase lists. Wire `guard.check()` into
+  `GuardrailPipeline.check_text`; the tool-call checks and `_fixed_handoff_line` / `_no_question_when_wrapping_up`
+  stay ours (they depend on call state, not text).
+- **Escalation is not the package's job (user decision, 2026-11-03).** The package is for output only;
+  judging what the patient said and whether to escalate stays our own logic (see above).
+- Pipecat: the user thinks 1.11 should work with the package, but its `pyproject.toml` pins
+  `pipecat-ai>=1.12`, so either the pin is relaxed or VoiceMitra upgrades (the user is fine upgrading).
+  Re-test the voice pipeline after either. **To-do, not now.**
+
+### Other to-dos (not now)
+- **Eval harness** (Chunk 5) -- wanted, built together with the LLM-judged escalation, since that is what it
+  has to measure. Design notes (non-determinism) under Chunk 5.
+- **Login / accounts** -- deliberately last, once everything else is final (it slows development). Until then
+  the app is not for strangers: anyone can open anyone's records, and prescriptions are health data.
+- **Barge-in depth** -- check the agent knows where it was cut off.
+- **Hosting** -- the backend can move to AWS (or similar) instead of the home PC; needed anyway once
+  reminders must fire while the PC is off, and WhatsApp webhooks need a stable public URL.
+
+### Pilot: patients + caregivers, no doctor — **IN PROGRESS: step 1 of 9 done** (user's first priority, 2026-11-03)
+There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation
+flow stays in the code (tested, working) but is switched off for pilot patients.
+
+**The flows the user wants:**
+- **Agent-initiated calls (outbound):**
+  - *Reminder:* at dose time the patient first gets a notification ("Taken" / "Not yet"). "Taken" logs the
+    dose, done. **No reply within 5 minutes** (decided 2026-11-03; a setting) -> the agent calls. The call
+    knows which medicine(s) and which time, asks whether they were taken.
+  - *Wellbeing* (decided 2026-11-03) -- the patient shouldn't recount their day on every call:
+    - **one dose slot a day** -> asked inside that reminder call;
+    - **several slots a day** -> at most **once a day** (e.g. the first call of the day), a second time only
+      if needed (e.g. a symptom was reported earlier that day);
+    - **less than daily** (e.g. a weekly medicine) -> a **standalone check-in call** every N days (per-patient
+      setting, e.g. 2) at a time the patient chooses.
+- **Patient-initiated calls (inbound):** the patient taps "Talk to VoiceMitra" to ask about a medical issue or
+  just to talk. Today that button starts the same reminder script; it needs its own open-ended flow (answers
+  about *their own* prescription from the records are fine; still no advice). Symptoms go through the same
+  "not well" handling.
+- **Not feeling well:** log it, tell the patient the caregiver is being informed, and alert the caregiver
+  (in-app first, WhatsApp later) with what the issue is -- "if needed", using the current seriousness score
+  as the interim rule until the LLM-judged escalation replaces it. **Urgent:** also call the caregiver.
+- **Prescription entry** by the patient or caregiver, **both** a photo upload and manual typing (decided
+  2026-11-03). The upload may be rough at first and improved later; the dose schedule comes from it.
+
+**Platform -- OPEN DECISION (user, 2026-11-03):** patients and caregivers may be on iPhone or Android; the user
+has no Mac. Go with a PWA only if it gives the features needed, otherwise apps; Android-only is not
+acceptable, and WhatsApp-only would be preferred over that. Findings:
+- **PWA (today):** no install friction on Android, works now. iPhone: push only after "Add to Home Screen"
+  (iOS 16.4+), no action buttons on Safari web push (tapping opens the app instead), no silent push. On both:
+  no phone-style ringing screen -- a "call" is a notification the patient must tap.
+- **React Native + Expo (cross-platform):** iOS builds run on Expo's cloud Macs (EAS Build), submitted to
+  TestFlight from Windows; Android ships as an APK. Gives a real ringing call screen (CallKit on iOS,
+  ConnectionService on Android, VoIP push) and notification buttons on both. LiveKit has a React Native SDK.
+  Reuses TypeScript/React and the generated API types. Costs: Apple Developer Program ($99/yr) for TestFlight,
+  a second frontend codebase (the web app stays for operator/doctor screens).
+- **Flutter:** iOS builds need a Mac or a paid cloud CI (e.g. Codemagic); new language (Dart); little reuse.
+- **Native Swift + Kotlin:** two codebases. **xtool** (open source) builds and signs Swift apps on Windows via
+  WSL and installs them on your own iPhone -- fine for experiments, but free signing expires after 7 days and
+  sharing with pilot users still needs the paid account + TestFlight (App Store upload still goes through a
+  Mac); it is reverse-engineered, so terms-of-service risk.
+- **WhatsApp-first:** nothing to install, most patients/caregivers already have it. Reminders as utility
+  templates with "Taken" / "Not yet" buttons, caregiver alerts as messages, prescription photo sent in chat.
+  Calls: WhatsApp Business Calling API; Pipecat has a WhatsApp transport for **inbound** calls (patient calls
+  the number); **outbound** (agent calls patient) needs the user's call permission first, has rate limits,
+  and isn't in Pipecat's transport (own signaling via the Graph API). Costs: Meta business verification,
+  template approval, per-message/per-minute charges. Fits the `Transport` interface (a real demo of the swap
+  path). Screens that need more than chat (caregiver overview, reviewing an extracted prescription) stay on
+  the web.
+Steps 1-3 and 6-8 below don't depend on this; decide before step 4.
+
+**What exists:** voice + chat calls, dose/symptom logging, the seriousness tiers, caregiver records with a
+simulated notification on escalation and on "unreachable", one-off "remind me later" timers
+(`live_calls.arm_reminder`, re-armed from Mongo on startup), a dose-schedule calculator (`insights.py`), the
+installable PWA with a service worker, an add-prescription form (doctor/operator screens).
+
+**Gaps found in the code:** every call was about `prescription.medicines[0]` only (`bot.py`) -- fixed in step 1;
+the "Talk to VoiceMitra" button and the reminder call are the same flow (`CallType.inbound_call` /
+`just_catch_up` exist but are unused); nothing fires at dose times; no push notifications; no caregiver
+screen or role; escalation always means "ring the doctor".
+
+**Build order (each step runnable and shown before the next):**
+1. **Calls about the right dose** -- **DONE (2026-11-03): tests + scripted calls pass; not yet tried by the user.**
+   A call is about one dose *slot* and every medicine due in it, across all the patient's prescriptions.
+   - Slot choice (`insights.pick_call_slot`, when the caller doesn't give one): the most recent slot (up to 30
+     min ahead) with medicines still unanswered, asking only about those; if all are answered, the next slot
+     coming up, else the day's last one; no slot today -> `PatientNotReady` ("no medicine is due today"). A
+     reminder call passes its own slot and medicines (`Reminder.dosage_ids` / `slot_at`; old records with a
+     single `dosage_id` still work).
+   - `log_dose_event` / `reschedule_dose` take `medicines` (names as listed; "Name (dose)" accepted, empty =
+     every one not yet answered) and return what is still to ask about. `DoseEvent.scheduled_at` is now the
+     slot, and `insights.build_slots` matches events by it (a morning dose reported in the evening counts
+     for the morning). `Call` stores `slot_at` and `dosage_ids`.
+   - Policy: the generic engine (`core/agent/policy.py`) now allows a transition that depends on the context;
+     the dose step moves on only once every due medicine has an answer.
+   - Prompt: lists the slot's medicines and how to say the time aloud (`prompts.spoken_time`: "dopahar 1
+     baje" / "1 PM") -- left to the model, a 13:00 dose came out as "subah" and "do baje".
+   - Schedules: `Dosage.interval_days` for "every N days" (API requires it for that frequency; old records
+     stay daily); the add-prescription form asks for it and both medicine screens show it. Weekly already
+     worked (every 7 days from `from_date`).
+   - Bug fixed on the way: a reminder set during a *voice* call was saved but its timer never armed (until a
+     restart); voice calls now arm it too.
+   - Verified: 10 new pytest tests (24 total); scripted calls against the live LLM (Gemini) in a throwaway DB
+     -- both taken (one log for both), one taken + one forgotten (two logs, reason kept), one taken + one
+     "later" (reminder for that one only). Not tried: a real voice call with several medicines; reminders
+     still start chat calls (step 5).
+   - Seen in those runs, not fixed (older prompt issues): the agent sometimes narrates its step ("ab main
+     symptom check kar leti hoon"), asks two questions in one turn, and slipped into Hinglish once while the
+     patient spoke English. With a fixed script it keeps re-asking about an unanswered medicine -- correct, but
+     there is no limit on how often.
+2. **Pilot mode: caregiver instead of doctor** -- per-patient (or global) switch; "not well" -> log + tell the
+   patient + caregiver alert, no doctor ring. New lines in the prompts (Hinglish + English).
+3. **Caregiver app** -- a caregiver role in the app (`/caregivers/[id]`): alerts with what the issue is,
+   today's doses for their patient, mark an alert as seen. Live over a WebSocket.
+4. **Dose-time reminders + notification** -- a scheduler that arms a timer for each dose slot (same timer
+   pattern as reminders) and sends the notification on the chosen platform (Web Push / app push /
+   WhatsApp), with "Taken" / "Not yet". Same channel for caregiver alerts.
+5. **No reply in 5 min -> call** -- start the outbound voice call for that slot. Patient doesn't join ->
+   existing `unreachable` caregiver alert.
+6. **Inbound call flow** -- its own policy states: open greeting, questions about their medicines answered
+   from the records, symptoms -> same "not well" path, plain chat.
+7. **Wellbeing rules** -- per the decision above: asked in the reminder call for one slot a day, once a day
+   (twice if needed) for several, a standalone check-in call (`CallType.just_catch_up`) every N days for
+   less-than-daily medicines.
+8. **Prescription entry by patient/caregiver** -- both together: the existing form, and a **photo upload**
+   read by the LLM (Gemini, already configured, takes images) into the same form for the person to check
+   and save. A rough first version is fine; improve extraction later.
+9. **Urgent -> call the caregiver** -- the agent calls the caregiver and tells them what happened.
+
+**Known limits:** timers live in the server process, so the machine running the API must stay on (see
+Hosting); the platform limits above. **Open questions:** the platform, whether caregivers can also edit
+prescriptions.
+
+### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED** (user agreed to build the eval harness, 2026-11-03; after the pilot)
+**Handling non-determinism (the same input can score 5 one run and 8 the next):**
+- Assert the *decision* (escalate / alert caregiver / just log), never the exact score.
+- Run every scenario several times (e.g. 5-10) and report a pass *rate* per scenario plus the overall rate
+  with its spread. One run of 10 scenarios swinging between 50% and 90% is sampling noise, not a result.
+- Label scenarios by type: **clear-cut** ("all fine" must never alert; chest pain must always escalate --
+  target ~100%) vs **borderline** (headache for 2 days -- an acceptable *set* of outcomes, e.g. "offer or
+  escalate", both pass).
+- Report misses separately: a missed urgent case is worse than an extra alert.
+- Consistency is a metric in itself: if one input flips between outcomes, that is the low-confidence case
+  the confidence-gated escalation is meant to catch (ask one more question, second opinion). Agreement
+  across runs is also a cheap way to measure confidence.
+- Two levels: **decision tests** (a fixed transcript fed to the escalation decision only -- cheap, many runs)
+  and **full-call tests** (a scripted or LLM-played patient through the whole call, checking the tool-call
+  path -- costly, fewer runs). Temperature 0 lowers variance but doesn't remove it.
 Plan: tighten symptom-extraction tool schema, build `eval/scenarios/` (reference-derived +
 unreachable-patient + caregiver-notified-on-escalation) and `eval/run_eval.py`, demo rehearsal
 checklist.

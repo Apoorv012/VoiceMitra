@@ -216,7 +216,8 @@ async def _gather_facts(escalation: Escalation, patient: Patient) -> str:
         rx = doc_to_model(Prescription, await prescriptions_col().find_one({"_id": rx_id}))
         for m in (rx.medicines if rx else []):
             times = f" at {', '.join(m.times)}" if m.times else ""
-            prescription_lines.append(f"- {m.medicine_name}, {m.dosage}, {m.frequency.value}{times}")
+            every = f" (every {m.interval_days} days)" if m.interval_days else ""
+            prescription_lines.append(f"- {m.medicine_name}, {m.dosage}, {m.frequency.value}{every}{times}")
 
     call = doc_to_model(Call, await calls_col().find_one({"_id": escalation.call_id}))
     transcript_lines: list[str] = []

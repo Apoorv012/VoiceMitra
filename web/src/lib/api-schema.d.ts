@@ -473,6 +473,10 @@ export interface components {
             caregiver_notified: boolean;
             /** Room Url */
             room_url?: string | null;
+            /** Slot At */
+            slot_at?: string | null;
+            /** Dosage Ids */
+            dosage_ids?: string[];
         };
         /** CallLogEntry */
         CallLogEntry: {
@@ -674,6 +678,8 @@ export interface components {
             frequency: components["schemas"]["DoseFrequency"];
             /** Times */
             times?: string[];
+            /** Interval Days */
+            interval_days?: number | null;
         };
         /** DosageInput */
         DosageInput: {
@@ -688,6 +694,8 @@ export interface components {
             frequency: components["schemas"]["DoseFrequency"];
             /** Times */
             times?: string[];
+            /** Interval Days */
+            interval_days?: number | null;
         };
         /**
          * DoseFrequency
@@ -816,6 +824,8 @@ export interface components {
             dose: string;
             /** Frequency */
             frequency: string;
+            /** Interval Days */
+            interval_days: number | null;
             /** Times */
             times: string[];
             /**

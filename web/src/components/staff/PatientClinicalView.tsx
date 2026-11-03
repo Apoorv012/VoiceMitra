@@ -85,6 +85,7 @@ function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: (
   const today = new Date().toISOString().slice(0, 10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [frequency, setFrequency] = useState("fixed_times");
   return (
     <details className="disclosure card">
       <summary><Icon name="plus" />Add a prescription</summary>
@@ -103,6 +104,7 @@ function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: (
                   medicine_name: String(f.get("medicine_name")).trim(),
                   dosage: String(f.get("dosage")).trim(),
                   frequency: f.get("frequency"),
+                  interval_days: frequency === "every_x_day" ? Number(f.get("interval_days")) : null,
                   times: String(f.get("times") ?? "").split(",").map((t) => t.trim()).filter(Boolean),
                   from_date: f.get("from_date"),
                   to_date: f.get("to_date") || null,
@@ -110,6 +112,7 @@ function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: (
               },
             });
             (e.target as HTMLFormElement).reset();
+            setFrequency("fixed_times");
             onAdded();
           } catch (err) {
             setError(err instanceof ApiError ? err.message : "Could not add the prescription");
@@ -123,13 +126,16 @@ function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: (
           <div className="field"><label htmlFor="rx-dose">Dose</label><input id="rx-dose" name="dosage" type="text" placeholder="1 tablet" required /></div>
           <div className="field">
             <label htmlFor="rx-freq">How often</label>
-            <select id="rx-freq" name="frequency" defaultValue="fixed_times">
+            <select id="rx-freq" name="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
               <option value="fixed_times">At set times each day</option>
               <option value="daily">Every day</option>
               <option value="weekly">Once a week</option>
               <option value="every_x_day">Every few days</option>
             </select>
           </div>
+          {frequency === "every_x_day" && (
+            <div className="field"><label htmlFor="rx-every">Every how many days</label><input id="rx-every" name="interval_days" type="number" min={2} max={90} defaultValue={2} inputMode="numeric" required /></div>
+          )}
           <div className="field"><label htmlFor="rx-times">Times</label><input id="rx-times" name="times" type="text" placeholder="09:00, 21:00" /><span className="hint">24-hour, comma separated</span></div>
           <div className="field"><label htmlFor="rx-from">From</label><input id="rx-from" name="from_date" type="date" defaultValue={today} required /></div>
           <div className="field"><label htmlFor="rx-to">Until (optional)</label><input id="rx-to" name="to_date" type="date" /></div>
@@ -142,7 +148,7 @@ function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: (
 }
 
 function MedicineCard({ m }: { m: MedicineView }) {
-  const freq = m.frequency === "weekly" ? "Once a week" : m.frequency === "daily" ? "Every day" : m.frequency === "every_x_day" ? "Every few days" : "Daily";
+  const freq = m.frequency === "weekly" ? "Once a week" : m.frequency === "daily" ? "Every day" : m.frequency === "every_x_day" ? (m.interval_days ? `Every ${m.interval_days} days` : "Every few days") : "Daily";
   return (
     <div className="card" style={m.active ? undefined : { opacity: 0.65 }}>
       <div className="row between top">

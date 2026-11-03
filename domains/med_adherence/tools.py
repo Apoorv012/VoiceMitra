@@ -21,14 +21,56 @@ from backend.models import (
     Symptom,
     SymptomSeverity,
 )
-from core.agent.tool_registry import ToolRegistry
+from core.agent.tool_registry import ToolCallError, ToolRegistry
 from domains.med_adherence.caregiver import notify_caregiver_of_escalation
-from domains.med_adherence.context import CallContext, EscalationRequest
+from domains.med_adherence.context import CallContext, DueMedicine, EscalationRequest
 
 registry = ToolRegistry()
 
 
+_MEDICINES_DESCRIPTION = (
+    "Which of the due medicines this is about, names exactly as listed in the context. Several "
+    "medicines with the same answer go in one call; leave it empty to mean every due medicine not "
+    "answered yet.")
+
+
+def _medicines_for(context: CallContext, names: list[str]) -> list[DueMedicine]:
+    try:
+        return context.resolve_medicines(names)
+    except ValueError as e:
+        raise ToolCallError(str(e)) from e
+
+
+async def _log_doses(
+    context: CallContext, meds: list[DueMedicine], *, status: DoseStatus, confidence: DoseConfidence,
+    source: DoseSource, note: str | None,
+) -> None:
+    events = [
+        DoseEvent(
+            patient_id=context.patient_id,
+            dosage_id=m.dosage_id,
+            scheduled_at=context.slot_at,
+            status=status,
+            confidence=confidence,
+            source=source,
+            recorded_via_call_id=context.call_id,
+            note=note,
+        )
+        for m in meds
+    ]
+    await dose_events_col().insert_many([model_to_doc(e) for e in events])
+    for m in meds:
+        context.dose_statuses[m.dosage_id] = status
+
+
+def _progress(context: CallContext) -> dict:
+    """Tells the model whether the dose step is finished."""
+    left = [m.name for m in context.unanswered]
+    return {"still_to_ask_about": left} if left else {"all_due_medicines_answered": True}
+
+
 class LogDoseEventArgs(BaseModel):
+    medicines: list[str] = Field(default_factory=list, description=_MEDICINES_DESCRIPTION)
     status: DoseStatus
     confidence: DoseConfidence
     source: DoseSource
@@ -37,26 +79,18 @@ class LogDoseEventArgs(BaseModel):
 
 @registry.register(
     name="log_dose_event",
-    description="Record whether the patient took their due medicine dose this call.",
+    description="Record whether the patient took their due medicine(s) in this call.",
     args_model=LogDoseEventArgs,
 )
 async def log_dose_event(args: LogDoseEventArgs, context: CallContext) -> dict:
-    event = DoseEvent(
-        patient_id=context.patient_id,
-        dosage_id=context.dosage_id,
-        scheduled_at=datetime.utcnow(),
-        status=args.status,
-        confidence=args.confidence,
-        source=args.source,
-        recorded_via_call_id=context.call_id,
-        note=args.note,
-    )
-    await dose_events_col().insert_one(model_to_doc(event))
-    context.dose_status = args.status
-    return {"logged": True, "status": args.status.value}
+    meds = _medicines_for(context, args.medicines)
+    await _log_doses(context, meds, status=args.status, confidence=args.confidence,
+                     source=args.source, note=args.note)
+    return {"logged": [m.name for m in meds], "status": args.status.value, **_progress(context)}
 
 
 class RescheduleDoseArgs(BaseModel):
+    medicines: list[str] = Field(default_factory=list, description=_MEDICINES_DESCRIPTION)
     remind_in_minutes: int = Field(ge=1, le=720)
     reason: str | None = None
 
@@ -64,33 +98,26 @@ class RescheduleDoseArgs(BaseModel):
 @registry.register(
     name="reschedule_dose",
     description=(
-        "The patient will take this dose later and asked to be reminded: record the dose as "
+        "The patient will take these medicines later and asked to be reminded: record them as "
         "not taken yet and schedule a reminder call `remind_in_minutes` minutes from now. Only "
         "call this once the patient has told you when they want to be reminded."
     ),
     args_model=RescheduleDoseArgs,
 )
 async def reschedule_dose(args: RescheduleDoseArgs, context: CallContext) -> dict:
+    meds = _medicines_for(context, args.medicines)
     remind_at = datetime.utcnow() + timedelta(minutes=args.remind_in_minutes)
+    # insights.py reads this prefix as "later", not "missed".
     note = f"will take it later; reminder in {args.remind_in_minutes} min"
     if args.reason:
         note += f" ({args.reason})"
-    event = DoseEvent(
-        patient_id=context.patient_id,
-        dosage_id=context.dosage_id,
-        scheduled_at=datetime.utcnow(),
-        status=DoseStatus.not_taken,
-        confidence=DoseConfidence.high,
-        source=DoseSource.patient_self_report,
-        recorded_via_call_id=context.call_id,
-        note=note,
-    )
-    await dose_events_col().insert_one(model_to_doc(event))
-    context.dose_status = DoseStatus.not_taken
+    await _log_doses(context, meds, status=DoseStatus.not_taken, confidence=DoseConfidence.high,
+                     source=DoseSource.patient_self_report, note=note)
 
     reminder = Reminder(
         patient_id=context.patient_id,
-        dosage_id=context.dosage_id,
+        dosage_ids=[m.dosage_id for m in meds],
+        slot_at=context.slot_at,
         call_id=context.call_id,
         remind_at=remind_at,
     )
@@ -101,8 +128,10 @@ async def reschedule_dose(args: RescheduleDoseArgs, context: CallContext) -> dic
     local = remind_at.replace(tzinfo=timezone.utc).astimezone()
     return {
         "reminder_set": True,
+        "for": [m.name for m in meds],
         "remind_at_local": local.strftime("%H:%M"),
         "note": note,
+        **_progress(context),
     }
 
 
@@ -203,13 +232,12 @@ async def end_call(args: EndCallArgs, context: CallContext) -> dict:
 
 
 def _medicine_status(context: CallContext) -> str | None:
-    if context.dose_status is None:
+    """One word for the whole call: taken only if every medicine was, not_taken if any wasn't."""
+    statuses = set(context.dose_statuses.values())
+    if not statuses:
         return None
-    mapping = {
-        DoseStatus.taken: "taken",
-        DoseStatus.not_taken: "not_taken",
-        DoseStatus.unknown: "confusion",
-        DoseStatus.partial: "confusion",
-        DoseStatus.skipped_on_advice: "not_taken",
-    }
-    return mapping.get(context.dose_status)
+    if statuses == {DoseStatus.taken}:
+        return "taken"
+    if statuses & {DoseStatus.not_taken, DoseStatus.skipped_on_advice}:
+        return "not_taken"
+    return "confusion"

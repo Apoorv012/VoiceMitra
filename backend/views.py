@@ -150,6 +150,7 @@ class MedicineView(View):
     name: str
     dose: str
     frequency: str
+    interval_days: int | None  # every_x_days only
     times: list[str]
     from_date: date
     to_date: date | None
@@ -445,7 +446,7 @@ def _medicines(data: PatientData, today: date, week_slots: list[ins.Slot]) -> li
         a = ins.adherence(mine)
         active = d.from_date <= today and (d.to_date is None or d.to_date >= today)
         views.append(MedicineView(
-            dosage_id=d.id, name=d.medicine_name, dose=d.dosage, frequency=d.frequency.value,
+            dosage_id=d.id, name=d.medicine_name, dose=d.dosage, frequency=d.frequency.value, interval_days=d.interval_days,
             times=sorted(d.times), from_date=d.from_date, to_date=d.to_date, active=active,
             days_left=None if d.to_date is None else max(0, (d.to_date - today).days),
             taken=a.taken, known=a.known,

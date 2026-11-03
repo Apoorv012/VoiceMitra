@@ -1,7 +1,8 @@
 """Concrete dialogue policy for the medicine-adherence agent.
 
 dosage_check (start)
-  -> log_dose_event / reschedule_dose (patient will take it later) -> symptom_check
+  -> log_dose_event / reschedule_dose (patient will take it later), once every medicine due in
+     the call has an answer -> symptom_check (until then it stays in dosage_check)
 symptom_check
   -> update_daily_log (nothing concerning)   -> closing_normal (terminal)
   -> escalate_to_doctor (concerning symptom) -> escalation_active (terminal)
@@ -16,12 +17,18 @@ producing the sentence it was supposed to say first.
 
 from __future__ import annotations
 
+from typing import Any
+
 from core.agent.policy import PolicyEngine, PolicyState
 
 DOSAGE_CHECK = "dosage_check"
 SYMPTOM_CHECK = "symptom_check"
 ESCALATION_ACTIVE = "escalation_active"
 CLOSING_NORMAL = "closing_normal"
+
+
+def _when_all_doses_answered(context: Any) -> str | None:
+    return SYMPTOM_CHECK if context.all_doses_answered else None
 
 
 def build_policy() -> PolicyEngine:
@@ -34,10 +41,18 @@ def build_policy() -> PolicyEngine:
                 "<name> ji se baat kar rahi hoon?') -- nothing else, no medicine, no second "
                 "question. Wait for their answer. If it isn't them, ask politely for the "
                 "patient and say nothing about medicine or health to anyone else. Once they "
-                "confirm, your next turn asks about the dose due right now (the medicine/dosage "
-                "is in the context above) in one short question. This is a real conversation: "
-                "do NOT call log_dose_event until you actually know what happened with the "
-                "dose.\n"
+                "confirm, your next turn asks about the dose this call is about (time and "
+                "medicines are in the context above) in one short question. If several medicines "
+                "are due, ask about them together ('kya aapne <time> wali dawaiyan li?', the "
+                "time said as the context gives it) -- don't go "
+                "through them one by one unless the answer differs between them; then ask which, "
+                "and log each answer with `medicines` set to the names it covers (one call can "
+                "cover several with the same answer). If the dose time has already passed, name "
+                "it the way the context says it ('<time> wali dawai'). This "
+                "is a real conversation: do NOT call "
+                "log_dose_event until you actually know what happened with a medicine. The step "
+                "ends only once every due medicine has an answer (the tool result lists what is "
+                "still to ask about).\n"
                 "- They took it: call log_dose_event with status=taken.\n"
                 "- They're about to take it right now ('abhi leta hun', 'let me take it'): do not "
                 "log anything yet. Say something short like 'theek hai, le lijiye, main wait "
@@ -59,8 +74,8 @@ def build_policy() -> PolicyEngine:
             ),
             allowed_tools=["log_dose_event", "reschedule_dose"],
             on_tool_called={
-                "log_dose_event": SYMPTOM_CHECK,
-                "reschedule_dose": SYMPTOM_CHECK,
+                "log_dose_event": _when_all_doses_answered,
+                "reschedule_dose": _when_all_doses_answered,
                 # Not offered to the LLM in this state (not in allowed_tools above), but a
                 # forced-action guardrail can still dispatch escalate_to_doctor directly if a
                 # red-flag symptom is blurted out before the dosage question is even answered --

@@ -196,12 +196,17 @@ def active_patient_ids() -> list[str]:
 
 # --- calls ---------------------------------------------------------------------------------
 
-async def start_call(patient_id: str) -> LiveCall:
+async def start_call(
+    patient_id: str, *, slot_at: datetime | None = None, dosage_ids: list[str] | None = None,
+) -> LiveCall:
+    """A chat call about one dose slot: the one given, or the one due now (see create_call_session)."""
     existing = _live_calls.get(patient_id)
     if existing is not None and existing.active:
         return existing
 
-    session = await create_call_session(patient_id, on_reminder_created=arm_reminder)
+    session = await create_call_session(
+        patient_id, slot_at=slot_at, dosage_ids=dosage_ids, on_reminder_created=arm_reminder,
+    )
     call_id = session.call.id
 
     def on_message(message: Message) -> None:
@@ -259,7 +264,9 @@ def _voice_escalation_event(voice: VoiceCall) -> dict:
     }
 
 
-async def start_voice_call(patient_id: str) -> VoiceCall:
+async def start_voice_call(
+    patient_id: str, *, slot_at: datetime | None = None, dosage_ids: list[str] | None = None,
+) -> VoiceCall:
     """Put the patient and the agent in a LiveKit room: the agent joins now (in-process), the
     patient's page joins with the token it is sent."""
     existing = _voice_calls.get(patient_id)
@@ -267,7 +274,9 @@ async def start_voice_call(patient_id: str) -> VoiceCall:
         return existing
     if (chat := _live_calls.get(patient_id)) is not None and chat.active:
         raise PatientNotReady("patient is already in a chat call")
-    session = await create_call_session(patient_id)
+    session = await create_call_session(
+        patient_id, slot_at=slot_at, dosage_ids=dosage_ids, on_reminder_created=arm_reminder,
+    )
     call_id = session.call.id
     room = create_livekit_room(f"call-{call_id}")
     voice = VoiceCall(
@@ -353,7 +362,8 @@ async def _fire_reminder(reminder: Reminder, delay: float) -> None:
         await asyncio.sleep(delay)
         while (live := _live_calls.get(reminder.patient_id)) is not None and live.active:
             await asyncio.sleep(REMINDER_RETRY_SECONDS)
-        await start_call(reminder.patient_id)
+        dosage_ids = reminder.dosage_ids or ([reminder.dosage_id] if reminder.dosage_id else None)
+        await start_call(reminder.patient_id, slot_at=reminder.slot_at, dosage_ids=dosage_ids)
         await reminders_col().update_one(
             {"_id": reminder.id}, {"$set": {"status": ReminderStatus.fired.value}}
         )
