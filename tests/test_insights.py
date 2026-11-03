@@ -150,18 +150,25 @@ def test_pick_call_slot_asks_only_about_unanswered_medicines():
     assert at == local(8) and [m.id for m in meds] == [b.id]
 
 
-def test_pick_call_slot_counts_a_slot_starting_soon_and_falls_back_when_all_answered():
+def test_pick_call_slot_counts_a_slot_starting_soon_but_never_one_hours_away():
     a = dosage(times=("08:00", "20:00"))
     # 19:45: the 20:00 slot is within the lead time, so it is the one to ask about
     at, _ = ins.pick_call_slot([a], [event(a, DoseStatus.taken, local(8))], now=local(19, 45))
     assert at == local(20)
-    # 12:00, morning answered: nothing open has come due, so the next slot coming up
-    at, _ = ins.pick_call_slot([a], [event(a, DoseStatus.taken, local(8))], now=local(12))
-    assert at == local(20)
-    # 22:00, both answered: the day's last slot again
+    # 12:00, morning answered: nothing is due, and the 20:00 dose is not asked about 8 hours early
+    assert ins.pick_call_slot([a], [event(a, DoseStatus.taken, local(8))], now=local(12)) is None
+    # 22:00, both answered: nothing to ask about either
     evs = [event(a, DoseStatus.taken, local(8)), event(a, DoseStatus.taken, local(20))]
-    at, _ = ins.pick_call_slot([a], evs, now=local(22))
-    assert at == local(20)
+    assert ins.pick_call_slot([a], evs, now=local(22)) is None
+
+
+def test_next_slot_is_the_next_one_today_or_tomorrow():
+    a = dosage(times=("08:00", "20:00"))
+    b = dosage(times=("20:00",))
+    at, meds = ins.next_slot([a, b], now=local(12))
+    assert at == local(20) and {m.id for m in meds} == {a.id, b.id}
+    at, _ = ins.next_slot([a], now=local(22))
+    assert at == local(8, 0, DAY + timedelta(days=1))
 
 
 def test_pick_call_slot_none_when_nothing_is_scheduled_today():

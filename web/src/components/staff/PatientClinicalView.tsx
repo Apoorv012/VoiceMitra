@@ -6,6 +6,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { Adherence, EscalationList } from "@/components/staff/parts";
 import { AttentionChip, Avatar } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { DOCTOR_FLOW } from "@/lib/features";
 import { ago, clockLabel, dayLabel, dayOfDate, isToday, timeOf, weekdayOf, when } from "@/lib/format";
 import type { DayView, LogView, MedicineView, PatientClinical, SlotView } from "@/lib/types";
 
@@ -191,7 +192,7 @@ export function PatientClinicalView({
           </div>
         </div>
         <div className="row" style={{ gap: 12 }}>
-          {base === "/operator" && <Link href={`/operator/patients/${data.patient.id}/edit`} className="btn ghost sm">Edit details &amp; doctors</Link>}
+          {base === "/operator" && <Link href={`/operator/patients/${data.patient.id}/edit`} className="btn ghost sm">{DOCTOR_FLOW ? "Edit details & doctors" : "Edit details"}</Link>}
           <AttentionChip level={data.attention.level} />
         </div>
       </div>

@@ -86,7 +86,8 @@ class SymptomSeverity(str, Enum):
 
 
 class CareMode(str, Enum):
-    """Who is brought in when the patient isn't well."""
+    """Who is brought in when the patient isn't well. One switch for every call, not per patient:
+    DOCTOR_FLOW_ENABLED in .env (off for the pilot -- see domains/med_adherence/bot.py)."""
     caregiver = "caregiver"  # the pilot: the caregiver is alerted, no doctor is rung
     doctor = "doctor"        # the doctor is rung and merged into the call
 
@@ -247,6 +248,7 @@ class CaregiverNotification(MongoDocument):
     message: str
     urgent: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    seen_at: datetime | None = None  # the caregiver marked it as seen on their page
 
 
 class ReminderStatus(str, Enum):
@@ -275,7 +277,6 @@ class Patient(MongoDocument):
     address: str | None = None
     allergies: list[str] = Field(default_factory=list)
     caregiver_id: str | None = None
-    care_mode: CareMode = CareMode.caregiver
     prescription_ids: list[str] = Field(default_factory=list)
     daily_log_ids: list[str] = Field(default_factory=list)
     call_ids: list[str] = Field(default_factory=list)

@@ -14,6 +14,12 @@ export type LogEntry = {
 
 export type VoiceJoin = { url: string; token: string };
 
+/** /ws/caregivers/{id} -- every event means "refetch the caregiver's home view". */
+export type CaregiverEvent =
+  | { type: "snapshot"; in_call: boolean }
+  | { type: "alert"; alert_id: string; urgent: boolean }
+  | { type: "alerts_seen" | "call_started" | "call_ended" };
+
 /** /ws/patients/{id}/chat */
 export type PatientEvent =
   | { type: "voice_call"; call_id: string; url: string; token: string }

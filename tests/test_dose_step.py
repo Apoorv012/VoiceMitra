@@ -45,3 +45,11 @@ def test_dose_step_ends_only_when_every_medicine_is_answered():
     assert policy.advance("log_dose_event", ctx) == DOSAGE_CHECK
     ctx.dose_statuses["d1"] = DoseStatus.not_taken
     assert policy.advance("reschedule_dose", ctx) == SYMPTOM_CHECK
+
+
+def test_a_call_with_nothing_due_skips_the_dose_step_and_greets_first():
+    policy = build_policy(ask_doses=False)
+    assert policy.current_state_name == SYMPTOM_CHECK
+    prompt = policy.build_system_prompt("")
+    assert "no dose to ask about" in prompt and "kya main <name> ji se baat kar rahi hoon" in prompt
+    assert "no dose to ask about" not in build_policy().build_system_prompt("")

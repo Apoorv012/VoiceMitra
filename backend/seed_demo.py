@@ -23,7 +23,7 @@ load_dotenv()
 from backend import db  # noqa: E402
 from backend.insights import TZ  # noqa: E402
 from backend.models import (  # noqa: E402
-    Call, CallLogEntry, CallLogEntryType, CallType, Caregiver, CareMode, CaregiverNotification, CaregiverNotifyOn,
+    Call, CallLogEntry, CallLogEntryType, CallType, Caregiver, CaregiverNotification, CaregiverNotifyOn,
     DailyLog, Doctor, Dosage, DoseConfidence, DoseEvent, DoseFrequency, DoseSource, DoseStatus,
     Escalation, EscalationStatus, MedicineStatus, Patient, PatientStatus, Prescription, Symptom,
     SymptomSeverity,
@@ -103,8 +103,7 @@ async def seed() -> None:
 
     for cfg in PATIENTS:
         patient = Patient(name=cfg["name"], age=cfg["age"], phone_number=cfg["phone"], address=cfg["address"],
-                          allergies=cfg["allergies"], description=cfg["about"],
-                          care_mode=CareMode.doctor)  # the demo shows the doctor flow
+                          allergies=cfg["allergies"], description=cfg["about"])
         caregiver = None
         if cfg["caregiver"]:
             caregiver = Caregiver(patient_id=patient.id, name=cfg["caregiver"][0], relation=cfg["caregiver"][1],

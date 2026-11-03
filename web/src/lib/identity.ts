@@ -9,6 +9,7 @@ import { useSyncExternalStore } from "react";
 export type Identity =
   | { role: "patient"; id: string }
   | { role: "doctor"; id: string }
+  | { role: "caregiver"; id: string }
   | { role: "operator" };
 
 const KEY = "vm_who";
@@ -76,6 +77,8 @@ export function homePath(identity: Identity): string {
       return `/patients/${identity.id}`;
     case "doctor":
       return `/doctors/${identity.id}`;
+    case "caregiver":
+      return `/caregivers/${identity.id}`;
     case "operator":
       return "/operator";
   }

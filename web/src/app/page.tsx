@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { LangSwitch } from "@/components/LangSwitch";
 import { Loading } from "@/components/ui";
+import { DOCTOR_FLOW } from "@/lib/features";
 import { homePath, setIdentity, useIdentity } from "@/lib/identity";
 import { useT, type MessageKey } from "@/lib/i18n";
 
@@ -56,7 +57,8 @@ export default function Welcome() {
       <p className="ink-2" style={{ marginBottom: 24 }}>{t("who_sub")}</p>
       <div className="stack-sm">
         <Choice icon="user" title="role_patient" sub="role_patient_sub" href="/who/patient" />
-        <Choice icon="stethoscope" title="role_doctor" sub="role_doctor_sub" href="/who/doctor" />
+        <Choice icon="heart" title="role_caregiver" sub="role_caregiver_sub" href="/who/caregiver" />
+        {DOCTOR_FLOW && <Choice icon="stethoscope" title="role_doctor" sub="role_doctor_sub" href="/who/doctor" />}
         <Choice
           icon="building" title="role_operator" sub="role_operator_sub"
           onClick={() => {

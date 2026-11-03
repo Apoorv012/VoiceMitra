@@ -80,6 +80,7 @@ class Person(View):
 class People(View):
     patients: list[Person]
     doctors: list[Person]
+    caregivers: list[Person]  # description: who they look after
 
 
 class CaregiverView(View):
@@ -167,10 +168,13 @@ class HowDoing(View):
 
 
 class AlertView(View):
+    id: str
     at: datetime
     message: str
     caregiver: str | None
-    trigger: str
+    trigger: str        # unreachable|escalation (escalation: the patient isn't well)
+    urgent: bool
+    seen_at: datetime | None
     call_id: str
 
 
@@ -191,6 +195,23 @@ class PatientHome(View):
     how_doing: HowDoing | None
     reminders: list[datetime]
     caregiver: CaregiverView | None
+
+
+class CaregiverHome(View):
+    """The caregiver's page: alerts about the one patient they look after, and how that patient's day
+    is going."""
+    timezone: str
+    caregiver: CaregiverView
+    patient: Person
+    in_call: bool               # the patient is on a call with VoiceMitra right now
+    alerts: list[AlertView]     # newest first
+    unseen: int
+    today: list[SlotView]
+    next_dose: SlotView | None
+    week: list[DayView]
+    adherence: AdherenceView
+    last_checkin: CheckinView | None
+    how_doing: HowDoing | None
 
 
 class PatientMedicines(View):
@@ -456,7 +477,8 @@ def _medicines(data: PatientData, today: date, week_slots: list[ins.Slot]) -> li
 
 
 def _alert(n: CaregiverNotification, data: PatientData) -> AlertView:
-    return AlertView(at=aware(n.created_at), message=n.message, trigger=n.trigger.value, call_id=n.call_id,
+    return AlertView(id=n.id, at=aware(n.created_at), message=n.message, trigger=n.trigger.value,
+                     urgent=n.urgent, seen_at=aware(n.seen_at), call_id=n.call_id,
                      caregiver=data.caregiver.name if data.caregiver else None)
 
 
@@ -496,6 +518,20 @@ def patient_home(data: PatientData, now: datetime | None = None) -> PatientHome:
                            band=ins.seriousness_band(recent.seriousness)) if recent else None,
         reminders=[aware(r.remind_at) for r in data.reminders],
         caregiver=_caregiver(data.caregiver),
+    )
+
+
+def caregiver_home(data: PatientData, in_call: bool, now: datetime | None = None) -> CaregiverHome | None:
+    """None if the patient has no caregiver on file (the caller checks it is the right one)."""
+    if data.caregiver is None:
+        return None
+    home = patient_home(data, now)
+    alerts = [_alert(n, data) for n in data.alerts if n.caregiver_id == data.caregiver.id]
+    return CaregiverHome(
+        timezone=home.timezone, caregiver=_caregiver(data.caregiver), patient=home.patient, in_call=in_call,
+        alerts=alerts, unseen=sum(a.seen_at is None for a in alerts),
+        today=home.today, next_dose=home.next_dose, week=home.week, adherence=home.adherence,
+        last_checkin=home.last_checkin, how_doing=home.how_doing,
     )
 
 

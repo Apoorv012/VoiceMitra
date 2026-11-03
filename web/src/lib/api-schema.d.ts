@@ -75,6 +75,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/app/caregivers/{caregiver_id}/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Caregiver Home */
+        get: operations["caregiver_home_api_app_caregivers__caregiver_id__home_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/app/doctors/{doctor_id}/overview": {
         parameters: {
             query?: never;
@@ -352,6 +369,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/caregivers/{caregiver_id}/alerts/{alert_id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Alert Seen */
+        post: operations["mark_alert_seen_api_caregivers__caregiver_id__alerts__alert_id__seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/caregivers/{caregiver_id}/alerts/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Alerts Seen */
+        post: operations["mark_all_alerts_seen_api_caregivers__caregiver_id__alerts_seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/escalations/{escalation_id}/join": {
         parameters: {
             query?: never;
@@ -425,6 +476,8 @@ export interface components {
         };
         /** AlertView */
         AlertView: {
+            /** Id */
+            id: string;
             /**
              * At
              * Format: date-time
@@ -436,6 +489,10 @@ export interface components {
             caregiver: string | null;
             /** Trigger */
             trigger: string;
+            /** Urgent */
+            urgent: boolean;
+            /** Seen At */
+            seen_at: string | null;
             /** Call Id */
             call_id: string;
         };
@@ -541,11 +598,30 @@ export interface components {
          */
         CallType: "medicine_reminder" | "just_catch_up" | "inbound_call" | "other";
         /**
-         * CareMode
-         * @description Who is brought in when the patient isn't well.
-         * @enum {string}
+         * CaregiverHome
+         * @description The caregiver's page: alerts about the one patient they look after, and how that patient's day
+         *     is going.
          */
-        CareMode: "caregiver" | "doctor";
+        CaregiverHome: {
+            /** Timezone */
+            timezone: string;
+            caregiver: components["schemas"]["CaregiverView"];
+            patient: components["schemas"]["Person"];
+            /** In Call */
+            in_call: boolean;
+            /** Alerts */
+            alerts: components["schemas"]["AlertView"][];
+            /** Unseen */
+            unseen: number;
+            /** Today */
+            today: components["schemas"]["SlotView"][];
+            next_dose: components["schemas"]["SlotView"] | null;
+            /** Week */
+            week: components["schemas"]["DayView"][];
+            adherence: components["schemas"]["AdherenceView"];
+            last_checkin: components["schemas"]["CheckinView"] | null;
+            how_doing: components["schemas"]["HowDoing"] | null;
+        };
         /** CaregiverInput */
         CaregiverInput: {
             /** Name */
@@ -617,8 +693,6 @@ export interface components {
             caregiver?: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids?: string[];
-            /** @default caregiver */
-            care_mode: components["schemas"]["CareMode"];
         };
         /** DayView */
         DayView: {
@@ -877,8 +951,6 @@ export interface components {
             allergies?: string[];
             /** Caregiver Id */
             caregiver_id?: string | null;
-            /** @default caregiver */
-            care_mode: components["schemas"]["CareMode"];
             /** Prescription Ids */
             prescription_ids?: string[];
             /** Daily Log Ids */
@@ -976,7 +1048,6 @@ export interface components {
             caregiver: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids: string[];
-            care_mode: components["schemas"]["CareMode"];
         };
         /** PatientRow */
         PatientRow: {
@@ -1008,6 +1079,8 @@ export interface components {
             patients: components["schemas"]["Person"][];
             /** Doctors */
             doctors: components["schemas"]["Person"][];
+            /** Caregivers */
+            caregivers: components["schemas"]["Person"][];
         };
         /** Person */
         Person: {
@@ -1135,7 +1208,6 @@ export interface components {
             caregiver?: components["schemas"]["CaregiverInput"] | null;
             /** Doctor Ids */
             doctor_ids?: string[] | null;
-            care_mode?: components["schemas"]["CareMode"] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1259,6 +1331,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatientHistory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    caregiver_home_api_app_caregivers__caregiver_id__home_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaregiverHome"];
                 };
             };
             /** @description Validation Error */
@@ -1784,6 +1887,65 @@ export interface operations {
             header?: never;
             path: {
                 patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_alert_seen_api_caregivers__caregiver_id__alerts__alert_id__seen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_alerts_seen_api_caregivers__caregiver_id__alerts_seen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
             };
             cookie?: never;
         };

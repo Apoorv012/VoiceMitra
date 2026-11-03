@@ -50,7 +50,7 @@ class CallContext(AgentContext):
     patient_id: str
     call_id: str
     due: list[DueMedicine]
-    slot_at: datetime  # the dose slot the call is about (naive UTC)
+    slot_at: datetime | None  # the dose slot the call is about (naive UTC); None: nothing due, a check-in
     allergies: list[str] = field(default_factory=list)
     # Who is brought in when the patient isn't well: the doctor (rung into the call) or, in the pilot,
     # the caregiver (alerted; the call then ends).

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { api, ApiError, useApi } from "@/lib/api";
+import { DOCTOR_FLOW } from "@/lib/features";
 import type { People, PatientProfile } from "@/lib/types";
 
 /** Add a patient (no `patient`) or edit one. Both send the same fields. */
@@ -38,7 +39,6 @@ export function PatientForm({ patient }: { patient?: PatientProfile }) {
                 ? { name: s("caregiver_name"), relation: s("caregiver_relation") || "family", phone_number: s("caregiver_phone") }
                 : null,
               doctor_ids: doctorIds,
-              care_mode: s("care_mode") === "doctor" ? "doctor" : "caregiver",
             },
           });
           router.push(back);
@@ -60,19 +60,7 @@ export function PatientForm({ patient }: { patient?: PatientProfile }) {
         <div className="field"><label htmlFor="desc">Notes</label><textarea id="desc" name="description" rows={2} placeholder="Conditions, anything the doctor should know…" defaultValue={patient?.description ?? ""} /></div>
       </section>
 
-      <section className="card stack">
-        <h2>When the patient isn&apos;t well</h2>
-        <div className="field">
-          <label htmlFor="care-mode">Who is brought in</label>
-          <select id="care-mode" name="care_mode" defaultValue={patient?.care_mode ?? "caregiver"}>
-            <option value="caregiver">Alert the family contact (pilot, no doctor)</option>
-            <option value="doctor">Ring the doctor into the call</option>
-          </select>
-          <span className="hint">With the family contact, the call logs the symptoms, alerts them and ends; no doctor is rung.</span>
-        </div>
-      </section>
-
-      <section className="card stack">
+      {DOCTOR_FLOW && <section className="card stack">
         <div><h2>Doctors</h2><p className="small muted">These doctors are rung when the patient needs one. With none assigned, an escalation reaches nobody.</p></div>
         {!people ? <p className="small muted">Loading doctors…</p> : people.doctors.length === 0 ? <p className="small muted">No doctors exist yet.</p> : (
           <div className="stack" style={{ gap: 8 }}>
@@ -88,10 +76,10 @@ export function PatientForm({ patient }: { patient?: PatientProfile }) {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       <section className="card stack">
-        <div><h2>Family contact</h2><p className="small muted">Told if the patient can&apos;t be reached or needs a doctor. Optional{patient ? "; clear the name to remove them" : ""}.</p></div>
+        <div><h2>Family contact</h2><p className="small muted">Alerted if the patient can&apos;t be reached or isn&apos;t feeling well. Optional{patient ? "; clear the name to remove them" : ""}.</p></div>
         <div className="form-grid">
           <div className="field"><label htmlFor="cg-name">Name</label><input id="cg-name" name="caregiver_name" type="text" autoComplete="off" defaultValue={cg?.name} /></div>
           <div className="field"><label htmlFor="cg-rel">Relation</label><input id="cg-rel" name="caregiver_relation" type="text" placeholder="son, daughter, spouse…" autoComplete="off" defaultValue={cg?.relation} /></div>

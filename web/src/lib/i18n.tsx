@@ -48,7 +48,32 @@ export const MESSAGES = {
   role_operator_sub: { en: "Add patients and start calls", hi: "मरीज़ जोड़ें और कॉल शुरू करें" },
   pick_patient: { en: "Choose your name", hi: "अपना नाम चुनें" },
   pick_doctor: { en: "Choose your name", hi: "अपना नाम चुनें" },
+  role_caregiver: { en: "I'm family of a patient", hi: "मैं मरीज़ के परिवार से हूँ" },
+  role_caregiver_sub: { en: "Get alerts and see how they're doing", hi: "अलर्ट पाएँ और देखें उनकी तबीयत कैसी है" },
+  pick_caregiver: { en: "Choose your name", hi: "अपना नाम चुनें" },
   nobody: { en: "No one here yet.", hi: "अभी यहाँ कोई नहीं है।" },
+
+  // caregiver
+  cg_looking_after: { en: "Looking after {name}", hi: "{name} की देखभाल" },
+  cg_in_call: { en: "{name} is talking to VoiceMitra right now.", hi: "{name} अभी VoiceMitra से बात कर रहे हैं।" },
+  cg_alerts: { en: "Alerts", hi: "अलर्ट" },
+  cg_new: { en: "{n} new", hi: "नए: {n}" },
+  cg_no_alerts: {
+    en: "No alerts. You'll see one here if {name} isn't feeling well or can't be reached.",
+    hi: "कोई अलर्ट नहीं। अगर {name} की तबीयत ठीक न हो या उनसे बात न हो सके, तो यहाँ दिखेगा।",
+  },
+  cg_no_new: { en: "No new alerts.", hi: "कोई नया अलर्ट नहीं।" },
+  cg_urgent: { en: "Urgent", hi: "ज़रूरी" },
+  cg_unwell: { en: "Not feeling well", hi: "तबीयत ठीक नहीं" },
+  cg_unreachable: { en: "Couldn't be reached", hi: "बात नहीं हो सकी" },
+  cg_mark_seen: { en: "Mark as seen", hi: "देख लिया" },
+  cg_mark_all_seen: { en: "Mark all as seen", hi: "सब देख लिए" },
+  cg_seen: { en: "Seen {when}", hi: "देखा गया: {when}" },
+  cg_earlier: { en: "Earlier", hi: "पहले के" },
+  cg_todays_meds: { en: "{name}'s medicines today", hi: "{name} की आज की दवाइयाँ" },
+  cg_how_doing: { en: "How {name} is doing", hi: "{name} की तबीयत" },
+  cg_last_checkin: { en: "Last check-in with VoiceMitra {when}", hi: "VoiceMitra से पिछली बातचीत {when}" },
+  cg_not_linked: { en: "You're no longer the family contact for this patient.", hi: "अब आप इस मरीज़ के परिवार के संपर्क नहीं हैं।" },
 
   // tabs
   tab_today: { en: "Today", hi: "आज" },
@@ -99,8 +124,8 @@ export const MESSAGES = {
   doing_urgent: { en: "Needs a doctor's attention", hi: "डॉक्टर को दिखाना ज़रूरी है" },
   reminder_at: { en: "VoiceMitra will call you at {time}", hi: "VoiceMitra आपको {time} पर कॉल करेगा" },
   caregiver_line: {
-    en: "{name} ({relation}) is told if we can't reach you or you need a doctor.",
-    hi: "अगर आपसे बात न हो सके या डॉक्टर की ज़रूरत पड़े, तो {name} ({relation}) को बताया जाता है।",
+    en: "{name} ({relation}) is told if we can't reach you or you're not feeling well.",
+    hi: "अगर आपसे बात न हो सके या आपकी तबीयत ठीक न हो, तो {name} ({relation}) को बताया जाता है।",
   },
 
   // medicines page

@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from backend import escalations
 from backend.db import ensure_indexes
 from backend.live_calls import rearm_pending_reminders
-from backend.routers import app_api, calls, doctors, live, patients
+from backend.routers import app_api, calls, caregivers, doctors, live, patients
 from backend.routers import escalations as escalation_routes
 
 
@@ -31,6 +31,7 @@ app.include_router(patients.router)
 app.include_router(doctors.router)
 app.include_router(calls.router)
 app.include_router(live.router)
+app.include_router(caregivers.router)
 app.include_router(escalation_routes.router)
 
 

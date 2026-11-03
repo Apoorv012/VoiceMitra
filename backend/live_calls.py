@@ -16,6 +16,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
+from backend import family_feed
 from backend.db import reminders_col
 from backend.livekit_client import create_call_room as create_livekit_room
 from backend.models import Reminder, ReminderStatus
@@ -114,6 +115,9 @@ def publish_patient(patient_id: str, event: dict) -> None:
 def publish_operator(event: dict) -> None:
     for queue in _operator_subs:
         queue.put_nowait(event)
+    # The caregiver's page shows whether the patient is on a call, and refreshes after one.
+    if "patient_id" in event:
+        family_feed.publish(event["patient_id"], {"type": event["type"]})
 
 
 # --- state for a newly connected socket ----------------------------------------------------

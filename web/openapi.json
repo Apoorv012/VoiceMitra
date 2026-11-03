@@ -153,6 +153,48 @@
         }
       }
     },
+    "/api/app/caregivers/{caregiver_id}/home": {
+      "get": {
+        "tags": [
+          "app"
+        ],
+        "summary": "Caregiver Home",
+        "operationId": "caregiver_home_api_app_caregivers__caregiver_id__home_get",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaregiverHome"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/app/doctors/{doctor_id}/overview": {
       "get": {
         "tags": [
@@ -871,6 +913,85 @@
         }
       }
     },
+    "/api/caregivers/{caregiver_id}/alerts/{alert_id}/seen": {
+      "post": {
+        "tags": [
+          "caregivers"
+        ],
+        "summary": "Mark Alert Seen",
+        "operationId": "mark_alert_seen_api_caregivers__caregiver_id__alerts__alert_id__seen_post",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
+            }
+          },
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/caregivers/{caregiver_id}/alerts/seen": {
+      "post": {
+        "tags": [
+          "caregivers"
+        ],
+        "summary": "Mark All Alerts Seen",
+        "operationId": "mark_all_alerts_seen_api_caregivers__caregiver_id__alerts_seen_post",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/escalations/{escalation_id}/join": {
       "post": {
         "tags": [
@@ -1036,6 +1157,10 @@
       },
       "AlertView": {
         "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
           "at": {
             "type": "string",
             "format": "date-time",
@@ -1060,6 +1185,22 @@
             "type": "string",
             "title": "Trigger"
           },
+          "urgent": {
+            "type": "boolean",
+            "title": "Urgent"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
+          },
           "call_id": {
             "type": "string",
             "title": "Call Id"
@@ -1067,10 +1208,13 @@
         },
         "type": "object",
         "required": [
+          "id",
           "at",
           "message",
           "caregiver",
           "trigger",
+          "urgent",
+          "seen_at",
           "call_id"
         ],
         "title": "AlertView"
@@ -1407,14 +1551,98 @@
         ],
         "title": "CallType"
       },
-      "CareMode": {
-        "type": "string",
-        "enum": [
+      "CaregiverHome": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "caregiver": {
+            "$ref": "#/components/schemas/CaregiverView"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "in_call": {
+            "type": "boolean",
+            "title": "In Call"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertView"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "unseen": {
+            "type": "integer",
+            "title": "Unseen"
+          },
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/SlotView"
+            },
+            "type": "array",
+            "title": "Today"
+          },
+          "next_dose": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SlotView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "items": {
+              "$ref": "#/components/schemas/DayView"
+            },
+            "type": "array",
+            "title": "Week"
+          },
+          "adherence": {
+            "$ref": "#/components/schemas/AdherenceView"
+          },
+          "last_checkin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "how_doing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HowDoing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
           "caregiver",
-          "doctor"
+          "patient",
+          "in_call",
+          "alerts",
+          "unseen",
+          "today",
+          "next_dose",
+          "week",
+          "adherence",
+          "last_checkin",
+          "how_doing"
         ],
-        "title": "CareMode",
-        "description": "Who is brought in when the patient isn't well."
+        "title": "CaregiverHome",
+        "description": "The caregiver's page: alerts about the one patient they look after, and how that patient's day\nis going."
       },
       "CaregiverInput": {
         "properties": {
@@ -1630,10 +1858,6 @@
             },
             "type": "array",
             "title": "Doctor Ids"
-          },
-          "care_mode": {
-            "$ref": "#/components/schemas/CareMode",
-            "default": "caregiver"
           }
         },
         "type": "object",
@@ -2398,10 +2622,6 @@
             ],
             "title": "Caregiver Id"
           },
-          "care_mode": {
-            "$ref": "#/components/schemas/CareMode",
-            "default": "caregiver"
-          },
           "prescription_ids": {
             "items": {
               "type": "string"
@@ -2777,9 +2997,6 @@
             },
             "type": "array",
             "title": "Doctor Ids"
-          },
-          "care_mode": {
-            "$ref": "#/components/schemas/CareMode"
           }
         },
         "type": "object",
@@ -2792,8 +3009,7 @@
           "description",
           "allergies",
           "caregiver",
-          "doctor_ids",
-          "care_mode"
+          "doctor_ids"
         ],
         "title": "PatientProfile",
         "description": "What the edit form shows: the patient's own details, the family contact and who the doctors are."
@@ -2898,12 +3114,20 @@
             },
             "type": "array",
             "title": "Doctors"
+          },
+          "caregivers": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array",
+            "title": "Caregivers"
           }
         },
         "type": "object",
         "required": [
           "patients",
-          "doctors"
+          "doctors",
+          "caregivers"
         ],
         "title": "People"
       },
@@ -3358,16 +3582,6 @@
               }
             ],
             "title": "Doctor Ids"
-          },
-          "care_mode": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CareMode"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "type": "object",

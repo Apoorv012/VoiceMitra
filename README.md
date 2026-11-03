@@ -40,7 +40,7 @@ Two programs, one repo:
    If a port is already taken (a server left over from earlier), it tells you and stops instead of starting a
    second one.
 
-There are no accounts: the first screen asks who you are (patient, doctor or staff) and the device remembers it.
+There are no accounts: the first screen asks who you are (patient, family or staff; the doctor role is hidden while the doctor flow is off) and the device remembers it.
 
 ## Data
 

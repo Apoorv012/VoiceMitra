@@ -74,8 +74,9 @@ Extends the original `reference_transcripts/original_schema.txt` draft:
   of the merged conversation.
 - `caregiver_notification` (new collection): one record per alert sent to a caregiver (delivery is
   simulated; the record is the notification). `urgent` marks the pilot's urgent alerts.
-- `patient.care_mode` (pilot step 2): `caregiver` (default -- the pilot: alert the caregiver, no doctor)
-  or `doctor` (ring the doctor into the call, the original flow).
+- Care mode (pilot step 2) is one switch for all calls, not stored per patient: `DOCTOR_FLOW_ENABLED` in
+  `.env` (off for the pilot: alert the caregiver; on: ring the doctor, the original flow).
+- `caregiver_notification.seen_at` (pilot step 3): when the caregiver marked it seen on their page.
 - `CallLogEntry` gained a `channel` (`None` = patient<->agent, `doctor_briefing`, `merged`) and two
   types, `doctor_said` and `escalation_summary`, so one call log tells the whole escalated story.
 
@@ -106,12 +107,15 @@ voicemitra/
     insights.py                  # dose schedule, adherence, "needs attention" rules (pure, tested)
     views.py                     # read models: what each screen is told (the API contract)
     dump_openapi.py              # writes web/openapi.json for the frontend's generated types
+    family_feed.py               # live events for a caregiver's page, keyed by patient (alerts, calls starting/ending)
     routers/                     # patients.py, doctors.py, calls.py (JSON API), live.py (WebSockets + call controls),
-                                 # escalations.py (doctor WebSockets + join/end), app_api.py (/api/app/* read endpoints)
+                                 # escalations.py (doctor WebSockets + join/end), app_api.py (/api/app/* read endpoints),
+                                 # caregivers.py (mark alerts seen + the caregiver WebSocket)
 
   web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
                                  # public/ (icons, service worker, offline page), scripts/make_icons.py
-  tests/                         # pytest: insights.py and views.py
+  mobile/                        # planned (pilot step 4): android/ (Kotlin, sideloaded APK, rings via FCM), ios/ (Swift via xtool, SideStore; ringing via Linphone)
+  tests/                         # pytest: insights.py, views.py, the dose step, care modes
   package.json, scripts/dev.mjs  # `npm run dev|demo` runs API + web app + tunnel in one terminal; `-- --hot` for hot reload (see README)
 
   eval/                          # not yet built (Chunk 5)
@@ -533,9 +537,13 @@ LLM loop (this one does), and an `eval` command.
 - **Hosting** -- the backend can move to AWS (or similar) instead of the home PC; needed anyway once
   reminders must fire while the PC is off, and WhatsApp webhooks need a stable public URL.
 
-### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-2 of 9 done** (user's first priority, 2026-11-03)
+### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation
-flow stays in the code (tested, working) but is switched off for pilot patients.
+flow stays in the code (tested, working) but is **turned off** (user, 2026-11-03: "turn off the doctor flow as
+of now, don't show the option"): backend `DOCTOR_FLOW_ENABLED` (unset = off) and web `src/lib/features.ts`
+`DOCTOR_FLOW = false` -- change both together to bring it back. While off: every call uses the caregiver path,
+the doctor role is gone from the start screen (and `/who/doctor`), and the patient form doesn't show doctor
+assignment. The `/doctors/*` pages still exist for anyone who already has that link.
 
 **The flows the user wants:**
 - **Agent-initiated calls (outbound):**
@@ -582,7 +590,82 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
   template approval, per-message/per-minute charges. Fits the `Transport` interface (a real demo of the swap
   path). Screens that need more than chat (caregiver overview, reviewing an extracted prescription) stay on
   the web.
-Steps 1-3 and 6-8 below don't depend on this; decide before step 4.
+- **Second round (2026-11-03), the user's requirements:** no money for now (no Apple $99/yr, no Play Store fee);
+  must ring like a normal call (full screen, swipe to answer) on **both** iPhone and Android, nothing to open
+  first -- users are elderly and only know how to answer a call; WhatsApp is fine only if (nearly) free.
+  - PWA: can't ring at all (a notification only). Rejected for the call itself.
+  - Own app: Android can ring for free (sideloaded APK, free FCM push, full-screen call screen); **iPhone can't
+    without the paid account** -- a free Apple ID gives no push/VoIP push and installs expire after 7 days.
+  - WhatsApp calling: rings like any WhatsApp call on both, no install. Not free but cheap: needs a payment
+    method on the Meta account; business-initiated calls to India ~Rs 0.47/min (third-party figure, check
+    Meta's rate card), the one-time "allow calls" request and reminder templates ~Rs 0.12-0.15 each, calls
+    the patient makes to the number are free. ~10 patients x 2 calls/day x 2 min ~ Rs 600-700/month. Meta's test
+    number (up to 5 recipients, no payment method needed for messages) for development. Pipecat's WhatsApp
+    transport only answers inbound calls; outbound needs our own Graph API signalling.
+    Free allowances (checked 2026-11-03, Meta docs): no free calling minutes; user-initiated calls free;
+    1,000 free service messages (free-form replies inside the 24 h window) per number per month; utility
+    templates inside the window are **charged again since 2026-10-01**. A user call or message opens/refreshes
+    the 24 h window. Business-initiated calls have an unpublished 24 h connected-call limit.
+    Near-free pattern: at dose time send a free-form message ("tap to call") inside the open window, the
+    patient taps call -> a free inbound call (Pipecat's transport supports it). Costs nothing while the
+    window stays open; a ~Rs 0.12 template reopens it if a day is missed. One tap, not a ringing call.
+  - Regular phone call (Twilio): ~$0.05/min to Indian mobiles once paid. **The free trial can't run the
+    agent:** it strips `<Stream>` (the audio stream Pipecat's Twilio transport uses), and allows only 75 voice
+    minutes total, 30 days, 5 verified recipients, 10 min/call, 5 concurrent, calls within the sign-up
+    country only, from a shared trial number. Corrects the earlier "start on the Twilio trial" advice.
+  - Revised advice: WhatsApp. Either the near-free "message -> patient taps call" pattern, or pay ~Rs
+    600-700/month for 10 patients for real ringing calls.
+  - Native apps (2026-11-03): Android rings the way WhatsApp does (FCM high-priority push -> full-screen
+    call screen); free. iPhone without the paid account gets no push at all, so the server can't wake the
+    app. But dose times are known ahead, so the phone can ring itself: **AlarmKit** (iOS 26+, iPhone 11 and
+    later) alarms ring full-screen on the lock screen even on silent, and their button can open the app.
+    AlarmKit has no entitlement, so it should work on a free account -- **unverified, test first**. Backups:
+    the free Linphone SIP app (has VoIP push via sip.linphone.org; unverified), keeping the app alive in the
+    background (fragile), or the $99/yr account.
+- **DECIDED (user, 2026-11-03): Android rings through our own sideloaded APK (FCM push); iPhone rings
+  through Linphone (free App Store SIP app that already has Apple's VoIP push).** The iPhone VoiceMitra
+  app (Swift, free Apple ID, re-signed by SideStore) does everything except ringing: pairing, next dose,
+  history, family features. AlarmKit (above) is no longer the plan.
+  - **Two ways in, one agent.** Android: at dose time the server sends an FCM push -> full-screen call screen
+    -> answering makes the app call the voice-call start (`live_calls.start_voice_call`, which must return
+    the room URL + patient token instead of 204) and join the LiveKit room. iPhone: the server creates the
+    room + agent the same way, then **dials the patient's free `sip.linphone.org` address into that room
+    with LiveKit SIP** (an outbound SIP participant, via an outbound trunk pointed at sip.linphone.org with a
+    VoiceMitra Linphone account's credentials). Linphone's server pushes the iPhone, which rings with the
+    normal swipe-to-answer call screen, locked or not; answering joins the room. The agent already waits
+    for the first participant before speaking, so it greets whoever joins -- the agent side doesn't change.
+  - Cost: LiveKit Cloud's free Build plan includes 1,000 third-party SIP minutes a month (official pricing
+    page, checked 2026-11-03), plus at most 5 agent sessions at once; sip.linphone.org accounts are free.
+  - **Unverified, check first** (half a day, before building the rest): (a) LiveKit SIP can call a
+    sip.linphone.org address through Linphone's server (digest auth, TLS); (b) audio both ways -- Linphone
+    likes ZRTP, which LiveKit SIP doesn't do (SRTP or none), so the Linphone app may need its media
+    encryption set to SRTP/none; codec G.711 or Opus; (c) what the iPhone shows as the caller (want
+    "VoiceMitra", not a raw address); (d) Linphone's terms allow automated calls to a few people.
+    If (a)-(b) fail: AlarmKit, above, is the backup.
+  - Linphone accounts: one per iPhone patient plus one for VoiceMitra, created by the user (Claude doesn't
+    create accounts). `Patient.sip_address` (new) holds the patient's.
+  - The server owns the truth: a `Ring` record per slot attempt (sent / answered / declined / missed). No
+    answer (Android: no join within ~45 s; iPhone: SIP no-answer / busy / declined) -> ring again 5 min later
+    -> then the existing `unreachable` caregiver alert.
+  - Pairing (no login yet): a "Connect a phone" code (6 digits, short-lived) on the patient's web page; the
+    app sends it with its platform (and FCM token on Android) and gets a device id + secret for its calls.
+  - Backend additions: `Device`, `PairingCode`, `Ring` models + `Patient.sip_address`; `routers/devices.py`
+    (pair, update push token, unpair); `dose_scheduler.py` (a timer per slot, same pattern as
+    `arm_reminder`, re-armed on startup); `ring.py` (per patient: FCM push for an Android device, a SIP dial
+    for a Linphone address); `push_fcm.py` (firebase-admin, free); SIP dial-out in `livekit_client.py`.
+  - `mobile/android/`: Kotlin + Jetpack Compose (Android Studio): pairing, home (next dose, big "Talk now"),
+    history/family, FCM service -> CallStyle notification with a full-screen intent, call screen (LiveKit
+    Android SDK). One-time phone settings: full-screen-intent permission (Android 14+), battery
+    "unrestricted" (Xiaomi, Oppo, Vivo...).
+  - `mobile/ios/`: Swift Package built with xtool in WSL, .ipa installed through SideStore so it keeps
+    re-signing it: pairing, home, history/family, "Talk now" (LiveKit Swift SDK, for calls the patient starts).
+    No ringing code. Free-account limits: 3 sideloaded apps (SideStore is one), Developer Mode on; if a
+    re-sign fails the app won't open (ringing still works -- it's Linphone). Note: these screens already exist
+    in the web app (PWA), so the iPhone app adds no new capability -- it's there for the native experience.
+  - Order: (1) Linphone check, half a day: LiveKit SIP dials a test Linphone account on an iPhone, it rings
+    locked, audio works both ways with the agent; (2) backend: join info, devices + pairing, `Ring`, SIP dial;
+    (3) Android end to end; (4) scheduler + retry (steps 4-5 below, on real phones); (5) iPhone app.
+Steps 1-3 and 6-8 below don't depend on this.
 
 **What exists:** voice + chat calls, dose/symptom logging, the seriousness tiers, caregiver records with a
 simulated notification on escalation and on "unreachable", one-off "remind me later" timers
@@ -598,8 +681,9 @@ screen or role; escalation always means "ring the doctor".
 1. **Calls about the right dose** -- **DONE (2026-11-03): tests + scripted calls pass; not yet tried by the user.**
    A call is about one dose *slot* and every medicine due in it, across all the patient's prescriptions.
    - Slot choice (`insights.pick_call_slot`, when the caller doesn't give one): the most recent slot (up to 30
-     min ahead) with medicines still unanswered, asking only about those; if all are answered, the next slot
-     coming up, else the day's last one; no slot today -> `PatientNotReady` ("no medicine is due today"). A
+     min ahead) with medicines still unanswered, asking only about those. If there is none, the call is a
+     wellbeing check-in with no dose question (fixed after step 3 -- it used to fall back to the next slot
+     however far ahead, see below). A
      reminder call passes its own slot and medicines (`Reminder.dosage_ids` / `slot_at`; old records with a
      single `dosage_id` still work).
    - `log_dose_event` / `reschedule_dose` take `medicines` (names as listed; "Name (dose)" accepted, empty =
@@ -625,9 +709,9 @@ screen or role; escalation always means "ring the doctor".
      there is no limit on how often.
 2. **Pilot mode: caregiver instead of doctor** -- **DONE (2026-11-03): tests + scripted calls pass; not yet tried
    by the user.**
-   - Switch: per patient, `Patient.care_mode` = `caregiver` (default, so patients already in the DB are now in
-     pilot mode) or `doctor`. Set on the operator's patient form ("When the patient isn't well"); the demo
-     seed (`seed_demo.py`) keeps its patients on `doctor` so the doctor demo still works.
+   - Switch: first built per patient, then changed the same day (user) to one global switch that is **off**
+     -- see the top of this section. `CareMode` (`caregiver` / `doctor`) is still what the policy, guardrails
+     and prompts are built from; `bot.CARE_MODE` picks it from `DOCTOR_FLOW_ENABLED`.
    - Caregiver mode: the symptom step offers `alert_caregiver` instead of `escalate_to_doctor` and never offers a
      doctor. Seriousness 1-4 -> `update_daily_log` as before; 5+ -> `alert_caregiver` (guardrail: a 5+ score
      can't just be logged), without asking the patient's permission; alarming symptoms -> straight away with
@@ -649,13 +733,42 @@ screen or role; escalation always means "ring the doctor".
      re-asks "since when" after the patient already said "do din se", and twice wrote "parson se" (day before
      yesterday) as "since yesterday". The caregiver only sees the alert where alerts already show (patient
      history, operator view) until step 3.
-3. **Caregiver app** -- a caregiver role in the app (`/caregivers/[id]`): alerts with what the issue is,
-   today's doses for their patient, mark an alert as seen. Live over a WebSocket.
-4. **Dose-time reminders + notification** -- a scheduler that arms a timer for each dose slot (same timer
-   pattern as reminders) and sends the notification on the chosen platform (Web Push / app push /
-   WhatsApp), with "Taken" / "Not yet". Same channel for caregiver alerts.
-5. **No reply in 5 min -> call** -- start the outbound voice call for that slot. Patient doesn't join ->
-   existing `unreachable` caregiver alert.
+3. **Caregiver app** -- **DONE (2026-11-03): tests pass, checked in a browser on a seeded throwaway DB; not yet
+   tried by the user.**
+   - Start screen: "I'm family of a patient" -> pick your name (`/who/caregiver`, each listed with who they look
+     after) -> `/caregivers/[id]`, remembered on the device like the other roles. A caregiver record belongs
+     to one patient, so the page is about that patient.
+   - The page (patient-app look, Hindi/English): alerts newest first -- new ones as cards (red if urgent, amber
+     otherwise; "Not feeling well" / "Couldn't be reached" / "Urgent") with **Mark as seen** (and "mark all" for
+     several), seen ones folded under "Earlier"; a banner while the patient is on a call; the patient's
+     doses today with their state; the week; how they're doing; last check-in. The tab title shows the unseen
+     count.
+   - API: `GET /api/app/caregivers/{id}/home` (`views.CaregiverHome`), `POST /api/caregivers/{id}/alerts/{aid}/seen`
+     and `.../alerts/seen` (all); `AlertView` gained `id`, `urgent`, `seen_at`. Live: `/ws/caregivers/{id}` fed by
+     `backend/family_feed.py` -- a new alert (published where the notification is stored), alerts seen, a call
+     starting or ending; the page refetches on each (and on reconnect).
+   - Verified in the browser: start screen without the doctor role, the picker, the page with an urgent and a
+     seen alert, Mark as seen, Hindi, and **live**: a chat call started from the API showed the banner, and
+     playing the patient ("chest mein dard") made the urgent alert appear on the open page with no reload, the
+     dose turn "Taken" and the banner clear. 2 new view tests (37 total).
+   - Not done: the alert text itself is English (built in `caregiver.py`, includes the LLM's `reason`) even in
+     the Hindi UI; no push/sound when the page is closed (step 4); no link to the call's conversation.
+   - **Found while testing, FIXED (2026-11-03):** at 3 PM, with the 8:30 dose already marked missed, "Call now"
+     picked the *9 PM* dose and asked "kya aapne raat 9 baje wali dawai li?", and "haan" logged it taken six
+     hours early -- `pick_call_slot` fell back to the next slot however far ahead. Now it returns None unless a
+     slot is due (or within 30 min) and unanswered, and such a call is a **wellbeing check-in**
+     (`CallType.just_catch_up`, no `slot_at`): `build_policy(..., ask_doses=False)` starts at the symptom step,
+     which greets and confirms the patient first and never asks about doses; the prompt gives the next dose
+     (`insights.next_slot`, today or tomorrow) in case they ask. So "Call now" and the patient's "Talk to
+     VoiceMitra" button no longer fail with "no medicine is due today". Verified: 3 new tests (39 total);
+     scripted live calls -- check-in (no dose question, told the next dose time correctly when asked) and a
+     normal two-medicine dose call (unchanged). Step 6 replaces this interim check-in with the open
+     inbound flow; step 7 decides when a check-in asks about wellbeing at all.
+4. **Dose-time ring (native apps)** -- the call itself is the reminder: at each dose slot the patient's
+   phone rings (Android: server push to our app; iPhone: a SIP call to Linphone), answering joins the voice call for
+   that slot. Structure and order above (platform decision). Caregiver alerts as push to the caregiver's
+   phone can reuse it later.
+5. **No answer in 5 min -> ring again** -- then the existing `unreachable` caregiver alert.
 6. **Inbound call flow** -- its own policy states: open greeting, questions about their medicines answered
    from the records, symptoms -> same "not well" path, plain chat.
 7. **Wellbeing rules** -- per the decision above: asked in the reminder call for one slot a day, once a day
@@ -667,8 +780,8 @@ screen or role; escalation always means "ring the doctor".
 9. **Urgent -> call the caregiver** -- the agent calls the caregiver and tells them what happened.
 
 **Known limits:** timers live in the server process, so the machine running the API must stay on (see
-Hosting); the platform limits above. **Open questions:** the platform, whether caregivers can also edit
-prescriptions.
+Hosting); the platform limits above. **Open questions:** whether LiveKit SIP can call through Linphone's
+free service with working audio (the first check), whether caregivers can also edit prescriptions.
 
 ### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED** (user agreed to build the eval harness, 2026-11-03; after the pilot)
 **Handling non-determinism (the same input can score 5 one run and 8 the next):**

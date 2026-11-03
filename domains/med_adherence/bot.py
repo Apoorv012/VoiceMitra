@@ -10,6 +10,7 @@ Usage: python -m domains.med_adherence.bot <patient_id>
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,6 +34,13 @@ from domains.med_adherence.guardrails import build_guardrails
 from domains.med_adherence.policy_states import build_policy
 from domains.med_adherence.prompts import build_base_system_prompt
 from domains.med_adherence.tools import registry as tool_registry
+
+
+# The doctor flow (ring the doctor into the call) is off for the pilot: every call alerts the caregiver
+# instead. The code stays; DOCTOR_FLOW_ENABLED=true in .env turns it back on for every patient (the web
+# app's matching switch is web/src/lib/features.ts).
+CARE_MODE = (CareMode.doctor if os.getenv("DOCTOR_FLOW_ENABLED", "").strip().lower() in ("1", "true", "yes")
+             else CareMode.caregiver)
 
 
 class PatientNotReady(Exception):
@@ -78,9 +86,10 @@ def _to_utc(local: datetime) -> datetime:
 
 async def _due_slot(
     patient: Patient, dosages: list[Dosage], slot_at: datetime | None, dosage_ids: list[str] | None,
-) -> tuple[datetime, list[Dosage]]:
+) -> tuple[datetime | None, list[Dosage]]:
     """The slot (naive UTC) and medicines a call is about: given by the caller (a reminder), or the
-    one insights.pick_call_slot chooses for right now."""
+    one insights.pick_call_slot chooses for right now. (None, []) when nothing is due: the call is then
+    a check-in on how the patient is feeling."""
     if dosage_ids:
         chosen = [d for d in dosages if d.id in dosage_ids]
         if not chosen:
@@ -88,7 +97,7 @@ async def _due_slot(
         return slot_at or datetime.utcnow(), chosen
     picked = insights.pick_call_slot(dosages, await _todays_events(patient.id))
     if picked is None:
-        raise PatientNotReady(f"no medicine is due for {patient.name} today")
+        return None, []
     at, chosen = picked
     return _to_utc(at), chosen
 
@@ -111,8 +120,14 @@ async def create_call_session(
         caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": patient.caregiver_id}))
     caregiver_label = f"{caregiver.name} ({caregiver.relation})" if caregiver else None
 
+    next_dose = None
+    if not due and (upcoming := insights.next_slot(dosages)) is not None:
+        at, meds = upcoming
+        day = "today" if at.date() == insights.now_local().date() else "tomorrow"
+        next_dose = (f"{day} {at.strftime('%H:%M')}", [f"{d.medicine_name} ({d.dosage})" for d in meds])
+
     call = Call(
-        patient_id=patient.id, type=CallType.medicine_reminder, slot_at=slot_utc,
+        patient_id=patient.id, type=CallType.medicine_reminder if due else CallType.just_catch_up, slot_at=slot_utc,
         dosage_ids=[m.dosage_id for m in due],
     )
     await calls_col().insert_one(model_to_doc(call))
@@ -123,7 +138,7 @@ async def create_call_session(
         due=due,
         slot_at=slot_utc,
         allergies=patient.allergies,
-        care_mode=patient.care_mode,
+        care_mode=CARE_MODE,
         on_reminder_created=on_reminder_created,
     )
 
@@ -134,14 +149,15 @@ async def create_call_session(
         base_system_prompt=build_base_system_prompt(
             patient_name=patient.name,
             due=due,
-            slot_local=insights.to_local(slot_utc).strftime("%H:%M"),
+            slot_local=insights.to_local(slot_utc).strftime("%H:%M") if slot_utc else "",
             allergies=patient.allergies,
             now_local=insights.now_local().strftime("%A %H:%M (UTC%z)"),
-            doctor_in_loop=patient.care_mode == CareMode.doctor,
+            doctor_in_loop=CARE_MODE == CareMode.doctor,
             caregiver=caregiver_label,
+            next_dose=next_dose,
         ),
         tool_registry=tool_registry,
-        policy=build_policy(patient.care_mode),
+        policy=build_policy(CARE_MODE, ask_doses=bool(due)),
         guardrails=build_guardrails(),
     )
     return CallSession(patient=patient, call=call, context=context, config=config)

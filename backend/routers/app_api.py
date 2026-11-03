@@ -9,9 +9,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from backend import views
-from backend.db import calls_col, doc_to_model, doctors_col, patients_col
+from backend.db import caregivers_col, calls_col, doc_to_model, doctors_col, patients_col
 from backend.live_calls import active_patient_ids
-from backend.models import Call, Doctor, Patient
+from backend.models import Call, Caregiver, Doctor, Patient
 
 router = APIRouter(prefix="/api/app", tags=["app"])
 
@@ -28,10 +28,16 @@ async def people() -> views.People:
     """Everyone you can sign in as -- there are no accounts, you just pick who you are."""
     patients = [doc_to_model(Patient, d) async for d in patients_col().find()]
     doctors = [doc_to_model(Doctor, d) async for d in doctors_col().find()]
+    names = {p.id: p.name for p in patients}
+    # Only family contacts still linked from a patient, each shown with who they look after.
+    linked = {p.caregiver_id for p in patients if p.caregiver_id}
+    caregivers = [doc_to_model(Caregiver, d) async for d in caregivers_col().find({"_id": {"$in": list(linked)}})]
     return views.People(
         patients=sorted((views.person(p) for p in patients), key=lambda p: p.name.lower()),
         doctors=sorted((views.Person(id=d.id, name=d.name, description=d.description) for d in doctors),
                        key=lambda p: p.name.lower()),
+        caregivers=sorted((views.Person(id=c.id, name=c.name, description=f"{names.get(c.patient_id, '?')} · {c.relation}")
+                           for c in caregivers), key=lambda p: p.name.lower()),
     )
 
 
@@ -50,6 +56,20 @@ async def patient_medicines(patient_id: str) -> views.PatientMedicines:
 @router.get("/patients/{patient_id}/history", response_model=views.PatientHistory)
 async def patient_history(patient_id: str) -> views.PatientHistory:
     return views.patient_history(await _patient_data(patient_id))
+
+
+# --- caregiver ------------------------------------------------------------------------------
+
+@router.get("/caregivers/{caregiver_id}/home", response_model=views.CaregiverHome)
+async def caregiver_home(caregiver_id: str) -> views.CaregiverHome:
+    caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": caregiver_id}))
+    if caregiver is None:
+        raise HTTPException(status_code=404, detail="caregiver not found")
+    data = await _patient_data(caregiver.patient_id)
+    home = views.caregiver_home(data, caregiver.patient_id in set(active_patient_ids()))
+    if home is None or home.caregiver.id != caregiver_id:
+        raise HTTPException(status_code=404, detail="no longer the family contact for this patient")
+    return home
 
 
 # --- doctor ---------------------------------------------------------------------------------

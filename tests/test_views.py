@@ -116,3 +116,28 @@ def test_transcript_keeps_staff_only_entries_distinguishable():
     assert t.entries[1].tool_name == "log_dose_event"
     assert t.entries[2].text == "ringing Dr. Mehta"          # an event's wording comes from its note
     assert t.entries[3].leg == "doctor_briefing"
+
+
+def test_caregiver_home_shows_their_alerts_newest_first_and_counts_unseen():
+    from backend.models import CaregiverNotification, CaregiverNotifyOn
+
+    d = data()
+    cg = d.caregiver
+    old = CaregiverNotification(patient_id=d.patient.id, caregiver_id=cg.id, call_id="c1",
+                                trigger=CaregiverNotifyOn.unreachable, message="could not reach",
+                                created_at=utc(NOW - timedelta(days=1)), seen_at=utc(NOW - timedelta(hours=20)))
+    new = CaregiverNotification(patient_id=d.patient.id, caregiver_id=cg.id, call_id="c2",
+                                trigger=CaregiverNotifyOn.escalation, message="chest pain", urgent=True,
+                                created_at=utc(NOW - timedelta(minutes=5)))
+    other = CaregiverNotification(patient_id=d.patient.id, caregiver_id="someone-before", call_id="c0",
+                                  trigger=CaregiverNotifyOn.escalation, message="for an earlier contact")
+    d.alerts = [new, old, other]  # load_patient returns them newest first
+    home = views.caregiver_home(d, in_call=True, now=NOW)
+    assert home is not None and home.caregiver.name == "Neha" and home.patient.name == "Sunita Verma"
+    assert [a.message for a in home.alerts] == ["chest pain", "could not reach"]
+    assert home.unseen == 1 and home.alerts[0].urgent and home.alerts[1].seen_at is not None
+    assert home.in_call and len(home.today) == 2  # the patient's doses for today, as on their own page
+
+
+def test_no_caregiver_home_without_a_caregiver():
+    assert views.caregiver_home(data(caregiver=None), in_call=False, now=NOW) is None

@@ -5,6 +5,7 @@ is the notification; a real SMS/WhatsApp send would slot in where the record is 
 
 from __future__ import annotations
 
+from backend import family_feed
 from backend.db import (
     calls_col,
     caregiver_notifications_col,
@@ -41,6 +42,7 @@ async def _notify(
     )
     await caregiver_notifications_col().insert_one(model_to_doc(notification))
     await calls_col().update_one({"_id": call_id}, {"$set": {"caregiver_notified": True}})
+    family_feed.publish(patient.id, {"type": "alert", "alert_id": notification.id, "urgent": urgent})
     return {"notified": True, "caregiver": caregiver.name, "relation": caregiver.relation}
 
 

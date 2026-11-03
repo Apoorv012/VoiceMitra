@@ -146,8 +146,9 @@ def pick_call_slot(
     """Which of today's dose slots a call that wasn't told one should be about, and which medicines.
 
     The most recent slot (up to CALL_LEAD ahead) that still has medicines without an answer, asking
-    only about those. If every slot that has come due is answered: the next one coming up, or else
-    the day's last slot again. None when nothing is scheduled today."""
+    only about those. None when there is no such slot -- everything that has come due is answered and
+    the next one is further off (asking at 3 PM "did you take the 9 PM dose?" got a "yes" logged six
+    hours early), or nothing is scheduled today."""
     now = now or now_local()
     slots = build_slots(dosages, events, now.date(), now.date(), now)
     if not slots:
@@ -159,9 +160,18 @@ def pick_call_slot(
         open_slots = [s for s in by_time[at] if s.state in _OPEN]
         if open_slots:
             return at, [s.dosage for s in open_slots]
-    coming = sorted(t for t in by_time if t > now + CALL_LEAD)
-    at = coming[0] if coming else max(by_time)
-    return at, [s.dosage for s in by_time[at]]
+    return None
+
+
+def next_slot(dosages: list[Dosage], now: datetime | None = None) -> tuple[datetime, list[Dosage]] | None:
+    """The next dose slot after now (today or tomorrow) and the medicines in it, for a call that has
+    no dose to ask about but may be asked "when is my next medicine?"."""
+    now = now or now_local()
+    later = [s for s in build_slots(dosages, [], now.date(), now.date() + timedelta(days=1), now) if s.at > now]
+    if not later:
+        return None
+    at = min(s.at for s in later)
+    return at, [s.dosage for s in later if s.at == at]
 
 
 @dataclass

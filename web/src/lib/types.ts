@@ -10,6 +10,7 @@ export type Person = S["Person"];
 export type PatientHome = S["PatientHome"];
 export type PatientMedicines = S["PatientMedicines"];
 export type PatientHistory = S["PatientHistory"];
+export type CaregiverHome = S["CaregiverHome"];
 export type DoctorOverview = S["DoctorOverview"];
 export type PatientClinical = S["PatientClinical"];
 export type EscalationView = S["EscalationView"];

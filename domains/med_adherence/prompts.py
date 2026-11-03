@@ -58,7 +58,9 @@ def spoken_time(hh_mm: str) -> str:
 def build_base_system_prompt(
     *, patient_name: str, due: list[DueMedicine], slot_local: str, allergies: list[str],
     now_local: str, doctor_in_loop: bool = True, caregiver: str | None = None,
+    next_dose: tuple[str, list[str]] | None = None,
 ) -> str:
+    """`due` empty: a check-in with no dose to ask about; `next_dose` is then ("today 21:00", names)."""
     allergy_line = (
         f"Known allergies: {', '.join(allergies)}." if allergies else "No known allergies on file."
     )
@@ -70,12 +72,20 @@ def build_base_system_prompt(
         concern_rule = ("No doctor takes these calls. If the patient isn't well or says something "
                         f"concerning, the step instructions say when to alert {family} -- never "
                         "try to reassure or advise them yourself, and never offer to connect a doctor.")
-    due_lines = "\n".join(f"- {m.name} ({m.dose})" for m in due)
-    due_block = (
-        f"This call is about the {slot_local} dose ({spoken_time(slot_local)}). "
-        + ("Medicine due:" if len(due) == 1 else f"{len(due)} medicines are due together:")
-        + f"\n{due_lines}"
-    )
+    if due:
+        due_lines = "\n".join(f"- {m.name} ({m.dose})" for m in due)
+        due_block = (
+            f"This call is about the {slot_local} dose ({spoken_time(slot_local)}). "
+            + ("Medicine due:" if len(due) == 1 else f"{len(due)} medicines are due together:")
+            + f"\n{due_lines}"
+        )
+    else:
+        due_block = "No medicine is due right now, so this call is only a check-in on how the patient is feeling."
+        if next_dose:
+            when, names = next_dose
+            day, hh_mm = when.split(" ", 1)
+            due_block += (f" Their next medicine, if they ask: {', '.join(names)} at {hh_mm} {day} "
+                          f"({spoken_time(hh_mm)}).")
     return f"""You are VoiceMitra, a voice-based medicine-adherence assistant calling {patient_name} \
 on behalf of their hospital.
 

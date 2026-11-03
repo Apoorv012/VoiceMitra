@@ -104,7 +104,19 @@ _SYMPTOM_CHECK_CAREGIVER = (
 )
 
 
-def build_policy(care_mode: CareMode = CareMode.caregiver) -> PolicyEngine:
+# A call with no dose to ask about starts at the symptom step, so that step also does the greeting.
+_GREET_FIRST = (
+    "This call has no dose to ask about (see the context above) -- do NOT ask whether they took any "
+    "medicine. Your first turn is ONE short sentence: greet the patient by name and ask if you're "
+    "speaking to them ('Namaste, kya main <name> ji se baat kar rahi hoon?') -- nothing else. If it "
+    "isn't them, ask politely for the patient and say nothing about medicine or health to anyone "
+    "else. Once they confirm, ask how they're feeling. If they ask when their next medicine is, tell "
+    "them from the context.\n"
+)
+
+
+def build_policy(care_mode: CareMode = CareMode.caregiver, *, ask_doses: bool = True) -> PolicyEngine:
+    """`ask_doses` False: nothing is due, so the call skips the dose step (a wellbeing check-in)."""
     doctor = care_mode == CareMode.doctor
     escalation_tool, escalated_state = (
         ("escalate_to_doctor", ESCALATION_ACTIVE) if doctor else ("alert_caregiver", CAREGIVER_ALERTED)
@@ -163,7 +175,8 @@ def build_policy(care_mode: CareMode = CareMode.caregiver) -> PolicyEngine:
         ),
         PolicyState(
             name=SYMPTOM_CHECK,
-            prompt_fragment=_SYMPTOM_CHECK_DOCTOR if doctor else _SYMPTOM_CHECK_CAREGIVER,
+            prompt_fragment=("" if ask_doses else _GREET_FIRST)
+            + (_SYMPTOM_CHECK_DOCTOR if doctor else _SYMPTOM_CHECK_CAREGIVER),
             allowed_tools=["update_daily_log", escalation_tool],
             on_tool_called={
                 "update_daily_log": CLOSING_NORMAL,
@@ -202,4 +215,4 @@ def build_policy(care_mode: CareMode = CareMode.caregiver) -> PolicyEngine:
             is_terminal=True,
         ),
     ]
-    return PolicyEngine(states, start_state=DOSAGE_CHECK)
+    return PolicyEngine(states, start_state=DOSAGE_CHECK if ask_doses else SYMPTOM_CHECK)
