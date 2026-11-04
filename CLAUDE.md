@@ -30,6 +30,10 @@ the work as not actually finished.
   screens and the operator screens. Talks to the backend over `/api/*` and WebSockets. Its API types are
   generated (`python -m backend.dump_openapi`, then `npm run gen:api` in `web/`); next 16 differs from older
   versions, so read `web/node_modules/next/dist/docs/` before changing framework-level code.
+- `mobile/` — native phone apps so the patient's phone rings like a call (Android: Kotlin, FCM push; iPhone:
+  SwiftUI via xtool + SideStore, rings only while open). **Start at `mobile/README.md`**: it says how the lead
+  agent and the Android/iPhone agents split the work (same checkout, strict file ownership, nobody commits);
+  `mobile/API.md` is the apps' contract with the backend; each app's `SPEC.md` holds its steps and status.
 - `eval/` — scripted scenarios replayed against the live agent to check it takes the correct
   tool-call path.
 - `reference_transcripts/` — sample Hindi/Hinglish call transcripts used as prompt/eval grounding

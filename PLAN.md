@@ -114,7 +114,7 @@ voicemitra/
 
   web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
                                  # public/ (icons, service worker, offline page), scripts/make_icons.py
-  mobile/                        # planned (pilot step 4): android/ (Kotlin, sideloaded APK, rings via FCM), ios/ (Swift via xtool, SideStore; ringing via Linphone)
+  mobile/                        # specced, not built: README.md (start here), API.md, android/SPEC.md (Kotlin APK, rings via FCM), ios/SPEC.md (SwiftUI via xtool + SideStore, rings only while open)
   tests/                         # pytest: insights.py, views.py, the dose step, care modes
   package.json, scripts/dev.mjs  # `npm run dev|demo` runs API + web app + tunnel in one terminal; `-- --hot` for hot reload (see README)
 
@@ -622,49 +622,32 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
     AlarmKit has no entitlement, so it should work on a free account -- **unverified, test first**. Backups:
     the free Linphone SIP app (has VoIP push via sip.linphone.org; unverified), keeping the app alive in the
     background (fragile), or the $99/yr account.
-- **DECIDED (user, 2026-11-03): Android rings through our own sideloaded APK (FCM push); iPhone rings
-  through Linphone (free App Store SIP app that already has Apple's VoIP push).** The iPhone VoiceMitra
-  app (Swift, free Apple ID, re-signed by SideStore) does everything except ringing: pairing, next dose,
-  history, family features. AlarmKit (above) is no longer the plan.
-  - **Two ways in, one agent.** Android: at dose time the server sends an FCM push -> full-screen call screen
-    -> answering makes the app call the voice-call start (`live_calls.start_voice_call`, which must return
-    the room URL + patient token instead of 204) and join the LiveKit room. iPhone: the server creates the
-    room + agent the same way, then **dials the patient's free `sip.linphone.org` address into that room
-    with LiveKit SIP** (an outbound SIP participant, via an outbound trunk pointed at sip.linphone.org with a
-    VoiceMitra Linphone account's credentials). Linphone's server pushes the iPhone, which rings with the
-    normal swipe-to-answer call screen, locked or not; answering joins the room. The agent already waits
-    for the first participant before speaking, so it greets whoever joins -- the agent side doesn't change.
-  - Cost: LiveKit Cloud's free Build plan includes 1,000 third-party SIP minutes a month (official pricing
-    page, checked 2026-11-03), plus at most 5 agent sessions at once; sip.linphone.org accounts are free.
-  - **Unverified, check first** (half a day, before building the rest): (a) LiveKit SIP can call a
-    sip.linphone.org address through Linphone's server (digest auth, TLS); (b) audio both ways -- Linphone
-    likes ZRTP, which LiveKit SIP doesn't do (SRTP or none), so the Linphone app may need its media
-    encryption set to SRTP/none; codec G.711 or Opus; (c) what the iPhone shows as the caller (want
-    "VoiceMitra", not a raw address); (d) Linphone's terms allow automated calls to a few people.
-    If (a)-(b) fail: AlarmKit, above, is the backup.
-  - Linphone accounts: one per iPhone patient plus one for VoiceMitra, created by the user (Claude doesn't
-    create accounts). `Patient.sip_address` (new) holds the patient's.
-  - The server owns the truth: a `Ring` record per slot attempt (sent / answered / declined / missed). No
-    answer (Android: no join within ~45 s; iPhone: SIP no-answer / busy / declined) -> ring again 5 min later
-    -> then the existing `unreachable` caregiver alert.
-  - Pairing (no login yet): a "Connect a phone" code (6 digits, short-lived) on the patient's web page; the
-    app sends it with its platform (and FCM token on Android) and gets a device id + secret for its calls.
-  - Backend additions: `Device`, `PairingCode`, `Ring` models + `Patient.sip_address`; `routers/devices.py`
-    (pair, update push token, unpair); `dose_scheduler.py` (a timer per slot, same pattern as
-    `arm_reminder`, re-armed on startup); `ring.py` (per patient: FCM push for an Android device, a SIP dial
-    for a Linphone address); `push_fcm.py` (firebase-admin, free); SIP dial-out in `livekit_client.py`.
-  - `mobile/android/`: Kotlin + Jetpack Compose (Android Studio): pairing, home (next dose, big "Talk now"),
-    history/family, FCM service -> CallStyle notification with a full-screen intent, call screen (LiveKit
-    Android SDK). One-time phone settings: full-screen-intent permission (Android 14+), battery
-    "unrestricted" (Xiaomi, Oppo, Vivo...).
-  - `mobile/ios/`: Swift Package built with xtool in WSL, .ipa installed through SideStore so it keeps
-    re-signing it: pairing, home, history/family, "Talk now" (LiveKit Swift SDK, for calls the patient starts).
-    No ringing code. Free-account limits: 3 sideloaded apps (SideStore is one), Developer Mode on; if a
-    re-sign fails the app won't open (ringing still works -- it's Linphone). Note: these screens already exist
-    in the web app (PWA), so the iPhone app adds no new capability -- it's there for the native experience.
-  - Order: (1) Linphone check, half a day: LiveKit SIP dials a test Linphone account on an iPhone, it rings
-    locked, audio works both ways with the agent; (2) backend: join info, devices + pairing, `Ring`, SIP dial;
-    (3) Android end to end; (4) scheduler + retry (steps 4-5 below, on real phones); (5) iPhone app.
+- **Tried and dropped (2026-11-03/04): Linphone for the iPhone ring.** Plan was LiveKit SIP dialling the
+  patient's free sip.linphone.org address. Built a dial-out (`dial_sip` with the trunk settings inline, a
+  "hold the greeting until answered" gate in `VoiceTransport`, dialled calls hidden from the patient page) and a
+  bare count-to-20 test. Result: the iPhone rings in 1-2 s (login and Linphone's push work), but LiveKit's
+  `sip.callStatus` never leaves `dialing` -- no 180/200 comes back; answered calls are silent and drop with 603
+  (or 480) -- with encryption on or off, over TLS or TCP. A plain Linphone-to-Linphone call (PC -> iPhone) also
+  had **no audio**. Parked, and **the SIP code was removed** (user, 2026-11-04). Worth knowing if SIP comes back:
+  LiveKit puts a dialled line in the room while it's still ringing (the agent must wait for `sip.callStatus ==
+  active`); the SDK's `outbound_trunk_config=` fails (protobuf won't assign a message field -- copy it into
+  `request.trunk`); the patient's web page auto-joins any voice call as `patient` and would push a phone out;
+  LiveKit Cloud's free plan includes 1,000 third-party SIP minutes a month. Researched alternatives: Zoiper (free
+  version has no push), Groundwire/Acrobits ($9.99/$6.99 once, reliable push), Zadarma (free PBX + app, free
+  internal calls, iPhone push unconfirmed, top-up every 3 months), Exotel (7-day trial -- rejected by the user),
+  Telnyx/Plivo/Vonage trials (only own/verified numbers).
+- **DECIDED (user, 2026-11-04): native apps, specced in `mobile/`** (`mobile/README.md` is the entry point):
+  - **Android** (`mobile/android/SPEC.md`) -- **make it perfect, the main demo**: Kotlin + Compose, sideloaded
+    APK, FCM high-priority push -> full-screen call screen even when locked; answer -> join the LiveKit room.
+    Its agent also owns the backend pieces both apps need: pairing + devices, join info, the ring push,
+    reminders ringing the phone, then dose-time ringing + one retry (pilot steps 4-5).
+  - **iPhone** (`mobile/ios/SPEC.md`) -- **rings only while the app is open** for now (free Apple ID = no
+    push): SwiftUI built with xtool (WSL), CallKit screen from the patient socket's `voice_call` event,
+    installed on the household phones through SideStore. Closed app -> the existing 120 s wait, then the
+    caregiver's "couldn't be reached" alert.
+  - Contract: `mobile/API.md`. Agents: the user starts one lead agent that runs an Android agent and an iPhone
+    agent in this checkout (no worktrees, nobody commits; strict file ownership -- see `mobile/README.md`).
+  - Later for a closed iPhone: Zadarma (untested), Groundwire, AlarmKit, or Apple's $99/yr account.
 Steps 1-3 and 6-8 below don't depend on this.
 
 **What exists:** voice + chat calls, dose/symptom logging, the seriousness tiers, caregiver records with a
@@ -765,8 +748,8 @@ screen or role; escalation always means "ring the doctor".
      normal two-medicine dose call (unchanged). Step 6 replaces this interim check-in with the open
      inbound flow; step 7 decides when a check-in asks about wellbeing at all.
 4. **Dose-time ring (native apps)** -- the call itself is the reminder: at each dose slot the patient's
-   phone rings (Android: server push to our app; iPhone: a SIP call to Linphone), answering joins the voice call for
-   that slot. Structure and order above (platform decision). Caregiver alerts as push to the caregiver's
+   phone rings (Android: server push to our app; iPhone: only while the app is open), answering joins the voice
+   call for that slot. Specced in `mobile/android/SPEC.md` (step B5). Caregiver alerts as push to the caregiver's
    phone can reuse it later.
 5. **No answer in 5 min -> ring again** -- then the existing `unreachable` caregiver alert.
 6. **Inbound call flow** -- its own policy states: open greeting, questions about their medicines answered
@@ -780,8 +763,8 @@ screen or role; escalation always means "ring the doctor".
 9. **Urgent -> call the caregiver** -- the agent calls the caregiver and tells them what happened.
 
 **Known limits:** timers live in the server process, so the machine running the API must stay on (see
-Hosting); the platform limits above. **Open questions:** whether LiveKit SIP can call through Linphone's
-free service with working audio (the first check), whether caregivers can also edit prescriptions.
+Hosting); the platform limits above. **Open questions:** whether xtool can build the LiveKit Swift SDK (iPhone step I1),
+how to ring a closed iPhone later, whether caregivers can also edit prescriptions.
 
 ### Chunk 5 — Structured extraction polish + eval harness + rehearsal — **NOT STARTED** (user agreed to build the eval harness, 2026-11-03; after the pilot)
 **Handling non-determinism (the same input can score 5 one run and 8 the next):**

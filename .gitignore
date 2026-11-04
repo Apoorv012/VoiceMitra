@@ -9,3 +9,15 @@ venv/
 
 # Root tooling (scripts/dev.mjs runner)
 node_modules/
+
+# Phone apps (mobile/): secrets and build output
+mobile/android/app/google-services.json
+*firebase-adminsdk*.json
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/android/local.properties
+mobile/android/.idea/
+*.apk
+mobile/ios/.build/
+mobile/ios/xtool/
+*.ipa
