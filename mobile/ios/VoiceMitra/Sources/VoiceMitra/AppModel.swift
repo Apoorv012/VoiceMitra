@@ -1,3 +1,4 @@
+import AVFAudio
 import Foundation
 import Observation
 import UIKit
@@ -28,7 +29,11 @@ final class AppModel {
         lang = Prefs.lang
         pairing = Keychain.load()
         calls.lang = lang
-        calls.onFinished = { [weak self] in Task { await self?.loadHome() } }
+        calls.onFinished = { [weak self] in
+            guard let self else { return }
+            if !self.isActive { self.socket.stop() } // the call kept it open in the background
+            Task { await self.loadHome() }
+        }
         socket.onEvent = { [weak self] in self?.handle($0) }
         socket.onConnectedChange = { [weak self] in self?.socketConnected = $0 }
         syncCallContext()
@@ -47,9 +52,16 @@ final class AppModel {
                 await verifyPairing()
                 await loadHome()
             }
-        } else {
+        } else if calls.phase == .idle {
+            // In the background the app can't ring anyway (SPEC I4). During a call (screen locked, background
+            // audio keeps the app alive) the socket stays, so voice_call_ended still arrives.
             socket.stop()
         }
+    }
+
+    /// Ask for the microphone before the first call, not in the middle of answering one.
+    func askForMicrophone() async {
+        _ = await AVAudioApplication.requestRecordPermission()
     }
 
     private func reconnect() {

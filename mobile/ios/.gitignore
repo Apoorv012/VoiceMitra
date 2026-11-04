@@ -9,5 +9,5 @@ xtool/
 *.xcarchive/
 *.dSYM/
 DerivedData/
-Package.resolved
 __pycache__/
+*.local.txt

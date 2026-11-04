@@ -312,7 +312,7 @@ Verified: a real spoken call over LiveKit (browser mic -> Sarvam STT -> agent ->
 through dose logging and an escalation to the end-call tool. Not yet assessed: Hinglish STT/TTS quality,
 latency. (Barge-in was believed "off" here, but the flag used was a no-op -- see "Voice feel fixes"
 below; it is now really on.) Not done: voice calls are tracked only as in-memory patient/operator
-events (no live-call object like chat has), reminders still start chat calls, a patient who never joins
+events (no live-call object like chat has), reminders started chat calls (voice since B4, 2026-11-04), a patient who never joins
 ends the call after 120 s.
 
 ### Chunk 4 — Escalation + caregiver + doctor merge (live voice) — **DONE: user tested the doctor escalation by hand (2026-11-03), working**
@@ -685,12 +685,68 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       the phone (needs the user's spare Apple ID via `xtool auth login` and the iPhone plugged in). The app's
       sign-in (login + code fallback), home, ringing and call code (I2-I5) **compiles cleanly** with xtool (arm64
       .app, LiveKit frameworks embedded, bundle id `app.voicemitra.patient`); nothing has run on a phone yet. The user signed xtool in with the spare
-      Apple ID (2026-11-04).
+      Apple ID (2026-11-04). Signing needs the phone once (Apple won't issue a free profile until a device is
+      registered; the first `tools/wsl-build.sh VoiceMitra run` with the phone plugged in does it). Unsigned `.ipa`
+      for SideStore builds without a device (`tools/build-ipa.sh` -> `mobile/ios/dist/`, gitignored). I6 SideStore
+      steps written in `mobile/ios/README.md`; a 14-item on-device checklist in the SPEC. Review fixes: the socket
+      stays open while CallKit's ring banner is up and during a background call (so `voice_call_ended` stops the
+      ring), and the mic is asked for on the home screen.
+    - **iPhone on-device test -- PASSED the core flows (2026-11-04, user's iPhone, iOS 26.5).** Install via
+      xtool, mic prompt, login, staying signed in across relaunch/reinstall, home, **Talk now both ways (speaker and
+      earpiece, agent replies in 0.2-0.6 s)**, **Call now from the web rings CallKit while the app is open, answer
+      connects, decline ends it**, speaker toggle + hang-up, **call survives the screen locking**. App closed -> no
+      ring (expected; accepted by the user for now); opening the app inside the 120 s wait rings at once. Not yet
+      tried: code pairing, unpair, wrong password, Hindi/large text/offline, mute, the 120 s give-up, the web page
+      open at the same time, and the SideStore install (I6). Details in `mobile/ios/SPEC.md`. The user's phone is on
+      iOS 26, so **AlarmKit is a real option later** for dose-time rings with the app closed.
+      History of the test: installed with xtool over USB
+      (through `muxrelay`, no usbipd; Apple's provisioning timed out once and returned a 500 once, then worked). Fixed on the way: starting a call crashed because xtool links packages as static
+      archives and dropped LiveKit's Objective-C categories -- `-ObjC` linker flag in `Package.swift`. Open: long
+      gaps before the agent replies (call `fe9df92e`). The backend log shows Sarvam's VAD responding promptly; the
+      gaps were a 12.7 s STT silence with a keepalive error (the PC's network was flaky all session -- tunnel QUIC
+      timeouts) and 10.7 s from turn end to TTS (LLM, or a restart after a short echo blip). Retest on earpiece vs
+      speaker, with a web call alongside for comparison. App icon added (the web's voice-wave mark). Found
+      during the test: `npm run dev`'s uvicorn `--reload` watched the whole repo, so an edit under `mobile/` restarted
+      the API (and took the dev stack down); `scripts/dev.mjs` now reloads only on `backend/`, `core/`, `domains/`.
+      Test data in the real DB
+      (to clean up later -- there's no delete-patient endpoint): "Test Patient iPhone"
+      `05803d68-2062-4104-9649-4d0b3eef6750` (Test Vitamin D 09:00 + 21:00), login `testiphone` (password in the
+      gitignored `mobile/ios/test-login.local.txt`).
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
-      device, then test **both phones together** once the Android phone arrives.
-    - **Android app (A1-A6) -- STARTING.** No Android SDK was on this PC (only JDK 25). User decided
-      (2026-11-04): install the **command-line SDK locally, no Android Studio and no emulator** ("i dont want the
-      emulator to run on my laptop"); testing happens on a real Android phone the user is getting.
+      device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
+      its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).
+    - **Android app (A1-A6) -- IN PROGRESS.** User decided (2026-11-04): **command-line SDK locally, no Android
+      Studio and no emulator** ("i dont want the emulator to run on my laptop"); testing on a real Android phone
+      the user is getting. Toolchain done: SDK in `C:\Users\apoor\Android\Sdk` (444 MB: cmdline-tools,
+      platform-tools/adb, android-37.0, build-tools 36.0.0; no emulator or system images), Gradle 9.8.2 wrapper,
+      the existing JDK 25 works with AGP 9.5.0 + Kotlin 2.4.21; SDK path only in gitignored `local.properties`.
+      Project skeleton builds (`./gradlew assembleDebug` -> debug APK; placeholder screen) with LiveKit 2.30.0,
+      Firebase BOM 35.1.0, Compose BOM 2026.09.00, core-telecom 1.0.1; application id `in.voicemitra.patient`,
+      Kotlin package `com.voicemitra.patient`. Setup/build/install in `mobile/android/README.md`.
+      **A1-A5 written, compile + lint clean, not yet run on a phone (2026-11-04):** login first (code pad as
+      fallback, debug patient picker), settings (server URL, Hindi/English, log out), launch check + FCM token
+      refresh; home with a big Talk button; call screen over the lock screen (foreground service, speaker on, mute,
+      timer, live transcript, rejoin after a network drop); ringing from FCM and the socket through one path
+      (CallStyle + full-screen intent, ringtone, 60 s timeout, decline -> call/end); setup checklist (notifications,
+      full-screen, mic, battery, maker auto-start page). Verified: JVM unit tests + a contract test running the app's
+      Kotlin API client against a live backend on a throwaway DB. Needs a phone for the ring when locked, answering,
+      audio and the setup flow. Next: B4 (reminders ring the phone) and device-free A6 polish. Note for later:
+      Firebase is moving from FCM registration tokens to FIDs; tokens still work, switching is a contract change.
+      A6 so far: APK limited to real-phone CPUs (debug 46 MB, release 39 MB, was 78 MB).
+    - **B4 reminders ring the phone -- DONE (2026-11-04).** `live_calls._fire_reminder` starts a **voice** call (so
+      the FCM ring goes out), waiting until any call the patient is on has finished. Verified: pytest 61/61
+      (`tests/test_reminder_rings.py`, throwaway DB). Side effect: an open patient web page auto-joins it as a
+      voice call (the web joins every voice call), where it used to get a chat.
+    - **B5 dose-time ringing + one retry (pilot steps 4-5) -- DONE in code (2026-11-04), OFF until the phone
+      test.** `backend/dose_scheduler.py`, behind `DOSE_RINGING_ENABLED=true` (unset = nothing armed, one startup
+      warning). One timer per patient for their next slot (`insights.build_slots`), armed at startup and when a
+      prescription is added; at the slot a voice call about the still-unanswered medicines; skipped if all answered,
+      a "later" reminder covers it, or the patient is on a call. Nobody joins in 120 s -> ring again after 5 min ->
+      still nobody -> one caregiver "couldn't be reached" alert (new `on_unanswered` hook on `start_voice_call`;
+      other calls unchanged). **A decline counts as the patient's choice: no retry, no alert** -- the user may want
+      to change that. Verified: pytest 69/69 (8 new in `tests/test_dose_scheduler.py`: fake clock, fake FCM, fake
+      agent/LiveKit, throwaway DB). The phone test should cover a locked phone ringing at a dose time, the retry and
+      the alert.
 Steps 1-3 and 6-8 below don't depend on this.
 
 **What exists:** voice + chat calls, dose/symptom logging, the seriousness tiers, caregiver records with a
@@ -727,8 +783,8 @@ screen or role; escalation always means "ring the doctor".
      restart); voice calls now arm it too.
    - Verified: 10 new pytest tests (24 total); scripted calls against the live LLM (Gemini) in a throwaway DB
      -- both taken (one log for both), one taken + one forgotten (two logs, reason kept), one taken + one
-     "later" (reminder for that one only). Not tried: a real voice call with several medicines; reminders
-     still start chat calls (step 5).
+     "later" (reminder for that one only). Not tried: a real voice call with several medicines. (Reminders
+     starting chat calls: fixed by B4, see below.)
    - Seen in those runs, not fixed (older prompt issues): the agent sometimes narrates its step ("ab main
      symptom check kar leti hoon"), asks two questions in one turn, and slipped into Hinglish once while the
      patient spoke English. With a fixed script it keeps re-asking about an unanswered medicine -- correct, but

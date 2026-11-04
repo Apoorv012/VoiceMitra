@@ -12,7 +12,7 @@ source "$HOME/voicemitra-ios-env.sh"
 mkdir -p "$DST"
 # Mirror sources but keep the WSL-side build caches (.build, xtool/).
 if command -v rsync >/dev/null; then
-  rsync -a --delete --exclude .build --exclude xtool --exclude .swiftpm "$SRC/" "$DST/"
+  rsync -a --delete --exclude .build --exclude xtool --exclude .swiftpm --exclude .bsp "$SRC/" "$DST/"
 else
   find "$DST" -mindepth 1 -maxdepth 1 ! -name .build ! -name xtool ! -name .swiftpm -exec rm -rf {} +
   (cd "$SRC" && tar --exclude=.build --exclude=xtool --exclude=.swiftpm -cf - .) | (cd "$DST" && tar -xf -)
@@ -25,4 +25,10 @@ if ! (exec 3<>/dev/tcp/127.0.0.1/27015) 2>/dev/null; then
 fi
 
 cd "$DST"
-exec xtool dev "$ACTION" "$@"
+status=0
+xtool dev "$ACTION" "$@" || status=$?
+# Keep the exact dependency versions in the repo (Package.resolved is committed).
+if [ -f "$DST/Package.resolved" ] && ! cmp -s "$DST/Package.resolved" "$SRC/Package.resolved"; then
+  cp "$DST/Package.resolved" "$SRC/Package.resolved"
+fi
+exit $status

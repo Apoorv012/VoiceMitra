@@ -98,4 +98,40 @@ with USB debugging, or sharing the APK file.
   app. firebase-admin 7.7 warns that `Message.token` is deprecated in favour of `fid` (the Firebase Installation ID,
   a different id); the registration token still works, so the app keeps sending `FirebaseMessaging.getToken()`.
 - Run backend tests with the venv: `.venv/Scripts/python -m pytest` (system Python lacks the packages).
-- A1-A6, B4, B5: not started.
+- **Toolchain -- DONE (2026-11-04).** Command-line SDK only, no emulator (user's choice): see `README.md`.
+  AGP 9.5.0, Kotlin 2.4.21, Gradle 9.8.2 on the existing JDK 25; compile/target SDK 37, minSdk 26.
+- **A1 Shell + sign-in -- DONE except on a phone (2026-11-04).** Login screen first (username + password, show
+  password, plain 401/429 messages), "Use a code instead" -> 6-digit number pad (auto-submits), debug-only patient
+  picker, settings (server URL, language, log out = unpair). Device id/token in DataStore, backups excluded. On
+  launch: `GET /api/devices/{id}` (401/404 -> back to login) and the FCM token is re-sent when it changes.
+  Verified: `assembleDebug` + `lintDebug` clean, JVM unit tests, and `ApiContractTest` (the app's own API client
+  against a live backend on a throwaway DB: login, wrong password, pair, check, push-token update, home, no call,
+  unpair). **Not yet run on a phone** (none yet).
+- **A2-A5 -- WRITTEN, compile and lint clean, NOT yet run on a phone:** home (greeting, next dose, today's doses
+  with state chips, a big "Talk to VoiceMitra" button; reloads on resume and every minute); call screen
+  (`CallActivity`: over the lock screen, timer, mute, speaker on by default, live transcript from `log_entry`,
+  foreground service `phoneCall|microphone`, rejoins after a network drop while the call still exists); ringing
+  (`PushService` `ring` / `call_ended` and the patient socket's `voice_call` / snapshot share `CallManager.onRing`:
+  CallStyle notification + full-screen intent, ringtone on loop, 60 s timeout, decline -> `call/end`); setup
+  checklist (notifications, full-screen intent, microphone, battery optimisation, maker auto-start page).
+  `core-telecom` is not used yet (LiveKit's own audio routing handles speaker/Bluetooth); revisit after phone tests.
+- Firebase Messaging 26 deprecates registration tokens for Firebase Installation IDs (`register()` /
+  `onRegistered(fid)`, backend `Message(fid=...)`). Tokens still work end to end; moving is a later contract change.
+- **B4 Reminders ring the phone -- DONE (2026-11-04).** `live_calls._fire_reminder` now waits for any call the
+  patient is on (chat or voice), then starts a **voice** call for the reminder's slot and medicines, so the push
+  rings the phone. pytest `tests/test_reminder_rings.py`. Note: a patient web page left open still auto-joins
+  voice calls as `patient` and would push the phone out (known, `../API.md` "Joining").
+- **A6 (part):** APK limited to arm64-v8a + armeabi-v7a (debug 46 MB, release 39 MB, from 78 MB). The rest of A6
+  (TalkBack pass, slow-network and font-size checks) needs a phone.
+- **B5 Dose-time ringing + one retry -- DONE in code (2026-11-04), OFF by default, not yet tried for real.**
+  `backend/dose_scheduler.py`: one asyncio timer per patient for their next slot (`insights.build_slots`), armed
+  on startup and re-armed when a prescription is added. At the slot: a voice call about the medicines in it that
+  still have no answer (skipped if all are answered, if the patient said "later" -- the reminder covers it -- or
+  if they're already on a call). Nobody joins in the agent's 120 s wait -> rings again after 5 min -> still nobody
+  -> the caregiver's "couldn't be reached" alert, **once** (`start_voice_call(on_unanswered=...)` replaces the
+  first alert). A decline (call/end) is the patient's choice: no retry, no alert. A slot up to 2 min late at
+  startup still rings. **Switch: `DOSE_RINGING_ENABLED=true` in `.env`** (lead/user decision 2026-11-04: off until
+  the phone test, the real DB has real patients); off -> nothing armed, one startup warning line.
+  Verified: pytest `tests/test_dose_scheduler.py` (8 tests; real `start_voice_call` with the agent/LiveKit faked,
+  fake FCM sender, fake clock, throwaway DB) and a server boot with the switch off. 69/69 backend tests pass.
+  PLAN.md pilot steps 4-5 go through the lead.

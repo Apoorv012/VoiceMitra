@@ -20,7 +20,13 @@ let package = Package(
                 .swiftLanguageMode(.v5),
                 // The "pick a patient" list (no pairing) only exists in debug builds (xtool dev).
                 .define("DEV_PICKER", .when(configuration: .debug)),
-            ]
+            ],
+            // xtool on Linux can't pre-link package targets (lld has no `-r`), so each one (LiveKit.o etc.) is
+            // really a static archive. The final link only pulls archive members whose *symbols* are used, which
+            // drops Objective-C categories: LiveKit's `Room.add(delegate:)` (@objc, in an extension) went missing
+            // and every call crashed with "unrecognized selector addDelegate:". -ObjC loads every member with an
+            // ObjC class or category, as Xcode does for static libraries.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-ObjC"])]
         ),
     ]
 )

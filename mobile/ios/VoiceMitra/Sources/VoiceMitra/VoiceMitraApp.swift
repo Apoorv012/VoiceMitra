@@ -11,8 +11,10 @@ struct VoiceMitraApp: App {
                 .environment(model)
                 .environment(\.locale, Locale(identifier: model.lang == .hi ? "hi_IN" : "en_IN"))
         }
+        // `.inactive` also happens while CallKit's ringing banner is up; the socket must stay open then, or a
+        // voice_call_ended (the caller gave up) would be missed and the phone would keep ringing.
         .onChange(of: scenePhase, initial: true) { _, phase in
-            model.setActive(phase == .active)
+            model.setActive(phase != .background)
         }
     }
 }

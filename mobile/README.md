@@ -32,7 +32,8 @@ The user starts **one lead agent**; it starts and coordinates the **Android agen
     `backend/models.py`, `backend/main.py`, `backend/routers/devices.py`, the patient Me page, `web/src/lib/i18n.tsx`,
     `mobile/API.md` and the generated API types. The Android agent keeps everything else in its list. In shared
     files both use Edit only and re-read before editing.
-  - Lead agent: `PLAN.md`, `mobile/README.md`, `CLAUDE.md`; it relays anything one builder needs from the other's area.
+  - Lead agent: `PLAN.md`, `mobile/README.md`, `CLAUDE.md`, `scripts/`; it relays anything one builder needs from the
+    other's area, and runs/stops `npm run dev` (builders don't).
 - **Order:** start both at once. The Android agent does the backend steps B1 (pairing) -> B2 (join info) -> B3
   (push) first, because the iPhone app needs B1-B2 too; the iPhone agent starts with its toolchain check (I1) and
   a dev patient picker, so it isn't blocked. When B1/B2 land, the lead tells the iPhone agent.

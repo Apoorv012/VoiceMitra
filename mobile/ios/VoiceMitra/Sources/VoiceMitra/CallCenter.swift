@@ -176,6 +176,9 @@ final class CallCenter: NSObject {
             endViaCallKit(notifyBackend: true)
             return
         }
+        // If the permission prompt only just got answered, enabling the engine in didActivate failed (no mic
+        // access yet): enable it now, or the call would be silent.
+        if sessionActive { enableEngine() }
         let room = Room()
         room.add(delegate: self)
         self.room = room
@@ -213,6 +216,17 @@ final class CallCenter: NSObject {
     }
 
     @ObservationIgnored private var pendingEndNotifies = true
+    /// CallKit (or, without CallKit, the app) has activated the audio session.
+    @ObservationIgnored private var sessionActive = false
+
+    private func enableEngine() {
+        do {
+            try AudioManager.shared.setEngineAvailability(.default)
+        } catch {
+            print("audio engine not enabled: \(error)")
+        }
+        applySpeaker()
+    }
 
     private func finish(notifyBackend: Bool) {
         let oldRoom = room
@@ -225,6 +239,7 @@ final class CallCenter: NSObject {
         if !usingCallKit {
             try? AudioManager.shared.setEngineAvailability(.none)
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            sessionActive = false
         }
         uuid = nil
         join = nil
@@ -252,8 +267,8 @@ final class CallCenter: NSObject {
         } catch {
             print("audio session activate failed: \(error)")
         }
-        try? AudioManager.shared.setEngineAvailability(.default)
-        applySpeaker()
+        sessionActive = true
+        enableEngine()
     }
 
     /// Speaker on by default (SPEC I5); the button switches to the earpiece.
@@ -348,13 +363,14 @@ extension CallCenter: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         MainActor.assumeIsolated {
-            try? AudioManager.shared.setEngineAvailability(.default)
-            applySpeaker()
+            sessionActive = true
+            enableEngine()
         }
     }
 
     nonisolated func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         try? AudioManager.shared.setEngineAvailability(.none)
+        MainActor.assumeIsolated { sessionActive = false }
     }
 }
 

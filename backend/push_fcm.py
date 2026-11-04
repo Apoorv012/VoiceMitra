@@ -50,7 +50,7 @@ def _firebase_sender() -> Sender | None:
     path = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
     if not path:
         if not _warned_unset:
-            log.info("FIREBASE_CREDENTIALS is not set: phones are not rung (push skipped)")
+            log.warning("FIREBASE_CREDENTIALS is not set: phones are not rung (push skipped)")
             _warned_unset = True
         return None
 

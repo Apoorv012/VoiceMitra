@@ -15,6 +15,12 @@ struct HomeView: View {
                     }
                     talkButton
                     if let home = model.home {
+                        if model.homeError != nil {
+                            Label(model.t("Couldn't refresh. Showing what we had.", "ताज़ा नहीं हो सका। पहले की जानकारी दिखा रहे हैं।"),
+                                  systemImage: "arrow.clockwise.circle")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
                         if let next = home.nextDose { NextDoseCard(slot: next, tz: home.timezone) }
                         TodayCard(home: home)
                         if let how = home.howDoing { HowDoingCard(how: how) }
@@ -38,6 +44,7 @@ struct HomeView: View {
                 .padding(20)
             }
             .refreshable { await model.loadHome() }
+            .task { await model.askForMicrophone() }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { LanguageToggle() }
                 ToolbarItem(placement: .topBarTrailing) {

@@ -2,3 +2,4 @@ version: 1
 bundleID: app.voicemitra.patient
 product: VoiceMitra
 infoPath: Support/Info.plist
+iconPath: Resources/AppIcon.png

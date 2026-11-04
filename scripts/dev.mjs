@@ -99,7 +99,8 @@ const commands = [
     name: "api",
     prefixColor: "cyan",
     // 127.0.0.1 only: the web app and the tunnel both reach it through localhost, so it needn't be on the LAN.
-    command: `"${python}" -m uvicorn backend.main:app --host 127.0.0.1 --port ${API_PORT} --reload`,
+    // Reload only on server code: edits in mobile/, web/ or tests/ would otherwise restart the API and drop calls.
+    command: `"${python}" -m uvicorn backend.main:app --host 127.0.0.1 --port ${API_PORT} --reload --reload-dir backend --reload-dir core --reload-dir domains`,
     cwd: root,
     env: demo ? { MONGODB_DB_NAME: "voicemitra_demo" } : {},
   },

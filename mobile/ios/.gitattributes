@@ -1,0 +1,11 @@
+# Built and run inside WSL (Linux): keep LF everywhere, even with core.autocrlf on Windows.
+# A CRLF wsl-build.sh fails in bash ("$'\r': command not found").
+*.sh       text eol=lf
+*.py       text eol=lf
+*.swift    text eol=lf
+*.yml      text eol=lf
+*.plist    text eol=lf
+*.md       text eol=lf
+*.resolved text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
@@ -72,6 +73,9 @@ class VoiceCall:
     # Everything logged so far (transcript, tool calls, escalation events) as JSON-able dicts, so a
     # reloaded page can show the whole call; the same entries are written to Mongo with the call.
     entries: list[dict] = field(default_factory=list)
+    # Called (with the call id) instead of the caregiver's "couldn't be reached" alert when nobody joins
+    # in time: the dose-time scheduler rings once more first (backend/dose_scheduler.py).
+    on_unanswered: Callable[[str], Awaitable[None]] | None = None
 
 
 _live_calls: dict[str, LiveCall] = {}
@@ -271,6 +275,7 @@ def _voice_escalation_event(voice: VoiceCall) -> dict:
 async def start_voice_call(
     patient_id: str, *, slot_at: datetime | None = None, dosage_ids: list[str] | None = None,
     skip_device_id: str | None = None,
+    on_unanswered: Callable[[str], Awaitable[None]] | None = None,
 ) -> VoiceCall:
     """Put the patient and the agent in a LiveKit room: the agent joins now (in-process), the
     patient's page joins with the token it is sent, and their phones are rung (except
@@ -287,7 +292,7 @@ async def start_voice_call(
     room = create_livekit_room(f"call-{call_id}")
     voice = VoiceCall(
         call_id=call_id, room_name=room.name, room_url=room.url, patient_token=room.patient_token,
-        transport=LiveKitTransport(room.url, room.bot_token, room.name),
+        transport=LiveKitTransport(room.url, room.bot_token, room.name), on_unanswered=on_unanswered,
     )
     session.context.on_log_entry = lambda entry: add_voice_entry(patient_id, entry)
     voice.task = asyncio.create_task(_run_voice(patient_id, session, voice))
@@ -311,7 +316,10 @@ async def _run_voice(patient_id: str, session, voice: VoiceCall) -> None:
         pass
     except TimeoutError:
         log.info("patient %s never joined call %s", patient_id, voice.call_id)
-        await notify_caregiver_unreachable(patient_id, voice.call_id)
+        if voice.on_unanswered is not None:
+            await voice.on_unanswered(voice.call_id)
+        else:
+            await notify_caregiver_unreachable(patient_id, voice.call_id)
     except Exception:
         log.exception("voice call %s failed", voice.call_id)
     finally:
@@ -365,13 +373,20 @@ def arm_reminder(reminder: Reminder) -> None:
     task.add_done_callback(_reminder_tasks.discard)
 
 
+def _patient_busy(patient_id: str) -> bool:
+    live = _live_calls.get(patient_id)
+    return patient_id in _voice_calls or (live is not None and live.active)
+
+
 async def _fire_reminder(reminder: Reminder, delay: float) -> None:
     try:
         await asyncio.sleep(delay)
-        while (live := _live_calls.get(reminder.patient_id)) is not None and live.active:
+        # Wait for any call the patient is on (chat or voice) to finish, then ring them: a voice call,
+        # so their phone rings (push) as well as their open web page.
+        while _patient_busy(reminder.patient_id):
             await asyncio.sleep(REMINDER_RETRY_SECONDS)
         dosage_ids = reminder.dosage_ids or ([reminder.dosage_id] if reminder.dosage_id else None)
-        await start_call(reminder.patient_id, slot_at=reminder.slot_at, dosage_ids=dosage_ids)
+        await start_voice_call(reminder.patient_id, slot_at=reminder.slot_at, dosage_ids=dosage_ids)
         await reminders_col().update_one(
             {"_id": reminder.id}, {"$set": {"status": ReminderStatus.fired.value}}
         )

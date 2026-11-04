@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from backend import dose_scheduler
 from backend.db import (
     caregivers_col,
     doc_to_model,
@@ -193,4 +194,5 @@ async def add_prescription(patient_id: str, body: AddPrescriptionRequest) -> Pre
     await patients_col().update_one(
         {"_id": patient_id}, {"$push": {"prescription_ids": prescription.id}}
     )
+    await dose_scheduler.arm(patient_id)  # new dose times may come sooner (no-op unless dose ringing is on)
     return prescription
