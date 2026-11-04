@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from backend import escalations
 from backend.live_calls import (
@@ -19,6 +20,7 @@ from backend.live_calls import (
     active_patient_ids,
     end_call,
     get_live_call,
+    get_voice_call,
     snapshot_patient,
     start_call,
     start_voice_call,
@@ -118,9 +120,30 @@ async def end_patient_call(patient_id: str) -> None:
 
 
 @router.post("/api/patients/{patient_id}/voice-call", status_code=204)
-async def start_patient_voice_call(patient_id: str) -> None:
+async def start_patient_voice_call(patient_id: str, x_device_token: str | None = Header(default=None)) -> None:
+    """Talk now (web or phone app). A phone sends its `X-Device-Token` so it isn't rung for the call
+    it just started itself (mobile/API.md)."""
+    from backend.routers.devices import device_for_token
+
+    device = await device_for_token(x_device_token)
     try:
-        await start_voice_call(patient_id)
+        await start_voice_call(patient_id, skip_device_id=device.id if device is not None else None)
     except PatientNotReady as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class VoiceCallJoin(BaseModel):
+    call_id: str
+    url: str
+    token: str
+
+
+@router.get("/api/patients/{patient_id}/voice-call", response_model=VoiceCallJoin)
+async def get_patient_voice_call(patient_id: str) -> VoiceCallJoin:
+    """How a phone joins the voice call it was just rung for: LiveKit `url` + `token` (identity
+    `patient`). 404 when no voice call is waiting or in progress (it ended, or was never started)."""
+    voice = get_voice_call(patient_id)
+    if voice is None:
+        raise HTTPException(status_code=404, detail="no voice call in progress")
+    return VoiceCallJoin(call_id=voice.call_id, url=voice.room_url, token=voice.patient_token)
 

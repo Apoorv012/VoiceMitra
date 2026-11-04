@@ -33,3 +33,5 @@ export type SlotState =
 export type DayState = "good" | "mixed" | "missed" | "unknown" | "upcoming" | "none";
 export type AttentionLevel = "critical" | "warning" | "ok";
 export type PatientProfile = S["PatientProfile"];
+export type PairingCode = S["PairingCodeOut"];
+export type DeviceView = S["DeviceView"];

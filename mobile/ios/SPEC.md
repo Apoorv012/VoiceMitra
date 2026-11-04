@@ -54,4 +54,33 @@ on it (needs a pairing file made on the PC once).
 
 ## Status
 
-Not started.
+**2026-11-04 -- I1 passed on the build side (xtool builds and links LiveKit; no fallback needed). I2-I5 code
+compiles cleanly. Nothing has run on a phone yet: waiting on the user's `xtool auth login` (spare Apple ID) and
+the iPhone plugged in (README "What the user does", steps 3-4).**
+
+- **I1 toolchain (done except on-device):** WSL Ubuntu 26.04 with Swift 6.4.2 and xtool 1.24 in the user's home
+  (`source ~/voicemitra-ios-env.sh`); Swift's system libraries installed; iOS SDK from `Xcode_27.2.xip`
+  (`xtool sdk install`, iPhoneOS 27.2). `LiveKitHello/` (LiveKit 2.19, WebRTC xcframework 150.7871.04,
+  RustLiveKitFFI) builds in ~2 min to an arm64 iOS `.app` (28 MB) with both frameworks embedded and linked via
+  `@rpath`. Device link without usbipd or admin: Apple Mobile Device Service on Windows (127.0.0.1:27015) is reached
+  from WSL through `tools/muxrelay.py` + `tools/muxbridge_win.py` (verified: the device list comes back, empty so
+  far). Still to verify: sign, install, launch on the phone.
+- **I2-I5 (compiles -- `tools/wsl-build.sh VoiceMitra build`, merged Info.plist checked; not run on a device):**
+  - Sign-in: the main screen is **username + password** (`POST /api/auth/login`, API.md "Identity: login";
+    username trimmed, password as typed; 401 wrong, 429 too many). "Use a code instead" -> the 6-digit pairing pad
+    (`POST /api/devices/pair`, `platform: "ios"`, `push_token: null`; 400 wrong/expired, 429). Either way the
+    device is stored in the Keychain; `GET /api/devices/{id}` on launch, 401/404 -> back to sign-in; "Sign out" in
+    Settings = `DELETE /api/devices/{id}`. Server URL setting (default the tunnel
+    `https://test-voicemitra.apoorvm.com`). Debug builds also have a "pick a patient" list (`DEV_PICKER`,
+    `/api/app/people`).
+  - Home: greeting, next dose, today's doses, how-doing, upcoming reminder calls, big Talk button (`POST
+    .../voice-call` with `X-Device-Token`; join from the socket's `voice_call` or `GET .../voice-call`).
+    Hindi/English toggle, Dynamic Type fonts.
+  - Ringing: patient socket while in the foreground only (backoff 1-30 s, ping 20 s); `voice_call` /
+    `snapshot.voice` -> CallKit incoming call; answer -> LiveKit join; decline/hang-up -> `POST .../call/end`;
+    `voice_call_ended` or room disconnect -> CallKit call ended. In-app full-screen ring if CallKit refuses.
+  - Call screen: timer, mute, speaker (on by default), big hang-up. Audio: LiveKit's automatic session config off,
+    its engine only enabled between CallKit's didActivate/didDeactivate; `.playAndRecord` / `.voiceChat`.
+    Info.plist: microphone text, `UIBackgroundModes` audio + voip, local-network ATS.
+- **Not done:** run on the phone and test everything in "Done means" (sign in with a test patient's login, not
+  "Apoorv"); I6 (SideStore install + README section).

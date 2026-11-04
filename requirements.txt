@@ -15,5 +15,8 @@ pipecat-ai[livekit,sarvam]
 livekit-api
 aiohttp
 
+# Phone app: ring the patient's Android phone (FCM push). Optional at runtime: see FIREBASE_CREDENTIALS.
+firebase-admin
+
 # Eval harness (added in Chunk 5)
 pytest

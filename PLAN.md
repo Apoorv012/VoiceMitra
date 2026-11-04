@@ -648,6 +648,49 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
   - Contract: `mobile/API.md`. Agents: the user starts one lead agent that runs an Android agent and an iPhone
     agent in this checkout (no worktrees, nobody commits; strict file ownership -- see `mobile/README.md`).
   - Later for a closed iPhone: Zadarma (untested), Groundwire, AlarmKit, or Apple's $99/yr account.
+  - **Build status: STARTED (2026-11-04)** -- lead agent running the Android agent (backend B1-B3 first, then
+    the app) and the iPhone agent (toolchain check I1 first). Per-step status lives in each `SPEC.md`; done
+    steps are mirrored here.
+    - **B1 pairing + devices -- DONE (2026-11-04).** `Device` / `PairingCode` models, `backend/routers/devices.py`
+      (pair, check, update push token, unpair, list a patient's phones; 429 after too many wrong codes), web
+      "Connect a phone" card on the patient's Me tab (big code, countdown, "Phone connected", Hindi/English).
+      `mobile/API.md` updated (`expires_in`, `GET /api/devices/{id}`, 401/404 = forget pairing). Verified: pytest
+      48/48 (9 new, throwaway DB); tsc + lint clean. Not yet seen by the user.
+    - **B2 join info -- DONE (2026-11-04).** `GET /api/patients/{id}/voice-call` -> `{call_id, url, token}` / 404;
+      `POST .../voice-call` takes an optional `X-Device-Token`. Covered by the tests above.
+    - **B3 ring push -- DONE in code (2026-11-04), not yet tried against real FCM.** `backend/push_fcm.py`
+      (`firebase-admin`): a `ring` data message (high priority, TTL 60 s) to the patient's Android phones when a voice
+      call starts (except the phone that started it), and a `call_ended` one when it ends so a ringing phone stops;
+      unregistered tokens cleared; no `FIREBASE_CREDENTIALS` -> skipped with a log line. Verified: pytest 53/53
+      (5 new, fake sender). Firebase set up by the user (2026-11-04): project `voice-mitra`, `google-services.json`
+      in `mobile/android/app/` (gitignored), service-account key outside the repo in `C:/Users/apoor/keys/voicemitra/`,
+      `FIREBASE_CREDENTIALS` in `.env`; a dry-run send confirmed the key authenticates with FCM. A real ring still
+      needs the app on a phone.
+    - **App login (username + password) -- DONE (2026-11-04; user: "the user should simply use it by logging
+      into the app").** Built by a separate login agent: `POST /api/auth/login` returns the same device credentials
+      as pairing (everything after sign-in unchanged; log out = unpair). `backend/auth.py` (scrypt + random salt,
+      constant-time compare, unknown usernames checked against a dummy hash), `backend/routers/auth.py`
+      (PUT/GET/DELETE `/api/patients/{id}/login`, 409 on a taken username, 429 after 20 failures / 10 min counted
+      across all phones), logins in their own `patient_logins` collection so no patient response can carry a hash.
+      Web: "Phone app login" card on the Me tab (Hindi/English). Pairing stays as the fallback ("Use a code
+      instead"). Only the patient apps get login; web roles are still picked by name. Verified: pytest 60/60
+      (7 new), tsc + lint clean, card checked in a browser on a throwaway DB. Open: the backend has no way to delete a
+      patient yet; if one is added it must also remove the patient's `patient_logins` row, `devices` and unused
+      `pairing_codes`. Changing a password doesn't sign out phones already
+      in; the 429 limit is global, so 20 wrong tries by anyone pause logins for everyone for ~10 min.
+    - **iPhone I1 toolchain -- DONE (2026-11-04): xtool on WSL builds and links the LiveKit Swift SDK**
+      (LiveKit 2.19 + its WebRTC and Rust frameworks, iPhoneOS 27.2 SDK from `Xcode_27.2.xip`); no GitHub Actions
+      fallback needed. The iPhone is reached from WSL through Windows' Apple Mobile Device Service via a small relay
+      (`mobile/ios/tools/muxrelay.py`) -- no usbipd/admin. Not yet verified: signing, installing and launching on
+      the phone (needs the user's spare Apple ID via `xtool auth login` and the iPhone plugged in). The app's
+      sign-in (login + code fallback), home, ringing and call code (I2-I5) **compiles cleanly** with xtool (arm64
+      .app, LiveKit frameworks embedded, bundle id `app.voicemitra.patient`); nothing has run on a phone yet. The user signed xtool in with the spare
+      Apple ID (2026-11-04).
+    - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
+      device, then test **both phones together** once the Android phone arrives.
+    - **Android app (A1-A6) -- STARTING.** No Android SDK was on this PC (only JDK 25). User decided
+      (2026-11-04): install the **command-line SDK locally, no Android Studio and no emulator** ("i dont want the
+      emulator to run on my laptop"); testing happens on a real Android phone the user is getting.
 Steps 1-3 and 6-8 below don't depend on this.
 
 **What exists:** voice + chat calls, dose/symptom logging, the seriousness tiers, caregiver records with a

@@ -884,7 +884,58 @@
           "live"
         ],
         "summary": "Start Patient Voice Call",
+        "description": "Talk now (web or phone app). A phone sends its `X-Device-Token` so it isn't rung for the call\nit just started itself (mobile/API.md).",
         "operationId": "start_patient_voice_call_api_patients__patient_id__voice_call_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "x-device-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Get Patient Voice Call",
+        "description": "How a phone joins the voice call it was just rung for: LiveKit `url` + `token` (identity\n`patient`). 404 when no voice call is waiting or in progress (it ended, or was never started).",
+        "operationId": "get_patient_voice_call_api_patients__patient_id__voice_call_get",
         "parameters": [
           {
             "name": "patient_id",
@@ -897,8 +948,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceCallJoin"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1067,6 +1125,479 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/pairing-code": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Create Pairing Code",
+        "operationId": "create_pairing_code_api_patients__patient_id__pairing_code_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCodeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Devices",
+        "description": "The patient's paired phones (the web page shows them, and notices when a new one pairs).",
+        "operationId": "list_devices_api_patients__patient_id__devices_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceView"
+                  },
+                  "title": "Response List Devices Api Patients  Patient Id  Devices Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/pair": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Pair Device",
+        "operationId": "pair_device_api_devices_pair_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{device_id}": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Get Device",
+        "description": "The app checks it is still paired (404 = unpaired, 401 = wrong token: pair again).",
+        "operationId": "get_device_api_devices__device_id__get",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "x-device-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Update Device",
+        "description": "FCM rotates registration tokens; the app sends the new one.",
+        "operationId": "update_device_api_devices__device_id__put",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "x-device-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Unpair Device",
+        "operationId": "unpair_device_api_devices__device_id__delete",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "x-device-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/login": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set Login",
+        "operationId": "set_login_api_patients__patient_id__login_put",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "username or password too short/long"
+          },
+          "409": {
+            "description": "username taken by another patient"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Login",
+        "operationId": "get_login_api_patients__patient_id__login_get",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no login set"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Login",
+        "description": "Phones already logged in stay connected (unpair them separately).",
+        "operationId": "delete_login_api_patients__patient_id__login_delete",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "wrong username or password"
+          },
+          "429": {
+            "description": "too many failed logins, paused"
           },
           "422": {
             "description": "Validation Error",
@@ -1905,6 +2436,78 @@
         ],
         "title": "DayView"
       },
+      "DeviceInfo": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "patient_name": {
+            "type": "string",
+            "title": "Patient Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "patient_id",
+          "patient_name"
+        ],
+        "title": "DeviceInfo"
+      },
+      "DevicePlatform": {
+        "type": "string",
+        "enum": [
+          "android",
+          "ios"
+        ],
+        "title": "DevicePlatform"
+      },
+      "DeviceView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/DevicePlatform"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "name",
+          "created_at",
+          "last_seen"
+        ],
+        "title": "DeviceView"
+      },
       "Doctor": {
         "properties": {
           "_id": {
@@ -2439,6 +3042,67 @@
         ],
         "title": "LogView"
       },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Password"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/DevicePlatform"
+          },
+          "push_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Token"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password",
+          "platform"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginView": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "LoginView"
+      },
       "MedicineStatus": {
         "type": "string",
         "enum": [
@@ -2563,6 +3227,101 @@
           "patients"
         ],
         "title": "OperatorRoster"
+      },
+      "PairRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 12,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/DevicePlatform"
+          },
+          "push_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Token"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "platform"
+        ],
+        "title": "PairRequest"
+      },
+      "PairResponse": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "device_token": {
+            "type": "string",
+            "title": "Device Token"
+          },
+          "patient_id": {
+            "type": "string",
+            "title": "Patient Id"
+          },
+          "patient_name": {
+            "type": "string",
+            "title": "Patient Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "device_token",
+          "patient_id",
+          "patient_name"
+        ],
+        "title": "PairResponse"
+      },
+      "PairingCodeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "expires_at",
+          "expires_in"
+        ],
+        "title": "PairingCodeOut"
       },
       "Patient": {
         "properties": {
@@ -3259,6 +4018,26 @@
         ],
         "title": "RosterRow"
       },
+      "SetLoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "SetLoginRequest"
+      },
       "SlotView": {
         "properties": {
           "dosage_id": {
@@ -3488,6 +4267,24 @@
         ],
         "title": "TranscriptEntry"
       },
+      "UpdateDeviceRequest": {
+        "properties": {
+          "push_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Token"
+          }
+        },
+        "type": "object",
+        "title": "UpdateDeviceRequest"
+      },
       "UpdatePatientRequest": {
         "properties": {
           "name": {
@@ -3627,6 +4424,29 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VoiceCallJoin": {
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "call_id",
+          "url",
+          "token"
+        ],
+        "title": "VoiceCallJoin"
       }
     }
   }

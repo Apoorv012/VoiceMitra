@@ -1,6 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { ConnectPhone } from "@/components/ConnectPhone";
+import { PhoneLogin } from "@/components/PhoneLogin";
 import { Icon } from "@/components/Icon";
 import { LangSwitch } from "@/components/LangSwitch";
 import { Avatar, ErrorState, Loading } from "@/components/ui";
@@ -57,6 +59,9 @@ export default function Me() {
           </li>
         </ul>
       </section>
+
+      <PhoneLogin patientId={id} />
+      <ConnectPhone patientId={id} />
 
       {!install.installed && (install.canPrompt || install.showIosSteps) && (
         <section className="card">

@@ -280,3 +280,48 @@ class Patient(MongoDocument):
     prescription_ids: list[str] = Field(default_factory=list)
     daily_log_ids: list[str] = Field(default_factory=list)
     call_ids: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Phones (mobile/API.md): a patient's phone pairs once with a short code from the web app, then
+# rings when a voice call starts for them.
+# ---------------------------------------------------------------------------
+
+class DevicePlatform(str, Enum):
+    android = "android"
+    ios = "ios"
+
+
+class Device(MongoDocument):
+    """A phone paired to a patient. Its secret token is stored only as a SHA-256 hash."""
+
+    patient_id: str
+    platform: DevicePlatform
+    push_token: str | None = None  # FCM registration token (Android); none on iPhone for now
+    name: str | None = None        # e.g. "Pixel 7", shown on the patient's page
+    token_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_seen: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PairingCode(MongoDocument):
+    """A 6-digit code the web app shows so a phone can pair with this patient. Single use."""
+
+    code: str
+    patient_id: str
+    expires_at: datetime
+    used: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PatientLogin(MongoDocument):
+    """The username + password a patient signs in to the phone app with (mobile/API.md, "Identity: login").
+
+    Its own collection, keyed by the patient's id (`id` == patient_id), so the password hash can never
+    end up in a patient response. Only an scrypt hash of the password is stored (backend/auth.py).
+    """
+
+    username: str      # as typed (trimmed), shown on the web page
+    username_key: str  # lower-cased: what logins match on, unique
+    password_hash: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

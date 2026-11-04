@@ -173,6 +173,46 @@ export const MESSAGES = {
     hi: "शेयर बटन दबाएँ, फिर “Add to Home Screen” चुनें।",
   },
 
+  // connect a phone (pairing the VoiceMitra phone app)
+  phone_title: { en: "Connect a phone", hi: "फ़ोन जोड़ें" },
+  phone_sub: {
+    en: "With the VoiceMitra app, your phone rings like a normal call when it's time for your medicine.",
+    hi: "VoiceMitra ऐप से, दवा का समय होने पर आपका फ़ोन आम कॉल की तरह बजेगा।",
+  },
+  phone_btn: { en: "Get a code", hi: "कोड पाएँ" },
+  phone_another: { en: "Connect another phone", hi: "एक और फ़ोन जोड़ें" },
+  phone_enter: { en: "Open the VoiceMitra app on the phone and type this number:", hi: "फ़ोन पर VoiceMitra ऐप खोलें और यह नंबर लिखें:" },
+  phone_expires: { en: "Works for {time} more", hi: "{time} और चलेगा" },
+  phone_expired: { en: "This number has expired.", hi: "यह नंबर अब नहीं चलेगा।" },
+  phone_new_code: { en: "Get a new code", hi: "नया कोड पाएँ" },
+  phone_waiting: { en: "Waiting for the phone…", hi: "फ़ोन का इंतज़ार है…" },
+  phone_done: { en: "Phone connected", hi: "फ़ोन जुड़ गया" },
+  phone_connected: { en: "Connected phones", hi: "जुड़े हुए फ़ोन" },
+  phone_unnamed: { en: "Phone", hi: "फ़ोन" },
+  phone_error: { en: "Couldn't get a code. Please try again.", hi: "कोड नहीं मिल सका। कृपया फिर कोशिश करें।" },
+
+  // phone app login (username + password for the VoiceMitra phone app)
+  login_title: { en: "Phone app login", hi: "फ़ोन ऐप लॉगिन" },
+  login_sub: {
+    en: "Sign in to the VoiceMitra phone app with this username and password.",
+    hi: "VoiceMitra फ़ोन ऐप में इस यूज़रनेम और पासवर्ड से लॉगिन करें।",
+  },
+  login_username: { en: "Username", hi: "यूज़रनेम" },
+  login_password: { en: "Password", hi: "पासवर्ड" },
+  login_new_password: { en: "New password", hi: "नया पासवर्ड" },
+  login_pass_hint: { en: "At least {n} letters or numbers.", hi: "कम से कम {n} अक्षर या अंक।" },
+  login_show: { en: "Show password", hi: "पासवर्ड दिखाएँ" },
+  login_none: { en: "No login set yet.", hi: "अभी कोई लॉगिन नहीं बना है।" },
+  login_set: { en: "Set a login", hi: "लॉगिन बनाएँ" },
+  login_change: { en: "Change login", hi: "लॉगिन बदलें" },
+  login_save: { en: "Save", hi: "सेव करें" },
+  login_cancel: { en: "Cancel", hi: "रद्द करें" },
+  login_saved: { en: "Saved. Use these on the phone app.", hi: "सेव हो गया। फ़ोन ऐप में इन्हीं से लॉगिन करें।" },
+  login_short_user: { en: "The username needs at least {n} letters.", hi: "यूज़रनेम में कम से कम {n} अक्षर चाहिए।" },
+  login_short_pass: { en: "The password needs at least {n} letters or numbers.", hi: "पासवर्ड में कम से कम {n} अक्षर या अंक चाहिए।" },
+  login_taken: { en: "Someone else already has this username. Please pick another.", hi: "यह यूज़रनेम किसी और का है। कृपया दूसरा चुनें।" },
+  login_error: { en: "Couldn't save. Please try again.", hi: "सेव नहीं हो सका। कृपया फिर कोशिश करें।" },
+
   // the call
   call_connecting: { en: "Connecting…", hi: "जोड़ा जा रहा है…" },
   call_allow_mic: { en: "Please allow the microphone to start", hi: "शुरू करने के लिए माइक्रोफ़ोन की अनुमति दें" },

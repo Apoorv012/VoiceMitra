@@ -16,7 +16,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
-from backend import family_feed
+from backend import family_feed, push_fcm
 from backend.db import reminders_col
 from backend.livekit_client import create_call_room as create_livekit_room
 from backend.models import Reminder, ReminderStatus
@@ -270,9 +270,11 @@ def _voice_escalation_event(voice: VoiceCall) -> dict:
 
 async def start_voice_call(
     patient_id: str, *, slot_at: datetime | None = None, dosage_ids: list[str] | None = None,
+    skip_device_id: str | None = None,
 ) -> VoiceCall:
     """Put the patient and the agent in a LiveKit room: the agent joins now (in-process), the
-    patient's page joins with the token it is sent."""
+    patient's page joins with the token it is sent, and their phones are rung (except
+    `skip_device_id`, the phone that started this call itself)."""
     existing = _voice_calls.get(patient_id)
     if existing is not None:
         return existing
@@ -292,6 +294,7 @@ async def start_voice_call(
     _voice_calls[patient_id] = voice
     publish_patient(patient_id, _voice_event(voice))
     publish_operator({"type": "call_started", "patient_id": patient_id})
+    push_fcm.spawn(push_fcm.ring(patient_id, call_id, skip_device_id=skip_device_id), f"ring {call_id}")
     return voice
 
 
@@ -329,6 +332,7 @@ async def finish_voice_call(patient_id: str, call_id: str, *, speak: str | None)
         await voice.transport.abort()
     publish_patient(patient_id, {"type": "voice_call_ended", "call_id": call_id})
     publish_operator({"type": "call_ended", "patient_id": patient_id})
+    push_fcm.spawn(push_fcm.cancel_ring(patient_id, call_id), f"cancel ring {call_id}")
 
 
 async def end_call(patient_id: str) -> None:

@@ -80,4 +80,22 @@ with USB debugging, or sharing the APK file.
 
 ## Status
 
-Not started.
+- **B1 Pairing + devices -- DONE (2026-11-04).** `Device` / `PairingCode` models, `backend/routers/devices.py`
+  (pairing code, pair, check / update / unpair with `X-Device-Token`, list a patient's phones). Token stored
+  hashed; one live code per patient; wrong-code limit (429). Web: "Connect a phone" card on the patient's **Me**
+  tab (`web/src/components/ConnectPhone.tsx`): big code, countdown, "Phone connected" as soon as a phone pairs,
+  Hindi/English. Verified: pytest (`tests/test_devices.py`, throwaway DB) + in the browser (code shown -> paired
+  with curl -> card turned green, both languages). Contract additions in `../API.md` (`expires_in`,
+  `GET /api/devices/{id}`, 401/404/429).
+- **B2 Join info -- DONE (2026-11-04).** `GET /api/patients/{id}/voice-call` -> `{call_id, url, token}` / 404;
+  `POST .../voice-call` takes an optional `X-Device-Token`. pytest `tests/test_voice_call_join.py`.
+- **B3 Ring push -- DONE in code (2026-11-04), not yet tried against real FCM** (needs the user's Firebase files).
+  `backend/push_fcm.py`: `ring` data message on every voice-call start (skips the calling phone), plus a
+  `call_ended` message when the call ends so a ringing phone stops (added to `../API.md`); unregistered tokens
+  cleared; skipped with one log line without `FIREBASE_CREDENTIALS`. pytest `tests/test_push_fcm.py` (fake sender).
+  Firebase is set up (2026-11-04, by the user/lead): project `voice-mitra`, `app/google-services.json` in place,
+  `FIREBASE_CREDENTIALS` in `.env`; a dry-run send authenticated. A real ring still needs a phone's token from the
+  app. firebase-admin 7.7 warns that `Message.token` is deprecated in favour of `fid` (the Firebase Installation ID,
+  a different id); the registration token still works, so the app keeps sending `FirebaseMessaging.getToken()`.
+- Run backend tests with the venv: `.venv/Scripts/python -m pytest` (system Python lacks the packages).
+- A1-A6, B4, B5: not started.

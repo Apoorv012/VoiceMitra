@@ -11,8 +11,9 @@ from fastapi import FastAPI
 from backend import escalations
 from backend.db import ensure_indexes
 from backend.live_calls import rearm_pending_reminders
-from backend.routers import app_api, calls, caregivers, doctors, live, patients
+from backend.routers import app_api, calls, caregivers, devices, doctors, live, patients
 from backend.routers import escalations as escalation_routes
+from backend.routers import auth as auth_routes
 
 
 @asynccontextmanager
@@ -33,6 +34,8 @@ app.include_router(calls.router)
 app.include_router(live.router)
 app.include_router(caregivers.router)
 app.include_router(escalation_routes.router)
+app.include_router(devices.router)
+app.include_router(auth_routes.router)
 
 
 @app.get("/health")

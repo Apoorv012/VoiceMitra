@@ -204,6 +204,11 @@ a.list-item:hover, .list > li > a:hover { background: var(--sunken); text-decora
 .callout.accent { background: var(--accent-soft); color: var(--accent); }
 .callout p + p { margin-top: 4px; }
 
+/* Connect a phone: the pairing code, big enough to read from across a table */
+.pair-box { background: var(--sunken); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 12px; text-align: center; }
+.pair-code { font-size: clamp(2.4rem, 11vw, 3.2rem); font-weight: 700; letter-spacing: 0.12em; line-height: 1.2;
+  font-variant-numeric: tabular-nums; margin: 6px 0; color: var(--ink); }
+
 .empty {
   text-align: center; color: var(--muted); padding: 28px 16px;
 }
@@ -213,7 +218,7 @@ a.list-item:hover, .list > li > a:hover { background: var(--sunken); text-decora
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label { font-size: 0.85rem; font-weight: 600; color: var(--ink-2); }
 .field .hint { font-size: 0.8rem; color: var(--muted); }
-input[type=text], input[type=number], input[type=tel], input[type=date], input[type=search],
+input[type=text], input[type=number], input[type=tel], input[type=date], input[type=search], input[type=password],
 select, textarea {
   width: 100%; min-height: 44px; padding: 10px 12px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);

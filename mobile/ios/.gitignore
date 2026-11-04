@@ -1,0 +1,13 @@
+# Build output from xtool / SwiftPM (builds normally run in WSL's ~/voicemitra-ios, but keep the repo clean
+# if one ever runs here).
+.build/
+.swiftpm/
+.bsp/
+xtool/
+*.app/
+*.ipa
+*.xcarchive/
+*.dSYM/
+DerivedData/
+Package.resolved
+__pycache__/

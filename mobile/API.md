@@ -8,16 +8,39 @@ Base URL: the tunnel's public HTTPS hostname (README: "Cloudflare Tunnel sends `
 :8000"), configurable in each app (a settings field, or a build constant for the pilot). Local dev on the same
 Wi-Fi: `http://<pc-ip>:8000` (Android needs cleartext allowed for that host in debug builds only).
 
-There is no login yet (built last, by design). The only credential is the device token from pairing.
+The app's only credential is a **device token**, which it gets either by logging in (the main way) or by pairing
+(the fallback). Both return the same thing; everything after that is the same.
 
-## Identity: pairing (New)
+## Identity: login (username + password) (Built -- login agent)
+
+**The main way in.** The patient (or their family) sets a username and password on the patient's **Me** tab in the
+web app ("Phone app login" card); the app shows a login screen with just those two fields. Pairing (below) stays
+as a fallback, e.g. "Use a code instead" on the login screen.
 
 | | |
 |---|---|
-| `POST /api/patients/{patient_id}/pairing-code` | Web only (patient page, "Connect a phone" button). -> `{"code": "482913", "expires_at": "<iso>"}`. 6 digits, valid 10 min, single use. |
-| `POST /api/devices/pair` | App. Body `{"code": "482913", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> `{"device_id": "...", "device_token": "...", "patient_id": "...", "patient_name": "..."}`. 400 on a wrong/expired code. |
+| `POST /api/auth/login` | App. Body `{"username": "sunita", "password": "...", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> **exactly the pairing response** `{"device_id", "device_token", "patient_id", "patient_name"}`. Username is trimmed and case-insensitive; the password is taken as typed. **401** `wrong username or password` (same for an unknown username and a wrong password); **429** after too many failed logins (paused ~10 min, counted across all phones, like wrong pairing codes). Same `push_token` replaces that phone's old record, as with pairing. |
+| `DELETE /api/devices/{device_id}` | **Log out** = the existing unpair call (header `X-Device-Token`). 204. Then show the login screen. |
+| `PUT /api/patients/{patient_id}/login` | Web only. Body `{"username", "password"}` -> 204. Sets or changes the login. Username 3-40 characters (after trimming), password at least 6 -- otherwise **400**; **409** if another patient has that username. 404 unknown patient. Phones already logged in stay logged in. |
+| `GET /api/patients/{patient_id}/login` | Web only. -> `{"username"}`, or 404 if none is set. The password is never returned (only an scrypt hash is stored). |
+| `DELETE /api/patients/{patient_id}/login` | Web only. 204. Removes the login (phones already logged in stay connected). |
+
+After a successful login the app stores `device_id`, `device_token`, `patient_id` exactly as after pairing, and
+the `X-Device-Token` rules below apply unchanged (on 404/401 forget them and show the login screen).
+
+## Identity: pairing (Built -- B1, now the fallback)
+
+| | |
+|---|---|
+| `POST /api/patients/{patient_id}/pairing-code` | Web only (patient's **Me** tab, "Connect a phone" card). -> `{"code": "482913", "expires_at": "<iso, UTC with offset>", "expires_in": 600}`. 6 digits, valid 10 min (`expires_in` seconds -- count down from that, not from the clock), single use; asking again retires the previous code. 404 unknown patient. |
+| `POST /api/devices/pair` | App. Body `{"code": "482913", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> `{"device_id": "...", "device_token": "...", "patient_id": "...", "patient_name": "..."}`. Non-digits in `code` are ignored (spaces OK). 400 on a wrong/expired/used code; **429** after too many wrong codes (paused ~10 min). Pairing again with the same `push_token` replaces that phone's old record. |
+| `GET /api/devices/{device_id}` | App, header `X-Device-Token`. -> `{"device_id", "patient_id", "patient_name"}`. Use on launch to check the phone is still paired. |
 | `PUT /api/devices/{device_id}` | App, header `X-Device-Token`. Body `{"push_token": "..."}` (FCM rotates tokens). 204. |
 | `DELETE /api/devices/{device_id}` | App ("Unpair"), header `X-Device-Token`. 204. |
+| `GET /api/patients/{patient_id}/devices` | Web: the paired phones `[{"id", "platform", "name", "created_at", "last_seen"}]` (no tokens). |
+
+Errors on the `X-Device-Token` endpoints: **404** = the device no longer exists (unpaired elsewhere) and **401** =
+missing/wrong token -- either way the app forgets its pairing and shows the login screen.
 
 The app stores `device_id`, `device_token`, `patient_id`. Every other call below is keyed by `patient_id`.
 
@@ -58,13 +81,29 @@ JSON messages (shapes in `web/src/lib/events.ts`). The ones the apps need:
 The iPhone app (foreground only) rings from `voice_call`. The Android app rings from the push below and may also
 use the socket while open.
 
-## Push (New, Android only)
+## Push (Built -- B3, Android only)
 
-FCM **data** message, `priority: high`, TTL 60 s, sent to every Android device of the patient when a voice call
-starts (any trigger: Talk now from the web, the operator's Call now, a reminder, the dose-time scheduler):
+FCM **data** messages (no `notification` block -- the app draws its own call screen), `priority: high`, TTL 60 s,
+sent to every Android device of the patient that has a `push_token` (`backend/push_fcm.py`). All values are strings.
+No health information in the payloads.
 
-```json
-{"type": "ring", "call_id": "<id>", "patient_id": "<id>"}
-```
+- **Ring** -- when a voice call starts (any trigger: Talk now from the web, the operator's Call now, a reminder,
+  the dose-time scheduler), to every Android phone except the one that sent `X-Device-Token` when starting it:
 
-No health information in the payload. The app then calls `GET .../voice-call` for the join details on answer.
+  ```json
+  {"type": "ring", "call_id": "<id>", "patient_id": "<id>"}
+  ```
+
+  The app then calls `GET .../voice-call` for the join details on answer (404 = the call is already over: stop).
+- **Stop ringing** -- when that voice call ends for any reason (answered and finished, declined, operator hung
+  up, nobody joined in 120 s), to every Android phone of the patient:
+
+  ```json
+  {"type": "call_ended", "call_id": "<id>", "patient_id": "<id>"}
+  ```
+
+  If the phone is ringing for `call_id`, stop; otherwise ignore it (an in-progress call ends through LiveKit).
+
+Tokens FCM reports as unregistered are cleared (`push_token` -> null); the app sends a fresh one with
+`PUT /api/devices/{id}` on launch and from `onNewToken`. Without `FIREBASE_CREDENTIALS` in `.env` nothing is sent
+(one log line).

@@ -359,9 +359,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Patient Voice Call
+         * @description How a phone joins the voice call it was just rung for: LiveKit `url` + `token` (identity
+         *     `patient`). 404 when no voice call is waiting or in progress (it ended, or was never started).
+         */
+        get: operations["get_patient_voice_call_api_patients__patient_id__voice_call_get"];
         put?: never;
-        /** Start Patient Voice Call */
+        /**
+         * Start Patient Voice Call
+         * @description Talk now (web or phone app). A phone sends its `X-Device-Token` so it isn't rung for the call
+         *     it just started itself (mobile/API.md).
+         */
         post: operations["start_patient_voice_call_api_patients__patient_id__voice_call_post"];
         delete?: never;
         options?: never;
@@ -431,6 +440,124 @@ export interface paths {
         put?: never;
         /** End Escalation */
         post: operations["end_escalation_api_escalations__escalation_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/pairing-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Pairing Code */
+        post: operations["create_pairing_code_api_patients__patient_id__pairing_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Devices
+         * @description The patient's paired phones (the web page shows them, and notices when a new one pairs).
+         */
+        get: operations["list_devices_api_patients__patient_id__devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pair Device */
+        post: operations["pair_device_api_devices_pair_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Device
+         * @description The app checks it is still paired (404 = unpaired, 401 = wrong token: pair again).
+         */
+        get: operations["get_device_api_devices__device_id__get"];
+        /**
+         * Update Device
+         * @description FCM rotates registration tokens; the app sends the new one.
+         */
+        put: operations["update_device_api_devices__device_id__put"];
+        post?: never;
+        /** Unpair Device */
+        delete: operations["unpair_device_api_devices__device_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Login */
+        get: operations["get_login_api_patients__patient_id__login_get"];
+        /** Set Login */
+        put: operations["set_login_api_patients__patient_id__login_put"];
+        post?: never;
+        /**
+         * Delete Login
+         * @description Phones already logged in stay connected (unpair them separately).
+         */
+        delete: operations["delete_login_api_patients__patient_id__login_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_api_auth_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -710,6 +837,38 @@ export interface components {
             /** Slots */
             slots: components["schemas"]["SlotView"][];
         };
+        /** DeviceInfo */
+        DeviceInfo: {
+            /** Device Id */
+            device_id: string;
+            /** Patient Id */
+            patient_id: string;
+            /** Patient Name */
+            patient_name: string;
+        };
+        /**
+         * DevicePlatform
+         * @enum {string}
+         */
+        DevicePlatform: "android" | "ios";
+        /** DeviceView */
+        DeviceView: {
+            /** Id */
+            id: string;
+            platform: components["schemas"]["DevicePlatform"];
+            /** Name */
+            name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+        };
         /** Doctor */
         Doctor: {
             /** Id */
@@ -891,6 +1050,23 @@ export interface components {
             /** Symptoms */
             symptoms: components["schemas"]["SymptomView"][];
         };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
+            platform: components["schemas"]["DevicePlatform"];
+            /** Push Token */
+            push_token?: string | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** LoginView */
+        LoginView: {
+            /** Username */
+            username: string;
+        };
         /**
          * MedicineStatus
          * @enum {string}
@@ -932,6 +1108,39 @@ export interface components {
             timezone: string;
             /** Patients */
             patients: components["schemas"]["RosterRow"][];
+        };
+        /** PairRequest */
+        PairRequest: {
+            /** Code */
+            code: string;
+            platform: components["schemas"]["DevicePlatform"];
+            /** Push Token */
+            push_token?: string | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** PairResponse */
+        PairResponse: {
+            /** Device Id */
+            device_id: string;
+            /** Device Token */
+            device_token: string;
+            /** Patient Id */
+            patient_id: string;
+            /** Patient Name */
+            patient_name: string;
+        };
+        /** PairingCodeOut */
+        PairingCodeOut: {
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Expires In */
+            expires_in: number;
         };
         /** Patient */
         Patient: {
@@ -1120,6 +1329,13 @@ export interface components {
             in_call: boolean;
             attention: components["schemas"]["AttentionView"];
         };
+        /** SetLoginRequest */
+        SetLoginRequest: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
+        };
         /** SlotView */
         SlotView: {
             /** Dosage Id */
@@ -1188,6 +1404,11 @@ export interface components {
             /** Note */
             note: string | null;
         };
+        /** UpdateDeviceRequest */
+        UpdateDeviceRequest: {
+            /** Push Token */
+            push_token?: string | null;
+        };
         /**
          * UpdatePatientRequest
          * @description Only the fields sent are changed. `caregiver: null` removes the family contact.
@@ -1221,6 +1442,15 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VoiceCallJoin */
+        VoiceCallJoin: {
+            /** Call Id */
+            call_id: string;
+            /** Url */
+            url: string;
+            /** Token */
+            token: string;
         };
     };
     responses: never;
@@ -1881,10 +2111,43 @@ export interface operations {
             };
         };
     };
-    start_patient_voice_call_api_patients__patient_id__voice_call_post: {
+    get_patient_voice_call_api_patients__patient_id__voice_call_get: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceCallJoin"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_patient_voice_call_api_patients__patient_id__voice_call_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-device-token"?: string | null;
+            };
             path: {
                 patient_id: string;
             };
@@ -2032,6 +2295,361 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    create_pairing_code_api_patients__patient_id__pairing_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairingCodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_devices_api_patients__patient_id__devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pair_device_api_devices_pair_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PairRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_device_api_devices__device_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-device-token"?: string | null;
+            };
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_device_api_devices__device_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-device-token"?: string | null;
+            };
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unpair_device_api_devices__device_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-device-token"?: string | null;
+            };
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_login_api_patients__patient_id__login_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginView"];
+                };
+            };
+            /** @description no login set */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_login_api_patients__patient_id__login_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description username or password too short/long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description username taken by another patient */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_login_api_patients__patient_id__login_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_api_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairResponse"];
+                };
+            };
+            /** @description wrong username or password */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description too many failed logins, paused */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
