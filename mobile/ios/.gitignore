@@ -11,3 +11,6 @@ xtool/
 DerivedData/
 __pycache__/
 *.local.txt
+
+# Device screenshots from test runs (tools: afcclient / idevicescreenshot).
+screenshots/

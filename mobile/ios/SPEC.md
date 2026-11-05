@@ -58,6 +58,16 @@ on it (needs a pairing file made on the PC once).
 speaker and earpiece), Call now from the web ringing CallKit while the app is open, answer, decline. Closed app ->
 no ring (expected; free Apple ID). Not yet: SideStore install (I6) and the skipped checklist items below.**
 
+- **UI redesign (2026-11-05, builds cleanly; on-device check pending):** the first version "looked horrendous", so
+  the app now matches the web patient app: `Theme.swift` holds the web's colours (`globals.css`, light + dark,
+  good/warn/serious/crit) and shared pieces (cards, pills, primary button, EN/हि switch, Dynamic Type page titles).
+  Four tabs like `web/src/app/patients/[id]/`: **Today** (greeting, the "Talk to VoiceMitra" card with the one big
+  button, next dose, today's medicines, the week with legend, how you're doing, calls coming up, family line,
+  "Ready for calls" line), **Medicines** (allergies, current/finished with schedule, days left, taken this week),
+  **History** (check-ins and family alerts in one timeline, doctor chips as on the web), **Me** (profile,
+  language, server, family contact with a Call button, allergies, this iPhone, Sign out). `SignInView` replaces
+  `PairingView` (password first, 6-box code pad). Call screen: dark full-screen, big round buttons, the web's call
+  wording. New app icon. Wording from `web/src/lib/i18n.tsx`.
 - **Device test so far (2026-11-04, test patient `05803d68-...`, login `testiphone`):** install OK (two Apple
   provisioning hiccups: a timeout, then HTTP 500 -- retry worked; needs the `zip` apt package). Login OK; the
   device registers (`platform: ios`) and the launch check works. Talk now connects and plays the agent.

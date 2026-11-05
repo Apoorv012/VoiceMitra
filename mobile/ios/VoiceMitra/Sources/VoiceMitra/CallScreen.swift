@@ -5,19 +5,37 @@ struct CallScreen: View {
     @Environment(AppModel.self) private var model
 
     private var calls: CallCenter { model.calls }
+    @State private var pulse = false
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "person.wave.2.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(.white)
+            ZStack {
+                // Soft rings that breathe while ringing / connecting, and settle once live.
+                ForEach(0..<3) { i in
+                    Circle()
+                        .fill(Color(UIColor(hex: 0x8FBC72)).opacity(0.10))
+                        .frame(width: 130 + CGFloat(i) * 46, height: 130 + CGFloat(i) * 46)
+                        .scaleEffect(pulse && calls.phase != .live ? 1.08 : 1)
+                        .animation(.easeInOut(duration: 1.2).repeatForever().delay(Double(i) * 0.2), value: pulse)
+                }
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(Color(UIColor(hex: 0x8FBC72)))
+                    .frame(width: 120, height: 120)
+                    .overlay {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 54, weight: .semibold))
+                            .foregroundStyle(Color(UIColor(hex: 0x0C1A0A)))
+                    }
+            }
+            .frame(height: 240)
+            .onAppear { pulse = true }
             Text("VoiceMitra")
-                .font(.system(size: 40, weight: .bold))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
             status
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.85))
             Spacer()
             if calls.inAppRinging {
                 ringingButtons
@@ -27,7 +45,11 @@ struct CallScreen: View {
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(red: 0.05, green: 0.18, blue: 0.14).ignoresSafeArea())
+        .background(
+            LinearGradient(colors: [Color(UIColor(hex: 0x1F2E19)), Color(UIColor(hex: 0x0C110C))],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        )
         .interactiveDismissDisabled()
     }
 
@@ -38,13 +60,19 @@ struct CallScreen: View {
         case .connecting:
             HStack(spacing: 10) {
                 ProgressView().tint(.white)
-                Text(model.t("Connecting…", "जुड़ रहा है…"))
+                Text(model.t("Connecting…", "जोड़ा जा रहा है…"))
             }
         case .live:
-            if let start = calls.connectedAt {
-                TimelineView(.periodic(from: start, by: 1)) { ctx in
-                    Text(Self.elapsed(from: start, to: ctx.date)).monospacedDigit()
+            VStack(spacing: 10) {
+                if let start = calls.connectedAt {
+                    TimelineView(.periodic(from: start, by: 1)) { ctx in
+                        Text(Self.elapsed(from: start, to: ctx.date)).monospacedDigit()
+                    }
                 }
+                Text(model.t("Connected. Speak after VoiceMitra greets you.", "जुड़ गए। VoiceMitra के नमस्ते के बाद बोलें।"))
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
             }
         case .idle:
             EmptyView()
@@ -78,7 +106,7 @@ struct CallScreen: View {
                     calls.toggleSpeaker()
                 }
             }
-            RoundButton(icon: "phone.down.fill", label: model.t("End call", "कॉल काटें"), color: .red, size: 96) {
+            RoundButton(icon: "phone.down.fill", label: model.t("End call", "कॉल खत्म करें"), color: .red, size: 96) {
                 calls.hangUp()
             }
         }

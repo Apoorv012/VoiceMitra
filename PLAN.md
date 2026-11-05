@@ -114,7 +114,7 @@ voicemitra/
 
   web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
                                  # public/ (icons, service worker, offline page), scripts/make_icons.py
-  mobile/                        # specced, not built: README.md (start here), API.md, android/SPEC.md (Kotlin APK, rings via FCM), ios/SPEC.md (SwiftUI via xtool + SideStore, rings only while open)
+  mobile/                        # native apps (see Pilot status): README.md (start here), API.md (contract), android/ (Kotlin + Compose APK, rings via FCM), ios/ (SwiftUI built with xtool in WSL, CallKit, rings only while open)
   tests/                         # pytest: insights.py, views.py, the dose step, care modes
   package.json, scripts/dev.mjs  # `npm run dev|demo` runs API + web app + tunnel in one terminal; `-- --hot` for hot reload (see README)
 
@@ -712,6 +712,20 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       (to clean up later -- there's no delete-patient endpoint): "Test Patient iPhone"
       `05803d68-2062-4104-9649-4d0b3eef6750` (Test Vitamin D 09:00 + 21:00), login `testiphone` (password in the
       gitignored `mobile/ios/test-login.local.txt`).
+    - **After the iPhone test (user, 2026-11-04):** "works fine.. with the limitations"; **SideStore (I6)
+      deferred** ("will do that later"). The user found the iPhone UI poor, so **both apps get a UI pass** matched
+      to the web patient app (colours from `web/src/app/globals.css`, the same home/medicines/history/me tabs,
+      i18n wording, elderly-friendly sizes). Android renders its screens on the JVM (Paparazzi/Roborazzi, no
+      emulator) to `mobile/android/screenshots/` so the user can review before the Android phone arrives.
+      Committed up to here: `d7b8c41`.
+    - **Focus now (user, 2026-11-05): only the Android app -- "make the android app workable, and pretty".** The
+      iPhone agent's conversation was cleared and its work paused; its unfinished UI redesign (new Today / Medicines
+      / History / Me / Sign-in views and `Theme.swift`, replacing `HomeView` / `PairingView`) is staged but
+      uncommitted and not verified to build or run. The login agent was archived (work done). Same day the user
+      asked to let the iPhone agent finish: it got a fresh brief to complete that redesign to the same web-matched
+      target, build it and re-check it on the phone. **Redesign builds cleanly (2026-11-05)**: Today / Medicines /
+      History / Me tabs in the web's colours and wording (week legend, reminders with their day, caregiver line,
+      history merging family alerts with check-ins, call-screen strings matching the web); not yet on the phone.
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
       device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
       its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).

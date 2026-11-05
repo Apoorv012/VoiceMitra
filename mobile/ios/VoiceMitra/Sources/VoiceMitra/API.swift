@@ -35,9 +35,32 @@ struct Adherence: Decodable {
     let rate: Int?
 }
 
-struct Checkin: Decodable {
+struct Checkin: Decodable, Identifiable {
     let callId: String
     let at: Date
+    let type: String
+    /// taken|not_taken|confusion|dont_know
+    let medicineStatus: String?
+    let summary: String?
+    let symptoms: [String]
+    let seriousness: Int?
+    let escalated: Bool
+    /// ok|remedy|urgent
+    let patientStatus: String?
+    let doctorConnected: Bool?
+
+    var id: String { callId }
+}
+
+/// A message sent to the family contact (History shows them between the check-ins).
+struct FamilyAlert: Decodable, Identifiable {
+    let id: String
+    let at: Date
+    let message: String
+    let caregiver: String?
+    /// unreachable|escalation
+    let trigger: String
+    let urgent: Bool
 }
 
 struct HowDoing: Decodable {
@@ -50,18 +73,59 @@ struct HowDoing: Decodable {
 struct CaregiverView: Decodable {
     let name: String
     let relation: String
+    let phoneNumber: String
+}
+
+/// One day of the week strip: good|mixed|missed|unknown|upcoming|none.
+struct DayView: Decodable, Identifiable {
+    let date: String
+    let state: String
+    let taken: Int
+    let due: Int
+
+    var id: String { date }
 }
 
 struct PatientHome: Decodable {
     let timezone: String
     let patient: Person
+    let allergies: [String]
     let today: [Slot]
     let nextDose: Slot?
+    let week: [DayView]
     let adherence: Adherence
     let lastCheckin: Checkin?
     let howDoing: HowDoing?
     let reminders: [Date]
     let caregiver: CaregiverView?
+}
+
+struct MedicineView: Decodable, Identifiable {
+    let dosageId: String
+    let name: String
+    let dose: String
+    /// daily|weekly|every_x_day|fixed_times
+    let frequency: String
+    let intervalDays: Int?
+    let times: [String]
+    let active: Bool
+    let daysLeft: Int?
+    /// Last 7 days.
+    let taken: Int
+    let known: Int
+
+    var id: String { dosageId }
+}
+
+struct PatientMedicines: Decodable {
+    let allergies: [String]
+    let medicines: [MedicineView]
+}
+
+struct PatientHistory: Decodable {
+    let timezone: String?
+    let checkins: [Checkin]
+    let alerts: [FamilyAlert]?
 }
 
 struct PairRequest: Encodable {
@@ -152,6 +216,14 @@ struct API {
 
     func home(patientId: String) async throws -> PatientHome {
         try await send("GET", "api/app/patients/\(patientId)/home")
+    }
+
+    func medicines(patientId: String) async throws -> PatientMedicines {
+        try await send("GET", "api/app/patients/\(patientId)/medicines")
+    }
+
+    func history(patientId: String) async throws -> PatientHistory {
+        try await send("GET", "api/app/patients/\(patientId)/history")
     }
 
     func pair(code: String, name: String) async throws -> PairResponse {

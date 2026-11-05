@@ -13,6 +13,8 @@ final class AppModel {
     private(set) var pairing: Pairing?
 
     private(set) var home: PatientHome?
+    private(set) var medicines: PatientMedicines?
+    private(set) var history: PatientHistory?
     private(set) var homeError: String?
     private(set) var loadingHome = false
     private(set) var socketConnected = false
@@ -32,7 +34,10 @@ final class AppModel {
         calls.onFinished = { [weak self] in
             guard let self else { return }
             if !self.isActive { self.socket.stop() } // the call kept it open in the background
-            Task { await self.loadHome() }
+            Task {
+                await self.loadHome()
+                await self.loadHistory()
+            }
         }
         socket.onEvent = { [weak self] in self?.handle($0) }
         socket.onConnectedChange = { [weak self] in self?.socketConnected = $0 }
@@ -127,6 +132,8 @@ final class AppModel {
         if let p { Keychain.save(p) } else { Keychain.clear() }
         pairing = p
         home = nil
+        medicines = nil
+        history = nil
         homeError = nil
         reconnect()
         if p != nil { Task { await loadHome() } }
@@ -162,6 +169,16 @@ final class AppModel {
         } catch {
             homeError = t("Couldn't load this. Please check your connection.", "यह लोड नहीं हो सका। कृपया अपना इंटरनेट जाँचें।")
         }
+    }
+
+    func loadMedicines() async {
+        guard let p = pairing, let api else { return }
+        if let m = try? await api.medicines(patientId: p.patientId) { medicines = m }
+    }
+
+    func loadHistory() async {
+        guard let p = pairing, let api else { return }
+        if let h = try? await api.history(patientId: p.patientId) { history = h }
     }
 
     /// "Talk to VoiceMitra": start the call, then join it. The join details come from the socket's
