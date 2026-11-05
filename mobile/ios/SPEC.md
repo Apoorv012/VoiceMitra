@@ -54,11 +54,21 @@ on it (needs a pairing file made on the PC once).
 
 ## Status
 
-**2026-11-04 -- Works on the user's iPhone (iOS 26.5, installed with xtool `run`): sign-in, Talk now (both ways,
-speaker and earpiece), Call now from the web ringing CallKit while the app is open, answer, decline. Closed app ->
-no ring (expected; free Apple ID). 2026-11-05: UI redesigned to match the web patient app, re-checked on the
-phone (sign-in, tabs, Talk now, Call now ring/answer/decline). Not yet: SideStore install (I6) and the skipped
-checklist items below.**
+**Final state for now (2026-11-05; the user: "everything is working as expected in the iphone app ... we can keep
+it like this"). Paused here.**
+
+- **Done, on the user's iPhone (iOS 26.5, xtool `run`):** sign-in (username + password), the redesigned app
+  matching the web patient app (Today / Medicines / History / Me, web colours and wording), Talk now (both ways,
+  speaker and earpiece), Call now ringing while the app is open (CallKit banner + our full-screen ringing view),
+  answer, decline, a call surviving screen lock. Closed app -> no ring (expected; free Apple ID, no push).
+- **Built and installed, not seen on the device:** light mode, Hindi, the largest Dynamic Type sizes, the Me
+  "Advanced" section, History's "Nothing was recorded" line, the 15 s connect timeout firing.
+- **Not tested:** code pairing, sign-out / unpair from the web, offline banner, the caller giving up (~120 s),
+  mute, the web page open at the same time (checklist below).
+- **Deferred:** I6 SideStore install on the household phones (README has the steps). xtool installs expire after
+  7 days: re-run `wsl-build.sh VoiceMitra run`.
+- **Known, can't change:** the foreground banner's small line "VoiceMitra Audio…" is iOS's call-type label (app
+  display name + "Audio"); `CFBundleDisplayName` and the provider name are already "VoiceMitra".
 
 - **UI redesign (2026-11-05, on the user's iPhone; dark mode checked):** installed with `wsl-build.sh VoiceMitra run`;
   signed in, all four tabs load the test patient's data, Talk now connected both ways, Call now rang CallKit while
@@ -67,6 +77,18 @@ checklist items below.**
   round: light mode, Hindi, the largest Dynamic Type sizes. Screenshots: `screenshots/` (gitignored; taken on the
   phone and copied over USB with `afcclient` from `/DCIM` -- `idevicescreenshot` needs the Developer Disk Image,
   which on iOS 17+ also needs Apple's CoreDevice tunnel, i.e. an admin step on Windows).
+  **Second round (2026-11-05, lead's review of the screenshots):** a **full-screen in-app ringing view** now shows
+  under CallKit's small foreground banner ("VoiceMitra is calling" / "Check-in call", big Decline / Answer); its
+  buttons go through the same CallKit call (`CXAnswerCallAction` / `CXEndCallAction`), so banner and screen
+  dismiss together -- tested on the phone (Answer connected; Decline ended the call on the backend). The
+  banner's small "VoiceMitra Audio" line is iOS's call-type label (app name + "Audio", like "WhatsApp Audio"):
+  not settable; the caller name is already just "VoiceMitra". "Connecting…" gives up after 15 s with "Couldn't
+  connect the call. Please try again." on Today (watchdog in `CallCenter`). Today's medicines: the time moves
+  above the name at accessibility text sizes. History: calls that logged nothing say "Nothing was recorded on
+  this call." Me: no Language row (the header switch is on every tab); Server moved into a collapsed
+  "Advanced" section at the bottom. Tab pages have 96 pt bottom room so the last card clears iOS 26's floating
+  tab bar. README: the household tip Settings -> Apps -> Phone -> Incoming Calls -> Full Screen. Installed on the
+  phone; the Me / History / bottom-room changes weren't screenshotted on the device.
   The first version "looked horrendous", so
   the app now matches the web patient app: `Theme.swift` holds the web's colours (`globals.css`, light + dark,
   good/warn/serious/crit) and shared pieces (cards, pills, primary button, EN/हि switch, Dynamic Type page titles).

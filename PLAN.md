@@ -733,6 +733,20 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       open (iOS only shows a small banner when unlocked), "VoiceMitra" instead of "VoiceMitra Audio…" on the
       banner, no duplicate language toggle, Server under Advanced, empty history cards labelled, bottom padding
       under the tab bar.
+    - **iPhone app -- DONE for now (user, 2026-11-05): "everything is working as expected in the iphone app.
+      and it looks good. we can keep it like this".** Last additions: full-screen in-app ringing view under the
+      CallKit banner ("VoiceMitra is calling · Check-in call", big Answer/Decline; drives the same CallKit call, so
+      answer/decline work from either -- tested on the phone), 15 s connect timeout, Today/History/Me fixes. The
+      banner's "VoiceMitra Audio…" line is iOS's own call-type label and can't be changed. Open: SideStore (I6, deferred), light mode / Hindi / largest Dynamic Type not checked
+      on the phone.
+    - **Agent behaviour bugs found in the iPhone test (2026-11-05), awaiting the user's go-ahead:** when someone
+      else answers and the patient is asleep, the agent asked them to wake the patient on a routine check-in; it
+      promised "I'll call this evening" with nothing booked (only medicine calls can book a callback, via
+      `reschedule_dose`); and `reschedule_dose` writes the reminder immediately, so it still fires if the patient
+      comes to the phone later in the same call. Proposed: a "patient unavailable" rule (never wake; agree a
+      callback, or ask them to remind about the dose), a callback tool on every call type with a concrete time,
+      and reminders committed only at call end (dropped if the call got what it needed).
+    - **Next after Android (user, 2026-11-05): the caregiver side.**
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
       device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
       its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).

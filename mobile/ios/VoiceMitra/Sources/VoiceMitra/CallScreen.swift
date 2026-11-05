@@ -58,7 +58,8 @@ struct CallScreen: View {
     @ViewBuilder private var status: some View {
         switch calls.phase {
         case .ringing:
-            Label(model.t("Medicine check-in", "दवा की बातचीत"), systemImage: "pills.fill")
+            // The ring doesn't say what kind of call it is (medicine reminder or routine), so the neutral word.
+            Label(model.t("Check-in call", "जाँच-बातचीत"), systemImage: "phone.arrow.down.left")
         case .connecting:
             HStack(spacing: 10) {
                 ProgressView().tint(.white)
