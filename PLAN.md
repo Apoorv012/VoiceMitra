@@ -739,7 +739,8 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       answer/decline work from either -- tested on the phone), 15 s connect timeout, Today/History/Me fixes. The
       banner's "VoiceMitra Audio…" line is iOS's own call-type label and can't be changed. Open: SideStore (I6, deferred), light mode / Hindi / largest Dynamic Type not checked
       on the phone.
-    - **Agent behaviour bugs found in the iPhone test (2026-11-05), awaiting the user's go-ahead:** when someone
+    - **Agent behaviour bugs found in the iPhone test (2026-11-05) -- to be taken up as a separate task (user,
+      2026-11-05), not started:** when someone
       else answers and the patient is asleep, the agent asked them to wake the patient on a routine check-in; it
       promised "I'll call this evening" with nothing booked (only medicine calls can book a callback, via
       `reschedule_dose`); and `reschedule_dose` writes the reminder immediately, so it still fires if the patient
@@ -747,6 +748,20 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       callback, or ask them to remind about the dose), a callback tool on every call type with a concrete time,
       and reminders committed only at call end (dropped if the call got what it needed).
     - **Next after Android (user, 2026-11-05): the caregiver side.**
+    - **Left to do on the phone apps (as of 2026-11-05):**
+      - *Android -- needs a real phone (the user is getting one):* install the APK, sign in, finish the setup
+        checklist; Call now from the web rings the **locked** phone full-screen (real FCM), answer -> talk, decline;
+        Talk now; a call surviving the screen lock; then switch on `DOSE_RINGING_ENABLED=true` and check a dose-time
+        ring, the retry after 5 min and the single caregiver alert; TalkBack pass. Build/run steps in
+        `mobile/android/README.md`; screenshots via `./gradlew.bat screenshots`.
+      - *iPhone:* SideStore install for the household phones (I6, deferred); look at light mode, Hindi and the
+        largest text sizes on the device.
+      - *Agent behaviour:* the three bugs above (separate task).
+      - *Cleanup:* the test patient "Test Patient iPhone" (`05803d68-2062-4104-9649-4d0b3eef6750`, login
+        `testiphone`) is in the real `voicemitra` DB; there's no delete-patient endpoint (if one is added it must
+        also remove `patient_logins`, `devices` and unused `pairing_codes`).
+      - *Later:* Firebase is moving from FCM registration tokens to FIDs (works today; switching is a contract
+        change); ringing a closed iPhone (AlarmKit on iOS 26, or Apple's paid account).
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
       device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
       its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).
