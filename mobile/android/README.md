@@ -59,3 +59,24 @@ The APK is `app/build/outputs/apk/debug/app-debug.apk`. `assembleRelease` gives
 
 The default is the tunnel hostname (`DEFAULT_SERVER_URL` in `app/build.gradle.kts`). It can be changed in the
 app's settings, e.g. to `http://<pc-ip>:8000` on the same Wi-Fi (debug builds allow plain http).
+
+## Screenshots (no phone, no emulator)
+
+Every screen is drawn on the PC by Robolectric + Roborazzi (JVM only), at a phone size (1080x2400 px,
+420 dpi), light and dark, English and Hindi:
+
+```bash
+JAVA_HOME="/c/Program Files/Java/jdk-25.0.3" ./gradlew.bat screenshots
+```
+
+PNGs land in `mobile/android/screenshots/` (gitignored) as `<nn_screen>_<en|hi>_<light|dark>.png`; `*_full`
+ones are the scrolling pages at full length. The sample data and fixed clock are in
+`app/src/test/java/com/voicemitra/patient/ScreenshotTest.kt`. First run downloads Robolectric's Android jar.
+
+## Look
+
+Matched to the web patient app (`web/src/app/globals.css`, `web/src/app/patients/[id]/`): the same colour tokens
+(light and dark), Plus Jakarta Sans (bundled, OFL: `app/src/main/assets/licenses/`) with the phone's own Noto Sans
+Devanagari for Hindi, the same four tabs (Today, Medicines, History, Me) and the same wording (`ui/Strings.kt` mirrors
+`web/src/lib/i18n.tsx`). Sized up for older users: 19 sp body, main buttons 60 dp, every tap target at least 56 dp.
+

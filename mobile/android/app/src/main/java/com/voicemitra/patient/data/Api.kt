@@ -50,17 +50,71 @@ data class Slot(
 data class Caregiver(val name: String, val relation: String)
 
 @Serializable
-data class Checkin(val at: String)
+data class Checkin(
+    @SerialName("call_id") val callId: String = "",
+    val at: String,
+    @SerialName("medicine_status") val medicineStatus: String? = null,
+    @SerialName("patient_status") val patientStatus: String? = null,
+    val summary: String? = null,
+    val symptoms: List<String> = emptyList(),
+    val escalated: Boolean = false,
+    @SerialName("doctor_connected") val doctorConnected: Boolean = false,
+)
+
+@Serializable
+data class Day(val date: String, val state: String, val taken: Int = 0, val due: Int = 0)
+
+@Serializable
+data class Adherence(val taken: Int = 0, val missed: Int = 0, val unrecorded: Int = 0, val rate: Int? = null)
+
+@Serializable
+data class HowDoing(val at: String, val summary: String, val band: String)  // band: ok|watch|urgent
 
 @Serializable
 data class PatientHome(
     val timezone: String = "Asia/Kolkata",
     val patient: Person,
+    val allergies: List<String> = emptyList(),
     val today: List<Slot> = emptyList(),
     @SerialName("next_dose") val nextDose: Slot? = null,
+    val week: List<Day> = emptyList(),
+    val adherence: Adherence = Adherence(),
     @SerialName("last_checkin") val lastCheckin: Checkin? = null,
+    @SerialName("how_doing") val howDoing: HowDoing? = null,
     val reminders: List<String> = emptyList(),
     val caregiver: Caregiver? = null,
+)
+
+@Serializable
+data class Medicine(
+    @SerialName("dosage_id") val dosageId: String,
+    val name: String,
+    val dose: String,
+    val frequency: String,                       // daily|weekly|every_x_day|fixed_times
+    @SerialName("interval_days") val intervalDays: Int? = null,
+    val times: List<String> = emptyList(),       // "21:00"
+    @SerialName("to_date") val toDate: String? = null,
+    val active: Boolean = true,
+    @SerialName("days_left") val daysLeft: Int? = null,
+    val taken: Int = 0,                          // last 7 days
+    val known: Int = 0,
+)
+
+@Serializable
+data class PatientMedicines(
+    val timezone: String = "Asia/Kolkata",
+    val allergies: List<String> = emptyList(),
+    val medicines: List<Medicine> = emptyList(),
+)
+
+@Serializable
+data class Alert(val id: String, val at: String, val message: String, val caregiver: String? = null, val urgent: Boolean = false)
+
+@Serializable
+data class PatientHistory(
+    val timezone: String = "Asia/Kolkata",
+    val checkins: List<Checkin> = emptyList(),
+    val alerts: List<Alert> = emptyList(),
 )
 
 @Serializable
@@ -121,6 +175,12 @@ class Api(private val baseUrl: () -> String) {
 
     suspend fun home(patientId: String): PatientHome =
         send(Request.Builder().url(url("/api/app/patients/$patientId/home")).get().build(), PatientHome.serializer())
+
+    suspend fun medicines(patientId: String): PatientMedicines =
+        send(Request.Builder().url(url("/api/app/patients/$patientId/medicines")).get().build(), PatientMedicines.serializer())
+
+    suspend fun history(patientId: String): PatientHistory =
+        send(Request.Builder().url(url("/api/app/patients/$patientId/history")).get().build(), PatientHistory.serializer())
 
     /** Talk now. The token tells the backend not to ring this phone for the call it is starting itself. */
     suspend fun startVoiceCall(patientId: String, deviceToken: String?) {

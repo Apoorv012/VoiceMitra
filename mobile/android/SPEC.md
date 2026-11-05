@@ -135,3 +135,23 @@ with USB debugging, or sharing the APK file.
   Verified: pytest `tests/test_dose_scheduler.py` (8 tests; real `start_voice_call` with the agent/LiveKit faked,
   fake FCM sender, fake clock, throwaway DB) and a server boot with the switch off. 69/69 backend tests pass.
   PLAN.md pilot steps 4-5 go through the lead.
+- **Look + screenshots -- DONE (2026-11-05), not yet seen on a phone.** JVM screenshots (Roborazzi 1.77 +
+  Robolectric 4.17, `./gradlew.bat screenshots` -> `screenshots/`, see README). Redesigned to match the web patient
+  app: web colour tokens (light/dark), Plus Jakarta Sans, the web's four tabs (Today, Medicines, History, Me) with
+  their content (Today: greeting, talk card, next dose, today's doses, week strip + legend, how you're doing,
+  reminders, family line; Medicines: allergies, current/finished with schedule, end date, weekly meter; History:
+  timeline of check-ins and family alerts; Me: profile, language, family contact, allergies, phone-setup status,
+  server address, log out), web wording in English/Hindi, an unmistakable full-screen incoming call (deep green,
+  100 dp answer/decline), the call sheet (timer, transcript bubbles, mute/speaker, red End call), setup checklist
+  with one primary next step. Loading / error / offline (no-internet icon + retry) states on every tab; tabs reload
+  when the app comes back to the front. Medicines and History load `/api/app/patients/{id}/medicines` and
+  `.../history`, covered by `ApiContractTest` (now adds a prescription and checks it parses).
+
+- **Matched to the iPhone app's look -- DONE (2026-11-05, user's choice: "android ui could also look like this").**
+  Talk card with the waveform badge beside the title; tinted next-dose card (time in accent); reminder with a label;
+  full-width bottom navigation (selected tab filled + accent); Me = avatar, name, age, allergies card, family contact,
+  "This phone" card (setup status with a warning dot -> checklist), red-tinted Sign out with a confirm dialog,
+  version, server address only under a folded "Advanced" (also on the sign-in screen; the settings screen is gone).
+  Language switch only in the header. Incoming call: "VoiceMitra" + "Calling…", Answer (120 dp) bigger than Decline
+  (92 dp), web good/crit colours. History cards with nothing recorded say so. Side-by-side checks in
+  `screenshots/compare_*.png`.

@@ -5,31 +5,14 @@ struct MeView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmSignOut = false
     @State private var showServer = false
+    @State private var showAdvanced = false
     @State private var signingOut = false
 
     var body: some View {
         TabPage(refresh: { await model.loadHome() }) {
             profile
 
-            // Settings rows
-            VStack(spacing: 0) {
-                row(icon: "globe", title: model.t("Language", "भाषा")) { LangToggle() }
-                Divider().overlay(VM.line).padding(.leading, 64)
-                Button { showServer = true } label: {
-                    row(icon: "server.rack", title: model.t("Server", "सर्वर")) {
-                        HStack(spacing: 6) {
-                            Text(URL(string: model.server)?.host ?? model.server)
-                                .font(.subheadline)
-                                .foregroundStyle(VM.muted)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(VM.muted)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            .card(padding: 4)
-
+            // The language switch is in the header on every tab, so there's no Language row here.
             if let cg = model.home?.caregiver { CaregiverCard(caregiver: cg) }
 
             AllergiesCard(allergies: model.home?.allergies ?? [])
@@ -62,6 +45,29 @@ struct MeView: View {
             .buttonStyle(.plain)
             .disabled(signingOut)
             .padding(.top, 4)
+
+            // Setup details patients don't need: collapsed, at the very bottom.
+            DisclosureGroup(isExpanded: $showAdvanced) {
+                Button { showServer = true } label: {
+                    row(icon: "server.rack", title: model.t("Server", "सर्वर")) {
+                        HStack(spacing: 6) {
+                            Text(URL(string: model.server)?.host ?? model.server)
+                                .font(.subheadline)
+                                .foregroundStyle(VM.muted)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(VM.muted)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 6)
+            } label: {
+                Text(model.t("Advanced", "एडवांस्ड"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(VM.muted)
+            }
+            .tint(VM.muted)
+            .padding(.horizontal, 6)
 
             Text(appVersion)
                 .font(.caption)

@@ -96,6 +96,12 @@ sign-in is kept.
 
 - VoiceMitra must be **open on screen** to ring (CallKit's normal call screen/banner). Locked or closed: no ring;
   the agent waits 120 s, then the caregiver gets the "couldn't be reached" alert.
+- With the app open, iOS shows the incoming call as a small banner at the top; VoiceMitra also shows its own
+  full-screen ringing view underneath, with big Answer / Decline buttons (both work, they're the same call).
+- **Household setup tip:** on each phone, Settings -> Apps -> Phone -> Incoming Calls -> **Full Screen**. Then
+  every call, VoiceMitra's included, rings full-screen while the phone is unlocked instead of as a banner.
 - A call already in progress keeps going when the screen locks (background audio).
+- "Connecting..." normally turns into the call timer within a second or two. If the call isn't connected after
+  15 s, it ends and the home screen says "Couldn't connect the call. Please try again."
 - "Not connected: VoiceMitra can't ring this phone right now" on the home screen = the live connection to the
   server is down (it retries by itself).

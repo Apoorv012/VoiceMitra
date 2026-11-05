@@ -12,23 +12,24 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
@@ -158,12 +158,10 @@ fun SetupScreen(onDone: () -> Unit) {
     val items = remember { Setup.items() }
     val done = remember(tick) { items.associateWith { Setup.isDone(context, it) } }
 
-    Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Text(s.setupTitle, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-        Text(s.setupSub, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val firstToDo = items.firstOrNull { done[it] != true }
+    TabPage {
+        H1(s.setupTitle)
+        Text(s.setupSub, style = MaterialTheme.typography.bodyLarge, color = Vm.colors.ink2)
         items.forEach { item ->
             val (title, why) = when (item) {
                 SetupItem.Notifications -> s.permNotifications to s.permNotificationsWhy
@@ -173,30 +171,44 @@ fun SetupScreen(onDone: () -> Unit) {
                 SetupItem.Autostart -> s.permAutostart to s.permAutostartWhy
             }
             val ok = done[item] == true
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        if (ok) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                        contentDescription = null,
-                        tint = if (ok) StatusColors.answer else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(36.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium)
-                        Text(why, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            VmCard(spacing = 14.dp) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Tick(ok)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium, color = Vm.colors.ink)
+                        Text(why, style = MaterialTheme.typography.bodyMedium, color = Vm.colors.ink2)
                     }
                 }
-                if (!ok) BigButton(if (item == SetupItem.Notifications || item == SetupItem.Mic) s.allow else s.openSettings, { fix(item) })
+                // One clear next step: the first unticked item gets the dark button, the rest outlined.
+                if (!ok) VmButton(
+                    if (item == SetupItem.Notifications || item == SetupItem.Mic) s.allow else s.openSettings,
+                    { fix(item) },
+                    kind = if (item == firstToDo) BtnKind.Primary else BtnKind.Secondary,
+                    xl = false,
+                )
             }
         }
-        if (done.values.all { it }) {
-            Text(s.setupDone, style = MaterialTheme.typography.titleMedium, color = StatusColors.answer)
-            BigButton(s.continueBtn, onDone)
+        if (firstToDo == null) {
+            Callout(Icons.Outlined.CheckCircle, Tone.Good) { Text(s.setupDone, style = MaterialTheme.typography.titleMedium) }
+            VmButton(s.continueBtn, onDone)
         } else {
-            TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                Text(s.skipForNow, style = MaterialTheme.typography.labelLarge)
-            }
+            VmButton(s.skipForNow, onDone, kind = BtnKind.Ghost, xl = false)
         }
+    }
+}
+
+/** A green tick when done, an empty ring when not (with the word, for TalkBack). */
+@Composable
+private fun Tick(ok: Boolean) {
+    val c = Vm.colors
+    Box(
+        Modifier.size(40.dp)
+            .background(if (ok) c.goodSoft else Color.Transparent, CircleShape)
+            .then(if (ok) Modifier else Modifier.border(2.dp, c.lineStrong, CircleShape))
+            .semantics { stateDescription = if (ok) "✓" else "✗" },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (ok) Icon(Icons.Outlined.Check, null, tint = c.goodInk, modifier = Modifier.size(24.dp))
     }
 }

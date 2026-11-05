@@ -104,9 +104,11 @@ private struct TimelineRow: View {
     private func checkinCard(_ c: Checkin) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(model.t("Check-in call", "जाँच-बातचीत")).font(.headline).foregroundStyle(VM.ink)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) { pills(c) }
-                VStack(alignment: .leading, spacing: 6) { pills(c) }
+            if c.medicineStatus != nil || c.escalated {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { pills(c) }
+                    VStack(alignment: .leading, spacing: 6) { pills(c) }
+                }
             }
             if !c.symptoms.isEmpty {
                 Text(model.t("You mentioned: \(c.symptoms.joined(separator: ", "))",
@@ -116,6 +118,13 @@ private struct TimelineRow: View {
             }
             if let summary = c.summary, !summary.isEmpty {
                 Text(summary).font(.subheadline).foregroundStyle(VM.muted)
+            }
+            // Calls that logged nothing (not answered, or ended before anything was said): say so, or the card
+            // looks broken. The backend can't tell those cases apart, so one neutral line.
+            if c.medicineStatus == nil, !c.escalated, c.symptoms.isEmpty, (c.summary ?? "").isEmpty {
+                Text(model.t("Nothing was recorded on this call.", "इस कॉल में कुछ दर्ज नहीं हुआ।"))
+                    .font(.subheadline)
+                    .foregroundStyle(VM.muted)
             }
         }
         .card(padding: 18)

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// SPEC I5 (and the I4 fallback ring): full screen while a call is ringing in-app, connecting or live.
+/// SPEC I4/I5: full screen while a call rings (under CallKit's banner, or alone if CallKit refused it),
+/// connects, and is live.
 struct CallScreen: View {
     @Environment(AppModel.self) private var model
 
@@ -30,14 +31,15 @@ struct CallScreen: View {
             }
             .frame(height: 240)
             .onAppear { pulse = true }
-            Text("VoiceMitra")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
+            Text(calls.phase == .ringing ? model.t("VoiceMitra is calling", "VoiceMitra कॉल कर रहा है") : "VoiceMitra")
+                .font(.largeTitle.bold())
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
             status
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.85))
             Spacer()
-            if calls.inAppRinging {
+            if calls.phase == .ringing {
                 ringingButtons
             } else {
                 callButtons
@@ -56,7 +58,7 @@ struct CallScreen: View {
     @ViewBuilder private var status: some View {
         switch calls.phase {
         case .ringing:
-            Text(model.t("is calling you…", "आपको कॉल कर रहा है…"))
+            Label(model.t("Medicine check-in", "दवा की बातचीत"), systemImage: "pills.fill")
         case .connecting:
             HStack(spacing: 10) {
                 ProgressView().tint(.white)
@@ -80,14 +82,16 @@ struct CallScreen: View {
     }
 
     private var ringingButtons: some View {
-        HStack(spacing: 48) {
-            RoundButton(icon: "phone.down.fill", label: model.t("Decline", "मना करें"), color: .red) {
-                calls.declineInApp()
+        // Big, far apart, Answer on the right as on every iPhone call screen.
+        HStack(spacing: 56) {
+            RoundButton(icon: "phone.down.fill", label: model.t("Decline", "मना करें"), color: .red, size: 96) {
+                calls.decline()
             }
-            RoundButton(icon: "phone.fill", label: model.t("Answer", "उठाएँ"), color: .green) {
-                calls.answerInApp()
+            RoundButton(icon: "phone.fill", label: model.t("Answer", "उठाएँ"), color: .green, size: 96) {
+                calls.answer()
             }
         }
+        .padding(.bottom, 12)
     }
 
     private var callButtons: some View {

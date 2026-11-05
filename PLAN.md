@@ -725,7 +725,14 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       asked to let the iPhone agent finish: it got a fresh brief to complete that redesign to the same web-matched
       target, build it and re-check it on the phone. **Redesign builds cleanly (2026-11-05)**: Today / Medicines /
       History / Me tabs in the web's colours and wording (week legend, reminders with their day, caregiver line,
-      history merging family alerts with check-ins, call-screen strings matching the web); not yet on the phone.
+      history merging family alerts with check-ins, call-screen strings matching the web). **Tested on the
+      user's iPhone and committed (`5eba454`)**: sign-in, all four tabs with real data, Talk now both ways, Call now
+      ringing CallKit while open, answer, decline (backend ends the call in ~6 s); long medicine names fixed on
+      device. Screenshots in `mobile/ios/screenshots/` (gitignored). Not checked: light mode, Hindi, largest
+      Dynamic Type. Asked for next (from the user's screenshots): a full-screen in-app ringing view while the app is
+      open (iOS only shows a small banner when unlocked), "VoiceMitra" instead of "VoiceMitra Audio…" on the
+      banner, no duplicate language toggle, Server under Advanced, empty history cards labelled, bottom padding
+      under the tab bar.
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
       device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
       its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).
@@ -746,6 +753,18 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       Kotlin API client against a live backend on a throwaway DB. Needs a phone for the ring when locked, answering,
       audio and the setup flow. Next: B4 (reminders ring the phone) and device-free A6 polish. Note for later:
       Firebase is moving from FCM registration tokens to FIDs; tokens still work, switching is a contract change.
+      **Redesign + workable screens -- DONE in code (2026-11-05), not yet on a phone:** matched to the web patient
+      app and the iPhone redesign -- web colour tokens (light/dark), Plus Jakarta Sans (+ Noto Devanagari), header
+      with brand + EN/हि, floating Today / Medicines / History / Me tab bar, Me tab (profile, family contact,
+      allergies, phone setup status, Advanced server address, log out with confirm), Medicines and History from
+      `/api/app/patients/{id}/medicines` + `/history`, loading/error/offline states, 19 sp body, 56 dp+ targets.
+      Rendered on the JVM with Roborazzi (no emulator): `./gradlew.bat screenshots` -> `mobile/android/screenshots/`
+      (gitignored, 60 PNGs, en/hi, light/dark). Verified: assembleDebug, lint 0 errors, JVM tests incl. the contract
+      test against a throwaway DB. Polish pass done the same day -- now matches the iPhone redesign side by side
+      (`compare_*.png` in the screenshots folder): iPhone-style top bar and bottom nav, the "This phone" card shows
+      the ringing checklist status, red sign-out with confirm, language switch only in the header, server address
+      only under Advanced (also on the login screen), Answer bigger than Decline, due-now amber / missed red,
+      "Nothing was recorded on this call." on empty history cards. assembleDebug + lint clean.
       A6 so far: APK limited to real-phone CPUs (debug 46 MB, release 39 MB, was 78 MB).
     - **B4 reminders ring the phone -- DONE (2026-11-04).** `live_calls._fire_reminder` starts a **voice** call (so
       the FCM ring goes out), waiting until any call the patient is on has finished. Verified: pytest 61/61

@@ -141,6 +141,7 @@ private struct NextDoseCard: View {
 
 private struct TodayMedsCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var typeSize
     let home: PatientHome
 
     var body: some View {
@@ -156,21 +157,29 @@ private struct TodayMedsCard: View {
             }
             ForEach(Array(home.today.enumerated()), id: \.element.id) { i, slot in
                 let s = Fmt.state(slot.state, model)
-                // Time on the left, then name / dose / status stacked, so long names and big text never squeeze.
-                HStack(alignment: .top, spacing: 14) {
-                    Text(Fmt.time(slot.at, tz: home.timezone, lang: model.lang))
-                        .font(.headline.monospacedDigit())
-                        .foregroundStyle(VM.ink)
-                        .fixedSize()
-                        .padding(.top, 1)
-                    VStack(alignment: .leading, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(slot.medicine).font(.headline).foregroundStyle(VM.ink)
-                            Text(slot.dose).font(.subheadline).foregroundStyle(VM.muted)
-                        }
-                        StatusPill(label: s.label, icon: s.icon, ink: s.ink, soft: s.soft)
+                // Time on the left, then name / dose / status stacked, so long names never squeeze. At the
+                // accessibility text sizes the time moves above the name and the name gets the full width.
+                let time = Text(Fmt.time(slot.at, tz: home.timezone, lang: model.lang))
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(VM.ink)
+                let details = VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(slot.medicine).font(.headline).foregroundStyle(VM.ink)
+                        Text(slot.dose).font(.subheadline).foregroundStyle(VM.muted)
                     }
-                    Spacer(minLength: 0)
+                    StatusPill(label: s.label, icon: s.icon, ink: s.ink, soft: s.soft)
+                }
+                Group {
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 4) { time; details }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        HStack(alignment: .top, spacing: 14) {
+                            time.fixedSize().padding(.top, 1)
+                            details
+                            Spacer(minLength: 0)
+                        }
+                    }
                 }
                 .padding(.vertical, 12)
                 .accessibilityElement(children: .combine)

@@ -67,6 +67,14 @@ class ApiContractTest {
 
         // Reading the home screen and the (absent) call.
         assertEquals(patient.id, api.home(patient.id).patient.id)
+        // The Medicines and History tabs parse what the backend sends (with a real prescription in it).
+        val (rx, _) = call("POST", "/api/patients/${patient.id}/prescriptions", """{"medicines": [{"medicine_name": "Metformin",
+            "dosage": "500 mg", "from_date": "2026-01-01", "frequency": "daily", "times": ["08:30", "20:00"]}]}""")
+        assertEquals(200, rx)
+        val meds = api.medicines(patient.id).medicines
+        assertTrue(meds.any { it.name == "Metformin" && it.times == listOf("08:30", "20:00") })
+        assertTrue(api.home(patient.id).today.isNotEmpty())
+        api.history(patient.id)
         assertNull(api.voiceCall(patient.id))
         assertTrue(api.socketUrl(patient.id).startsWith("ws"))
 

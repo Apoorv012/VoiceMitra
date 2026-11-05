@@ -56,9 +56,18 @@ on it (needs a pairing file made on the PC once).
 
 **2026-11-04 -- Works on the user's iPhone (iOS 26.5, installed with xtool `run`): sign-in, Talk now (both ways,
 speaker and earpiece), Call now from the web ringing CallKit while the app is open, answer, decline. Closed app ->
-no ring (expected; free Apple ID). Not yet: SideStore install (I6) and the skipped checklist items below.**
+no ring (expected; free Apple ID). 2026-11-05: UI redesigned to match the web patient app, re-checked on the
+phone (sign-in, tabs, Talk now, Call now ring/answer/decline). Not yet: SideStore install (I6) and the skipped
+checklist items below.**
 
-- **UI redesign (2026-11-05, builds cleanly; on-device check pending):** the first version "looked horrendous", so
+- **UI redesign (2026-11-05, on the user's iPhone; dark mode checked):** installed with `wsl-build.sh VoiceMitra run`;
+  signed in, all four tabs load the test patient's data, Talk now connected both ways, Call now rang CallKit while
+  open, answered and connected, Decline ended the call on the backend within ~6 s. Fixed on the device: long
+  medicine names were squeezed in "Today's medicines" (the status pill now sits under the name). Not checked this
+  round: light mode, Hindi, the largest Dynamic Type sizes. Screenshots: `screenshots/` (gitignored; taken on the
+  phone and copied over USB with `afcclient` from `/DCIM` -- `idevicescreenshot` needs the Developer Disk Image,
+  which on iOS 17+ also needs Apple's CoreDevice tunnel, i.e. an admin step on Windows).
+  The first version "looked horrendous", so
   the app now matches the web patient app: `Theme.swift` holds the web's colours (`globals.css`, light + dark,
   good/warn/serious/crit) and shared pieces (cards, pills, primary button, EN/हि switch, Dynamic Type page titles).
   Four tabs like `web/src/app/patients/[id]/`: **Today** (greeting, the "Talk to VoiceMitra" card with the one big

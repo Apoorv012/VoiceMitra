@@ -84,19 +84,57 @@ final class CallCenter: NSObject {
         }
     }
 
-    /// The in-app ringing view's buttons (only when CallKit refused the call).
-    func answerInApp() {
-        guard inAppRinging, let join else { return }
+    /// The full-screen ringing view's Answer. With CallKit it goes through CallKit (CXAnswerCallAction), so the
+    /// system banner and our screen stay in sync; without it (CallKit refused) the app answers itself.
+    func answer() {
+        guard phase == .ringing else { return }
+        if usingCallKit, let uuid {
+            controller.request(CXTransaction(action: CXAnswerCallAction(call: uuid))) { [weak self] err in
+                guard let err else { return }
+                Task { @MainActor in
+                    guard let self, self.uuid == uuid, self.phase == .ringing else { return }
+                    NSLog("VoiceMitra: CallKit answer failed (\(err)); answering in-app")
+                    self.provider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
+                    self.uuid = nil
+                    self.usingCallKit = false
+                    self.answerInApp()
+                }
+            }
+        } else {
+            answerInApp()
+        }
+    }
+
+    /// The full-screen ringing view's Decline (CXEndCallAction with CallKit, so the banner goes too).
+    func decline() {
+        guard phase == .ringing else { return }
+        endViaCallKit(notifyBackend: true)
+    }
+
+    private func answerInApp() {
+        guard let join else { return }
         stopRinging()
         configureSession()
         activateSessionManually()
         phase = .connecting
+        startConnectWatchdog()
         Task { await connect(join) }
     }
 
-    func declineInApp() {
-        guard inAppRinging else { return }
-        finish(notifyBackend: true)
+    @ObservationIgnored private var attempt = 0
+
+    /// "Connecting…" normally turns into the timer within a second or two. If the call still isn't live after
+    /// 15 s, give up with a clear message on the home screen (Start check-in there is the retry).
+    private func startConnectWatchdog() {
+        attempt += 1
+        let mine = attempt
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            guard let self, self.attempt == mine, self.phase == .connecting else { return }
+            NSLog("VoiceMitra: call not connected after 15 s, giving up")
+            self.error = self.lang == .hi ? "कॉल नहीं जुड़ सकी। कृपया फिर कोशिश करें।" : "Couldn't connect the call. Please try again."
+            self.endViaCallKit(notifyBackend: true)
+        }
     }
 
     // MARK: - Outgoing (Talk now)
@@ -110,6 +148,7 @@ final class CallCenter: NSObject {
         join = nil
         error = nil
         phase = .connecting
+        startConnectWatchdog()
         let id = UUID()
         uuid = id
         let action = CXStartCallAction(call: id, handle: CXHandle(type: .generic, value: "VoiceMitra"))
@@ -182,6 +221,7 @@ final class CallCenter: NSObject {
         let room = Room()
         room.add(delegate: self)
         self.room = room
+        let started = Date()
         do {
             try await room.connect(url: join.url, token: join.token)
             guard self.room === room else { await room.disconnect(); return }
@@ -189,6 +229,7 @@ final class CallCenter: NSObject {
             guard self.room === room else { return }
             phase = .live
             connectedAt = Date()
+            NSLog("VoiceMitra: call live, LiveKit connect took %.2f s", Date().timeIntervalSince(started))
             if usingCallKit, outgoing, let uuid { provider.reportOutgoingCall(with: uuid, connectedAt: connectedAt) }
         } catch {
             guard self.room === room else { return }
@@ -333,6 +374,7 @@ extension CallCenter: CXProviderDelegate {
             }
             configureSession()
             phase = .connecting
+            startConnectWatchdog()
             let known = join
             let api = api, patientId = patientId
             action.fulfill()

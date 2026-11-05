@@ -35,7 +35,8 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: model.pairing == nil)
-        // While CallKit rings, its own screen/banner has the answer buttons; ours shows from then on.
+        // Ringing too: with the app open, CallKit only shows a small banner, easy to miss for older eyes. Our
+        // full-screen ringing view sits under it and answers/declines through the same CallKit call.
         .fullScreenCover(isPresented: .constant(showCallScreen)) {
             CallScreen()
                 .environment(model)
@@ -44,11 +45,7 @@ struct RootView: View {
     }
 
     private var showCallScreen: Bool {
-        switch model.calls.phase {
-        case .idle: false
-        case .ringing: model.calls.inAppRinging
-        case .connecting, .live: true
-        }
+        model.calls.phase != .idle
     }
 }
 
@@ -78,7 +75,8 @@ struct TabPage<Content: View>: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .padding(.bottom, 32)
+            // iOS 26's tab bar floats over the content: leave room so the last card scrolls fully clear of it.
+            .padding(.bottom, 96)
         }
         .scrollIndicators(.hidden)
         .background(VM.page.ignoresSafeArea())

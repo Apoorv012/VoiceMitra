@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
 }
 
 // Firebase config is per developer and gitignored (README.md). Without it the app still builds and
@@ -46,8 +47,19 @@ android {
         buildConfig = true
     }
     testOptions {
+        unitTests.isIncludeAndroidResources = true  // Robolectric renders the app's real resources
         // ApiContractTest talks to a running backend when given one: -PvmServer=http://127.0.0.1:8100
-        unitTests.all { it.systemProperty("vm.server", providers.gradleProperty("vmServer").getOrElse("")) }
+        unitTests.all {
+            it.systemProperty("vm.server", providers.gradleProperty("vmServer").getOrElse(""))
+            // Robolectric reaches into JDK internals that JDK 25 no longer opens by default.
+            it.jvmArgs(
+                "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                "--add-opens=java.base/java.io=ALL-UNNAMED",
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
+            )
+            it.maxHeapSize = "3g"
+        }
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -76,4 +88,18 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// `./gradlew.bat screenshots` -> PNGs of every screen in ../screenshots/ (gitignored), rendered on the JVM.
+tasks.register("screenshots") {
+    group = "verification"
+    description = "Render every screen to mobile/android/screenshots/ (no emulator)."
+    dependsOn("recordRoborazziDebug")
 }
