@@ -60,7 +60,8 @@ Design constraints:
   CSS file (`web/src/app/globals.css`, palette from the dataviz reference, light + dark). Types are generated
   from the API's OpenAPI schema.
 - **Hosting (decided by the user, 2026-11-06):** two hostnames, nothing else public.
-  - **`voicemitra.apoorvm.com` -- the website, on Vercel.** It is the whole web app: the homepage, `/login`, and
+  - **`voicemitra.apoorvm.com` -- the website, on Vercel. LIVE since 2026-11-06** (deployed by the user; served from
+    Mumbai, `bom1`). It is the whole web app: the homepage, `/login`, and
     the patient, caregiver, doctor and operator screens. The browser calls `/api/*` on this same host and Vercel
     forwards it to the API (`web/next.config.ts`), so there is no CORS; live updates (WebSockets) connect straight
     to the API host (`NEXT_PUBLIC_WS_ORIGIN`).
@@ -507,7 +508,7 @@ overview, the new-patient form and brand-mark sizing. Also applied Web Interface
   every request costs 0.3-1.1 s, so each screen (page + data call) takes 1-2 s. Fix options: use `localhost:3000` on the
   PC, and fewer sequential requests per screen (e.g. preload data on hover/prefetch).
 
-### Public homepage + contact form (2026-11-06) — **BUILT; verified in a headless browser + pytest/tsc/eslint/build, NOT YET SEEN BY THE USER IN THE APP**
+### Public homepage + contact form (2026-11-06) — **LIVE at https://voicemitra.apoorvm.com (the user reviewed it and deployed it); the contact form works once the API is live**
 Why: the user wants a website people land on, with login and contact. Design picked by the user from screenshot
 research and mockups: the Sage-glow hero, the Night-call live console as the product picture, and the Forest
 audiences + contact panel (mockup: claude.ai/artifact/JPVDfE3TfMxtJpiwEAY2Ju).
@@ -603,6 +604,14 @@ Android app with friends.
   Both one level under the domain, as Cloudflare's free certificate covers only one. Phones use only the API host.
   The website can go live before the API: the homepage works, and API calls fail until the API is up (the contact
   form then shows the email address to write to instead).
+  **Checked live (2026-11-06):** every page loads (HTTP redirects to HTTPS), the link-preview tags use the real domain
+  and the picture loads, no console errors and no sideways scroll at 1440 and 390 px, `/login` renders; `/api/*` and
+  `/health` answer 502 (expected: the API host doesn't exist yet).
+  Phone layout after the user's review (2026-11-06, not yet deployed): narrow phones (<=400 px) show "Log in" in the
+  header instead of "Book a demo" (the hero has that button); in one-column view (<=860 px) the audience links, the
+  email box, the form's question, the send button and the footer are centred. The email box was redesigned (mail icon, label over
+  the address, a Copy button with an icon that turns green with "Copied"; on narrow two-column widths Copy moves under
+  the address instead of the address breaking).
   Website deploy fixes (2026-11-06): `web/vercel.json` skips a build only if `web/` is unchanged since the **last
   deployed commit** (`VERCEL_GIT_PREVIOUS_SHA`; it compared only the last commit before, so a push of several commits
   could skip a web change); the site's address is set (`metadataBase`) and the homepage has link-preview tags
