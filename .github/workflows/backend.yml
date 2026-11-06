@@ -54,6 +54,10 @@ jobs:
       mongo:
         image: mongo:8.0
         ports: ["27017:27017"]
+        # MongoDB 8 refuses to start on the runners' Linux 6.19+/7.0 kernels (SERVER-121912). This makes its memory
+        # allocator skip the kernel feature that broke (a little slower, fine for tests). Remove once mongo:8.0 starts without it.
+        env:
+          GLIBC_TUNABLES: glibc.pthread.rseq=1
         options: >-
           --health-cmd "mongosh --quiet --eval 'db.runCommand({ping: 1})'"
           --health-interval 5s --health-timeout 5s --health-retries 20
@@ -68,7 +72,7 @@ jobs:
       - name: Tests
         run: python -m pytest -q
         env:
-          MONGODB_URI: mongodb://localhost:27017
+          TEST_MONGODB_URI: mongodb://localhost:27017
       - name: web/openapi.json matches the API (else run `python -m backend.dump_openapi` and `npm run gen:api`)
         run: |
           python -m backend.dump_openapi

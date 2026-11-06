@@ -186,3 +186,20 @@ iPhone: Settings (gear) → server address `https://voicemitra-api.apoorvm.com`,
 - **Change a setting:** edit `/opt/voicemitra/.env` on the server, then `docker compose up -d` there.
 - **Dependencies:** the image installs `requirements.lock`, not `requirements.txt`. After changing
   `requirements.txt`, regenerate the lock (command at the top of `requirements.lock`).
+
+## Trying the image on your PC
+
+The same image, against your local MongoDB, before pushing (Docker Desktop running; Git Bash):
+
+```bash
+docker build -t voicemitra-api:local .
+```
+```bash
+docker run --rm --name vm-local --env-file .env -e "MONGODB_URI=mongodb://host.docker.internal:27017/?directConnection=true" -e FIREBASE_CREDENTIALS=/run/secrets/firebase.json -v "C:/Users/apoor/keys/voicemitra/<firebase key>.json:/run/secrets/firebase.json:ro" -p 127.0.0.1:18000:8000 voicemitra-api:local
+```
+
+`directConnection=true` is needed because the local MongoDB is a replica set that calls itself `127.0.0.1`,
+which inside a container means the container itself. Atlas doesn't need it. To put the web app in front of
+it the way Vercel does: in `web/`, `BACKEND_URL=http://127.0.0.1:18000 NEXT_PUBLIC_WS_ORIGIN=ws://127.0.0.1:18000
+npx next build && npx next start -p 13000`. Afterwards delete `web/.next`: that build has the test address in
+it, and `npm run dev` would otherwise reuse it.

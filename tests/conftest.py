@@ -20,6 +20,8 @@ async def mongo(monkeypatch):
     from backend import db
 
     monkeypatch.setenv("MONGODB_DB_NAME", TEST_DB)
+    # Always the local server (or TEST_MONGODB_URI), never the MONGODB_URI in .env, which may be the cloud database.
+    monkeypatch.setenv("MONGODB_URI", os.environ.get("TEST_MONGODB_URI", "mongodb://localhost:27017"))
     db.get_client.cache_clear()  # a fresh client on this test's event loop
     try:
         await db.get_client().drop_database(TEST_DB)

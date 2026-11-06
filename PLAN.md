@@ -597,8 +597,7 @@ Android app with friends.
   `NEXT_PUBLIC_WS_ORIGIN`. Android: default server is now the Gradle property `voicemitra.serverUrl` (unset = the home
   tunnel).
 - **Verified:** pytest 71/71 (2 new); actionlint and shellcheck clean; web tsc + eslint clean; the Android property
-  reaches `BuildConfig`. **Not verified:** the Docker image has not been built yet (Docker Desktop wasn't running
-  locally; the first GitHub Actions run will build it); nothing has run on a server, Atlas or Vercel.
+  reaches `BuildConfig`. Nothing has run on a server, Atlas or Vercel yet (local test below).
 - **Hostnames (decided by the user, 2026-11-06; see "Hosting" under Stack):** web `voicemitra.apoorvm.com` on Vercel
   (the custom domain is part of the setup, not optional), API `voicemitra-api.apoorvm.com` (**not created yet**).
   Both one level under the domain, as Cloudflare's free certificate covers only one. Phones use only the API host.
@@ -616,6 +615,31 @@ Android app with friends.
   deployed commit** (`VERCEL_GIT_PREVIOUS_SHA`; it compared only the last commit before, so a push of several commits
   could skip a web change); the site's address is set (`metadataBase`) and the homepage has link-preview tags
   (Open Graph/Twitter) with a 1200x630 picture, `web/src/app/opengraph-image.png` (+ `.alt.txt`), captured once from an HTML layout of the hero and the live-call console; to change it, edit and re-capture (it is a plain PNG, not generated). `deploy/README.md`'s diagram is now Mermaid.
+- **Local end-to-end test (2026-11-06) -- PASSED:** the image builds (1.14 GB) and ran on the PC the way the server
+  will run it (`.env` settings, Firebase key mounted, real `voicemitra` DB on the local MongoDB), with a production
+  web build pointed at it the way Vercel will be (`BACKEND_URL` + `NEXT_PUBLIC_WS_ORIGIN`). Checked in the browser:
+  operator roster, patient app, caregiver page (all via the `/api` forwarding), their three WebSockets straight to the
+  container, a full **chat call** (greeting, wellbeing question, sign-off, saved to the call history), a **voice call**
+  start (agent joined the LiveKit room and connected to Sarvam STT/TTS, ended cleanly; nothing spoken, the browser
+  pane has no mic), Firebase authenticating from the container (dry-run send), the Vercel build failing without its two
+  variables, and `docker compose config` on the server file. Memory: ~115 MB idle, ~180 MB during a voice call (a
+  1 GB server is enough). Found: the local MongoDB is a replica set advertising `127.0.0.1`, so a container needs
+  `?directConnection=true` (local only; in `deploy/README.md`). Not covered: the deploy job and rollback script on a
+  real server, the tunnel, Atlas.
+- **Atlas -- SET UP (2026-11-06, by the user):** cluster `cluster0.pow8zrc` (MongoDB 8.0); the local `.env` now points
+  at it (the old local URI is kept as a comment), so `npm run dev` on the PC uses the cloud database too. **Started
+  fresh** (user): 3 pilot patients added through the API -- Apoorv Mittal (vitamin D deficiency; Vitamin D3 weekly +
+  Calcium; allergy egg; father Manish Mittal), Aditya Pratap Singh (mild hypothyroidism; Levothyroxine 7 AM; penicillin;
+  father's name not given, placeholder "Mr. Singh" to be edited), Gauri Soni (iron-deficiency anaemia; iron twice a day +
+  folic acid; sulfa drugs; father Hari Soni); random phone numbers, no doctor, no phone-app logins yet. The old local
+  data (incl. the iPhone's `testiphone` login) was not copied; `voicemitra_demo` on Atlas is empty (`npm run demo`
+  needs `seed_demo` first). Tests now always use the local MongoDB (or `TEST_MONGODB_URI`), never `.env`'s
+  `MONGODB_URI`, so they can't drop anything on Atlas.
+- **CI fix (2026-11-07):** the first Actions run (42248877224) failed before any test: GitHub's runners moved to a Linux
+  6.19+ kernel and `mongo:8.0` refuses to start on it (SERVER-121912). The test job's Mongo container now gets
+  `GLIBC_TUNABLES=glibc.pthread.rseq=1` (the workaround other projects use; CI stays on 8.0 like Atlas). Checked:
+  actionlint clean, `mongo:8.0` still starts with it locally (old kernel, so the fix itself is proven only by the next
+  CI run). Remove the variable once `mongo:8.0` starts on the runners without it.
 - **Known limits:** a deploy restarts the API and drops calls in progress; the deploy's SSH port is open to the internet
   (GitHub runner IPs vary; key-only login); sideloaded APK updates must be built on the same PC (same debug signing key).
 - **Next:** the user sets up Atlas, the tunnel and Vercel with `voicemitra.apoorvm.com` (can start now); the friend
