@@ -2,15 +2,18 @@
 
 How the pieces fit once deployed:
 
-```
- phones (Android/iPhone app) ─┐
-                              ├─► voicemitra-api.apoorvm.com ─► Cloudflare tunnel ─► AWS EC2 (Mumbai)
- browsers ─► Vercel (web/) ───┘        (HTTPS by Cloudflare)                         docker compose:
-            /api/* is forwarded,                                                       api (this repo's image)
-            WebSockets go straight to the API host                                     tunnel (cloudflared)
-                                                                                         │
-                                                       MongoDB Atlas (Mumbai) ◄──────────┘
-                                                       LiveKit Cloud, Sarvam, Gemini, Firebase (as today)
+```mermaid
+flowchart LR
+  subgraph ec2["AWS EC2, Mumbai: docker compose"]
+    tunnel["tunnel<br/>cloudflared"] --> app["api<br/>this repo's image"]
+  end
+  browser["Browsers"] --> web["voicemitra.apoorvm.com<br/>Vercel, web/<br/>homepage + all screens"]
+  web -- "/api/* forwarded" --> api["voicemitra-api.apoorvm.com<br/>HTTPS by Cloudflare"]
+  browser -. "WebSockets, direct" .-> api
+  phones["Phone apps<br/>Android, iPhone"] --> api
+  api --> tunnel
+  app --> atlas[("MongoDB Atlas<br/>Mumbai")]
+  app --> ext["LiveKit Cloud, Sarvam,<br/>Gemini, Firebase"]
 ```
 
 - **Backend:** one Docker container on one small server. One instance on purpose: live calls and the
@@ -22,9 +25,15 @@ How the pieces fit once deployed:
   the previous image if it doesn't come up. The deploy job is skipped until `DEPLOY_HOST` is set.
 - **Web:** Vercel builds `web/` itself on every push that changes it (`web/vercel.json`).
 
-Hostnames below are suggestions; use the same ones everywhere if you pick others. Keep them **one level
-under `apoorvm.com`** (`voicemitra-api.apoorvm.com`, not `api.voicemitra.apoorvm.com`): Cloudflare's free
-certificate only covers one level.
+Two hostnames (decided):
+
+| Host | What | Who uses it |
+|---|---|---|
+| `voicemitra.apoorvm.com` | The website on Vercel: homepage, log in, and every screen (patient, caregiver, doctor, operator) | Browsers |
+| `voicemitra-api.apoorvm.com` | The API only (FastAPI). **Not created yet** (steps 2-5) | The website, and the phone apps |
+
+The phone apps only ever talk to the API host, never to the website. Both hosts stay **one level under
+`apoorvm.com`** (not `api.voicemitra.apoorvm.com`): Cloudflare's free certificate only covers one level.
 
 ---
 
@@ -134,7 +143,7 @@ curl https://voicemitra-api.apoorvm.com/health/ready
 
 It should say `{"status":"ok","version":"<commit>"}`.
 
-## 6. Web app on Vercel (you, any time; works fully once step 5 is done)
+## 6. Website on Vercel at voicemitra.apoorvm.com (you, any time; API calls work once step 5 is done)
 
 1. <https://vercel.com> → sign in with GitHub → **Add New → Project** → import `Apoorv012/VoiceMitra`.
 2. **Root Directory: `web`** (framework is detected as Next.js).
@@ -142,18 +151,27 @@ It should say `{"status":"ok","version":"<commit>"}`.
    - `BACKEND_URL` = `https://voicemitra-api.apoorvm.com`
    - `NEXT_PUBLIC_WS_ORIGIN` = `wss://voicemitra-api.apoorvm.com`
 
-   The build fails on purpose if either is missing (`web/next.config.ts`).
-4. Deploy. Optional custom domain: Settings → Domains → `voicemitra.apoorvm.com`, then in Cloudflare DNS a
-   `CNAME voicemitra → cname.vercel-dns.com` with the proxy **off** (grey cloud).
+   The build fails on purpose if either is missing (`web/next.config.ts`). Set them now even though the API
+   host doesn't exist yet.
+4. Deploy.
+5. Domain: Vercel project → **Settings → Domains → Add** `voicemitra.apoorvm.com`. Vercel shows the DNS record it
+   wants; add it in Cloudflare DNS (usually `CNAME voicemitra → cname.vercel-dns.com`, or the project-specific value
+   Vercel shows) with the proxy **off** (grey cloud), so Vercel can issue the certificate.
+
+Until the API is live (steps 2-5 above) the site already works as a website: the homepage loads, but log in, the screens and the
+contact form can't reach the API (the form then shows the email address instead).
 
 Vercel redeploys on every push that changes `web/`, and builds a preview for pull requests.
 
-## 7. Android app
+## 7. Phone apps (point them at the API host, never the website)
 
 In `mobile/android/gradle.properties` uncomment `voicemitra.serverUrl=https://voicemitra-api.apoorvm.com`,
 then build and send the APK (`mobile/android/README.md`). Phones that already have the app pick up the new
 address with the update, unless someone typed an address under Me → Advanced. Build updates on the same PC
 each time: a sideloaded update has to be signed with the same key as the installed app.
+
+iPhone: Settings (gear) → server address `https://voicemitra-api.apoorvm.com`, or change `defaultServer` in
+`mobile/ios/VoiceMitra/Sources/VoiceMitra/Store.swift` (today the home tunnel) before building.
 
 ---
 

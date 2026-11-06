@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "VoiceMitra",
     short_name: "VoiceMitra",
     description: "Your medicine companion: gentle daily check-ins by voice, with your doctor one call away.",
-    start_url: "/",
+    start_url: "/login", // the installed app skips the homepage: /login sends a known person straight home
     scope: "/",
     display: "standalone",
     orientation: "portrait",

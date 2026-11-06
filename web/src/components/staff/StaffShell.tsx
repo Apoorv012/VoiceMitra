@@ -45,7 +45,7 @@ export function StaffShell({
               aria-label="Switch user"
               onClick={() => {
                 clearIdentity();
-                router.push("/");
+                router.push("/login");
               }}
             >
               <Icon name="logout" />

@@ -564,6 +564,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Messages
+         * @description Newest first (the last 200).
+         */
+        get: operations["list_messages_api_contact_get"];
+        put?: never;
+        /** Send Message */
+        post: operations["send_message_api_contact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contact/{message_id}/handled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Handled */
+        put: operations["set_handled_api_contact__message_id__handled_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -803,6 +841,59 @@ export interface components {
             /** Escalation Reason */
             escalation_reason: string | null;
         };
+        /**
+         * ContactMessageView
+         * @description A message as the operator's inbox shows it (plain `id`, never Mongo's `_id`).
+         */
+        ContactMessageView: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone: string | null;
+            /** Organisation */
+            organisation: string | null;
+            topic: components["schemas"]["ContactTopic"];
+            /** Message */
+            message: string;
+            /** Handled */
+            handled: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** ContactReceipt */
+        ContactReceipt: {
+            /** Id */
+            id: string;
+        };
+        /** ContactRequest */
+        ContactRequest: {
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone?: string | null;
+            /** Organisation */
+            organisation?: string | null;
+            /** @default demo */
+            topic: components["schemas"]["ContactTopic"];
+            /** Message */
+            message: string;
+            /** Website */
+            website?: string | null;
+        };
+        /**
+         * ContactTopic
+         * @enum {string}
+         */
+        ContactTopic: "demo" | "pilot" | "family" | "other";
         /** CreatePatientRequest */
         CreatePatientRequest: {
             /** Name */
@@ -1012,6 +1103,11 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HandledRequest */
+        HandledRequest: {
+            /** Handled */
+            handled: boolean;
         };
         /** HowDoing */
         HowDoing: {
@@ -2650,6 +2746,106 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_messages_api_contact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactMessageView"][];
+                };
+            };
+        };
+    };
+    send_message_api_contact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description too many messages lately, paused */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    set_handled_api_contact__message_id__handled_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandledRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

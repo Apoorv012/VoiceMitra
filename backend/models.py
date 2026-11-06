@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -325,3 +325,23 @@ class PatientLogin(MongoDocument):
     username_key: str  # lower-cased: what logins match on, unique
     password_hash: str
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ContactTopic(str, Enum):
+    demo = "demo"        # book a demo
+    pilot = "pilot"      # run a pilot at a clinic or hospital
+    family = "family"    # set it up for a family member
+    other = "other"
+
+
+class ContactMessage(MongoDocument):
+    """A message sent from the contact form on the public homepage. Operators read them in the web app."""
+
+    name: str
+    email: str
+    phone: str | None = None
+    organisation: str | None = None
+    topic: ContactTopic = ContactTopic.demo
+    message: str
+    handled: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # sent with its zone

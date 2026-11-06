@@ -67,6 +67,10 @@ def pairing_codes_col():
     return get_db()["pairing_codes"]
 
 
+def contact_messages_col():
+    return get_db()["contact_messages"]
+
+
 async def ensure_indexes() -> None:
     # `_id` (== the domain id) is already indexed+unique by Mongo itself; only
     # foreign-key lookup fields need explicit indexes.
@@ -83,6 +87,7 @@ async def ensure_indexes() -> None:
     await devices_col().create_index("patient_id")
     await devices_col().create_index("push_token")
     await pairing_codes_col().create_index("code")
+    await contact_messages_col().create_index("created_at")
 
 
 def doc_to_model(model_cls, doc: dict | None):

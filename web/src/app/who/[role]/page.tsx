@@ -20,7 +20,7 @@ export default function WhoPage() {
   const { data, error, mutate } = useApi<People>(valid ? "/api/app/people" : null, 0);
 
   useEffect(() => {
-    if (!valid) router.replace("/");
+    if (!valid) router.replace("/login");
   }, [valid, router]);
 
   if (!valid) return null;
@@ -29,7 +29,7 @@ export default function WhoPage() {
   return (
     <main className="welcome">
       <div className="row between">
-        <Link href="/" className="btn ghost sm"><Icon name="chevron-left" />{t("back")}</Link>
+        <Link href="/login" className="btn ghost sm"><Icon name="chevron-left" />{t("back")}</Link>
         <LangSwitch />
       </div>
       <h1>{t(role === "patient" ? "pick_patient" : role === "caregiver" ? "pick_caregiver" : "pick_doctor")}</h1>

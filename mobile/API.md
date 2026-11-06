@@ -8,6 +8,11 @@ Base URL: the tunnel's public HTTPS hostname (README: "Cloudflare Tunnel sends `
 :8000"), configurable in each app (a settings field, or a build constant for the pilot). Local dev on the same
 Wi-Fi: `http://<pc-ip>:8000` (Android needs cleartext allowed for that host in debug builds only).
 
+**The apps talk to the API host only, never the website.** Cloud (once live, `deploy/README.md`):
+`https://voicemitra-api.apoorvm.com` (API only; **not created yet**). Development: the home tunnel
+`https://test-voicemitra.apoorvm.com`. The website (`voicemitra.apoorvm.com`, on Vercel) is for browsers; the apps
+never load or call it.
+
 The app's only credential is a **device token**, which it gets either by logging in (the main way) or by pairing
 (the fallback). Both return the same thing; everything after that is the same.
 

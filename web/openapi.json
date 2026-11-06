@@ -1612,6 +1612,122 @@
         }
       }
     },
+    "/api/contact": {
+      "get": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "List Messages",
+        "description": "Newest first (the last 200).",
+        "operationId": "list_messages_api_contact_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContactMessageView"
+                  },
+                  "type": "array",
+                  "title": "Response List Messages Api Contact Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Send Message",
+        "operationId": "send_message_api_contact_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactReceipt"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "too many messages lately, paused"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contact/{message_id}/handled": {
+      "put": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Set Handled",
+        "operationId": "set_handled_api_contact__message_id__handled_put",
+        "parameters": [
+          {
+            "name": "message_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandledRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "no such message"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -2330,6 +2446,166 @@
         ],
         "title": "CheckinView"
       },
+      "ContactMessageView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/ContactTopic"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "handled": {
+            "type": "boolean",
+            "title": "Handled"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "organisation",
+          "topic",
+          "message",
+          "handled",
+          "created_at"
+        ],
+        "title": "ContactMessageView",
+        "description": "A message as the operator's inbox shows it (plain `id`, never Mongo's `_id`)."
+      },
+      "ContactReceipt": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "ContactReceipt"
+      },
+      "ContactRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/ContactTopic",
+            "default": "demo"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "message"
+        ],
+        "title": "ContactRequest"
+      },
+      "ContactTopic": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "pilot",
+          "family",
+          "other"
+        ],
+        "title": "ContactTopic"
+      },
       "CreatePatientRequest": {
         "properties": {
           "name": {
@@ -2957,6 +3233,19 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HandledRequest": {
+        "properties": {
+          "handled": {
+            "type": "boolean",
+            "title": "Handled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "handled"
+        ],
+        "title": "HandledRequest"
       },
       "HowDoing": {
         "properties": {

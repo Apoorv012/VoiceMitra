@@ -35,3 +35,5 @@ export type AttentionLevel = "critical" | "warning" | "ok";
 export type PatientProfile = S["PatientProfile"];
 export type PairingCode = S["PairingCodeOut"];
 export type DeviceView = S["DeviceView"];
+export type ContactMessage = S["ContactMessageView"];
+export type ContactTopic = S["ContactTopic"];

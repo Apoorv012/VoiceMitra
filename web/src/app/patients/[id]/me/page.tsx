@@ -83,7 +83,7 @@ export default function Me() {
         className="btn secondary block"
         onClick={() => {
           clearIdentity();
-          router.push("/");
+          router.push("/login");
         }}
       >
         <Icon name="logout" />{t("switch_user")}

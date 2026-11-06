@@ -174,7 +174,7 @@ export default function CaregiverPage() {
         type="button" className="btn ghost sm" style={{ alignSelf: "center" }}
         onClick={() => {
           clearIdentity();
-          router.push("/");
+          router.push("/login");
         }}
       >
         <Icon name="logout" />{t("switch_user")}

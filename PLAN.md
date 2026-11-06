@@ -59,6 +59,16 @@ Design constraints:
   data, direct WebSockets for live events, `livekit-client` for the call. The design system is one plain
   CSS file (`web/src/app/globals.css`, palette from the dataviz reference, light + dark). Types are generated
   from the API's OpenAPI schema.
+- **Hosting (decided by the user, 2026-11-06):** two hostnames, nothing else public.
+  - **`voicemitra.apoorvm.com` -- the website, on Vercel.** It is the whole web app: the homepage, `/login`, and
+    the patient, caregiver, doctor and operator screens. The browser calls `/api/*` on this same host and Vercel
+    forwards it to the API (`web/next.config.ts`), so there is no CORS; live updates (WebSockets) connect straight
+    to the API host (`NEXT_PUBLIC_WS_ORIGIN`).
+  - **`voicemitra-api.apoorvm.com` -- the API (FastAPI) only.** EC2 + Cloudflare tunnel, see "Cloud deploy" below.
+    **Not created yet.**
+  - **The phone apps (Android, iPhone) talk only to the API host.** They never load or call the website, and the
+    website never gives the phones an address (pairing shows only a code). The home tunnel
+    `test-voicemitra.apoorvm.com` (web + API on the PC) stays for development.
 
 ## Data model
 
@@ -112,7 +122,7 @@ voicemitra/
                                  # escalations.py (doctor WebSockets + join/end), app_api.py (/api/app/* read endpoints),
                                  # caregivers.py (mark alerts seen + the caregiver WebSocket)
 
-  web/                           # Next.js app: src/app (screens), src/components, src/lib (api, ws, i18n, format, events)
+  web/                           # Next.js app: src/app (homepage at /, screens), src/components (landing/ = homepage), src/lib (api, ws, i18n, format, events)
                                  # public/ (icons, service worker, offline page), scripts/make_icons.py
   mobile/                        # native apps (see Pilot status): README.md (start here), API.md (contract), android/ (Kotlin + Compose APK, rings via FCM), ios/ (SwiftUI built with xtool in WSL, CallKit, rings only while open)
   tests/                         # pytest: insights.py, views.py, the dose step, care modes
@@ -426,7 +436,7 @@ hear the patient but the patient couldn't hear the doctor and the doctor's speec
 Why: the backend-served Jinja pages were a cluttered dump of tables (one template served patient, doctor
 and operator with flags) and not installable. Replaced by a separate frontend, `web/` (Next.js), with the
 backend reduced to an API.
-- **Roles, no accounts (decision):** the first screen asks who you are (patient / doctor / staff); the choice
+- **Roles, no accounts (decision):** the first screen (now `/login`, behind the public homepage -- see "Public homepage" below) asks who you are (patient / doctor / staff); the choice
   is kept in `localStorage` so the installed app opens straight to its home. Not security: anyone can pick
   anyone. Staff open a patient's app with `?preview=1` so that doesn't overwrite their own remembered role.
 - **Patient app** (`/patients/[id]`, mobile-first, Hindi + English): Today = one big "Talk to VoiceMitra"
@@ -497,6 +507,31 @@ overview, the new-patient form and brand-mark sizing. Also applied Web Interface
   every request costs 0.3-1.1 s, so each screen (page + data call) takes 1-2 s. Fix options: use `localhost:3000` on the
   PC, and fewer sequential requests per screen (e.g. preload data on hover/prefetch).
 
+### Public homepage + contact form (2026-11-06) — **BUILT; verified in a headless browser + pytest/tsc/eslint/build, NOT YET SEEN BY THE USER IN THE APP**
+Why: the user wants a website people land on, with login and contact. Design picked by the user from screenshot
+research and mockups: the Sage-glow hero, the Night-call live console as the product picture, and the Forest
+audiences + contact panel (mockup: claude.ai/artifact/JPVDfE3TfMxtJpiwEAY2Ju).
+- **Routes:** `/` is the homepage (`web/src/app/page.tsx`, static, its own light look in
+  `web/src/components/landing/landing.module.css`; Newsreader + JetBrains Mono loaded there). The old role picker
+  moved to `/login` (redirects a known person to their home, as before); every "switch user" button, the `who/[role]`
+  back link, and the PWA's `start_url` now go to `/login` (`id` stays `/` so installed apps keep their identity).
+  Homepage links: Log in -> `/login`, patient app -> `/who/patient`, caregiver -> `/who/caregiver`, staff -> `/login`.
+- **Contact:** the panel shows the user's address (apoorvmittal125@gmail.com, with Copy) and a form: what they want
+  (demo / pilot / family / other), name, email, optional phone and clinic, message. `POST /api/contact`
+  (`backend/routers/contact.py`, `ContactMessage` in `contact_messages`) stores it -- no sign-in, lengths capped, a
+  hidden honeypot field drops simple bots, and the form pauses after 30 messages in 10 min (429). **No email is sent**:
+  operators read them at `/operator/messages` (new "Messages" tab; `GET /api/contact`, mark replied with
+  `PUT /api/contact/{id}/handled`). Like the rest of the staff screens, that inbox is not protected yet (no accounts).
+  After the user's review: the topic choices are an even 2x2 grid, the left column has a 3-step "What happens next"
+  list (reply by email, demo call, set it up), and the form's inputs are scoped under `.form` so the app's dark-mode
+  `input[type=tel]` style no longer turns the Phone box black.
+- **Verified:** `tests/test_contact.py` (10) + full pytest 81/81; web tsc, eslint, `next build` clean; a headless run
+  sent the form, saw it in the inbox and marked it replied, no console errors, no sideways scroll at 390 px
+  (run against a throwaway `voicemitra_sitecheck` database, dropped afterwards).
+- **Not done:** Hindi version of the homepage (English with one Hindi line); dark mode (the homepage is light-only on
+  purpose); an email/notification to the user when a message arrives; "See a sample call" only scrolls to the
+  console (there is no recorded audio yet).
+
 ### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
 **User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's
 `seriousness` field description in `tools.py` has exactly that cue, and `RED_FLAGS` is a substring list --
@@ -563,12 +598,21 @@ Android app with friends.
 - **Verified:** pytest 71/71 (2 new); actionlint and shellcheck clean; web tsc + eslint clean; the Android property
   reaches `BuildConfig`. **Not verified:** the Docker image has not been built yet (Docker Desktop wasn't running
   locally; the first GitHub Actions run will build it); nothing has run on a server, Atlas or Vercel.
-- **Hostnames (suggested):** API `voicemitra-api.apoorvm.com`, web `voicemitra.apoorvm.com` (one level under the
-  domain, as Cloudflare's free certificate covers only one).
+- **Hostnames (decided by the user, 2026-11-06; see "Hosting" under Stack):** web `voicemitra.apoorvm.com` on Vercel
+  (the custom domain is part of the setup, not optional), API `voicemitra-api.apoorvm.com` (**not created yet**).
+  Both one level under the domain, as Cloudflare's free certificate covers only one. Phones use only the API host.
+  The website can go live before the API: the homepage works, and API calls fail until the API is up (the contact
+  form then shows the email address to write to instead).
+  Website deploy fixes (2026-11-06): `web/vercel.json` skips a build only if `web/` is unchanged since the **last
+  deployed commit** (`VERCEL_GIT_PREVIOUS_SHA`; it compared only the last commit before, so a push of several commits
+  could skip a web change); the site's address is set (`metadataBase`) and the homepage has link-preview tags
+  (Open Graph/Twitter) with a 1200x630 picture, `web/src/app/opengraph-image.png` (+ `.alt.txt`), captured once from an HTML layout of the hero and the live-call console; to change it, edit and re-capture (it is a plain PNG, not generated). `deploy/README.md`'s diagram is now Mermaid.
 - **Known limits:** a deploy restarts the API and drops calls in progress; the deploy's SSH port is open to the internet
   (GitHub runner IPs vary; key-only login); sideloaded APK updates must be built on the same PC (same debug signing key).
-- **Next:** the user sets up Atlas, the tunnel and Vercel (can start now); the friend creates the EC2 server; then
-  `deploy/README.md` steps 3-5; then point the Android build at the cloud and send it to friends.
+- **Next:** the user sets up Atlas, the tunnel and Vercel with `voicemitra.apoorvm.com` (can start now); the friend
+  creates the EC2 server; then `deploy/README.md` steps 3-5 (this is when `voicemitra-api.apoorvm.com` starts
+  working); then point the phone apps at it -- Android: `voicemitra.serverUrl` in `gradle.properties`; iPhone:
+  `Store.defaultServer` (today the home tunnel) or the app's server field -- and send the Android build to friends.
 
 ### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation

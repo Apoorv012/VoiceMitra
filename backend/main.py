@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from backend import dose_scheduler, escalations
 from backend.db import ensure_indexes, get_db
 from backend.live_calls import rearm_pending_reminders
-from backend.routers import app_api, calls, caregivers, devices, doctors, live, patients
+from backend.routers import app_api, calls, caregivers, contact, devices, doctors, live, patients
 from backend.routers import escalations as escalation_routes
 from backend.routers import auth as auth_routes
 
@@ -41,6 +41,7 @@ app.include_router(caregivers.router)
 app.include_router(escalation_routes.router)
 app.include_router(devices.router)
 app.include_router(auth_routes.router)
+app.include_router(contact.router)
 
 
 @app.get("/health")

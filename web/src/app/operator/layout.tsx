@@ -11,6 +11,7 @@ export default function OperatorLayout({ children }: { children: ReactNode }) {
       nav={[
         { href: "/operator", label: "Patients", icon: "users", match: (p) => p === "/operator" || (p.startsWith("/operator/patients/") && !p.endsWith("/new")) },
         { href: "/operator/patients/new", label: "Add patient", icon: "plus" },
+        { href: "/operator/messages", label: "Messages", icon: "send" },
       ]}
       name="Hospital staff"
       role="Operator"

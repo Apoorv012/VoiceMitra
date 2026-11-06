@@ -7,6 +7,8 @@ const latin = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-latin", 
 const devanagari = Noto_Sans_Devanagari({ subsets: ["devanagari"], variable: "--font-deva", display: "swap" });
 
 export const metadata: Metadata = {
+  // The public site (deploy/README.md step 6). Link previews (WhatsApp, etc.) need absolute URLs.
+  metadataBase: new URL("https://voicemitra.apoorvm.com"),
   title: { default: "VoiceMitra", template: "%s · VoiceMitra" },
   description: "Your medicine companion: gentle daily check-ins by voice, with your doctor one call away.",
   applicationName: "VoiceMitra",
