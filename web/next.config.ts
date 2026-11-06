@@ -6,6 +6,14 @@ import type { NextConfig } from "next";
 // backend's port directly (see src/lib/ws.ts).
 const backend = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
 
+// On Vercel (deploy/README.md step 6) the backend is a separate server, and both of these must point at
+// it. Without them the build would succeed and every API call / live update would silently go nowhere.
+if (process.env.VERCEL) {
+  for (const name of ["BACKEND_URL", "NEXT_PUBLIC_WS_ORIGIN"]) {
+    if (!process.env[name]) throw new Error(`${name} must be set in the Vercel project (see deploy/README.md)`);
+  }
+}
+
 const nextConfig: NextConfig = {
   // The repo root also has a package.json (the one-command runner), so say which folder is this app's
   // root instead of letting Next guess between the two lockfiles.

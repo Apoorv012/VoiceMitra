@@ -22,8 +22,11 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-        // Where the app talks to the backend unless changed in its settings: the tunnel's public hostname.
-        buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://test-voicemitra.apoorvm.com\"")
+        // Where the app talks to the backend unless changed in its settings (Me -> Advanced). Set by
+        // `voicemitra.serverUrl` in gradle.properties, or per build: `./gradlew assembleRelease
+        // -Pvoicemitra.serverUrl=https://...`. Default: the home PC's tunnel.
+        val serverUrl = providers.gradleProperty("voicemitra.serverUrl").orNull ?: "https://test-voicemitra.apoorvm.com"
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"$serverUrl\"")
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebaseConfig.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Real phones only (no emulator is used): drops the x86 WebRTC libraries, roughly halving the APK

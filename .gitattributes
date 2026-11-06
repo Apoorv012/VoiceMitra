@@ -1,0 +1,4 @@
+# Scripts that run on the Linux server and in CI must keep LF line endings.
+*.sh text eol=lf
+Dockerfile text eol=lf
+deploy/** text eol=lf

@@ -3,6 +3,8 @@ the local server, dropped afterwards -- never the real `voicemitra` one."""
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 TEST_DB = "voicemitra_pytest_test"
@@ -24,6 +26,8 @@ async def mongo(monkeypatch):
         await db.ensure_indexes()
     except Exception as e:  # no local mongod
         db.get_client.cache_clear()
+        if os.environ.get("CI"):  # CI starts a MongoDB for the tests: a skip there would hide a broken setup
+            pytest.fail(f"MongoDB not reachable in CI: {e}")
         pytest.skip(f"MongoDB not reachable: {e}")
     yield db.get_db()
     await db.get_client().drop_database(TEST_DB)

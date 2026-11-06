@@ -117,6 +117,9 @@ voicemitra/
   mobile/                        # native apps (see Pilot status): README.md (start here), API.md (contract), android/ (Kotlin + Compose APK, rings via FCM), ios/ (SwiftUI built with xtool in WSL, CallKit, rings only while open)
   tests/                         # pytest: insights.py, views.py, the dose step, care modes
   package.json, scripts/dev.mjs  # `npm run dev|demo` runs API + web app + tunnel in one terminal; `-- --hot` for hot reload (see README)
+  Dockerfile, requirements.lock  # the API image (pinned dependencies) for the cloud server
+  deploy/                        # README.md (setup steps), docker-compose.yml (API + Cloudflare tunnel), server scripts
+  .github/workflows/backend.yml  # CI/CD: tests -> image on ghcr.io -> deploy to the server over SSH
 
   eval/                          # not yet built (Chunk 5)
   reference_transcripts/         # sample Hindi/Hinglish transcripts, prompt/eval grounding material
@@ -534,8 +537,38 @@ LLM loop (this one does), and an `eval` command.
 - **Login / accounts** -- deliberately last, once everything else is final (it slows development). Until then
   the app is not for strangers: anyone can open anyone's records, and prescriptions are health data.
 - **Barge-in depth** -- check the agent knows where it was cut off.
-- **Hosting** -- the backend can move to AWS (or similar) instead of the home PC; needed anyway once
-  reminders must fire while the PC is off, and WhatsApp webhooks need a stable public URL.
+- **Hosting** -- now being done, see "Cloud deploy + CI/CD" below.
+
+### Cloud deploy + CI/CD (2026-11-05) — **READY IN THE REPO, NOT LIVE: waiting on a friend's AWS account**
+Why (user, 2026-11-05): no Android phone is available to the user, so friends with Android phones will test the APK.
+That needs a backend that's always up, not the home PC. Order: deploy the backend, CI/CD for it, then the
+Android app with friends.
+- **Decisions (user):** backend on **AWS EC2** in a friend's account (the user's own free tier is used up; not
+  available yet, so everything is prepared for it); database on **MongoDB Atlas free (M0, Mumbai)**; web app on
+  **Vercel (free)**. Mine: Docker on one server (one process, as live calls/timers are in memory, so no autoscaling or
+  sleeping hosts), **Cloudflare tunnel** in front (no open web ports, free HTTPS, same as the home setup), images on
+  ghcr.io, deploy over SSH from GitHub Actions.
+- **Built:** `Dockerfile` + `.dockerignore` (image holds only `backend/`, `core/`, `domains/`), `requirements.lock`
+  (pinned to the versions that run locally, e.g. Pipecat 1.11.0, since `requirements.txt` is unpinned; checked to
+  install on x86 and ARM Linux), `/health/ready` (pings MongoDB; hidden from the API schema),
+  `deploy/docker-compose.yml` (API on the server's localhost only + cloudflared), `deploy/bootstrap-server.sh` (Docker,
+  2 GB swap, `/opt/voicemitra`), `deploy/remote-deploy.sh` (pull, restart, wait for ready, **roll back** to the previous
+  image if not ready), `deploy/server.env.example`, `deploy/README.md` (step-by-step: Atlas, tunnel, EC2, secrets,
+  GitHub settings, Vercel, Android). `.github/workflows/backend.yml`: tests against a MongoDB 8 service (the test
+  fixture now fails instead of skipping when CI has no MongoDB) + a check that `web/openapi.json` matches the API ->
+  image -> deploy, which is skipped until the repo variable `DEPLOY_HOST` is set. Web: `web/vercel.json` (Mumbai region,
+  build only when `web/` changed), `next.config.ts` fails a Vercel build without `BACKEND_URL` /
+  `NEXT_PUBLIC_WS_ORIGIN`. Android: default server is now the Gradle property `voicemitra.serverUrl` (unset = the home
+  tunnel).
+- **Verified:** pytest 71/71 (2 new); actionlint and shellcheck clean; web tsc + eslint clean; the Android property
+  reaches `BuildConfig`. **Not verified:** the Docker image has not been built yet (Docker Desktop wasn't running
+  locally; the first GitHub Actions run will build it); nothing has run on a server, Atlas or Vercel.
+- **Hostnames (suggested):** API `voicemitra-api.apoorvm.com`, web `voicemitra.apoorvm.com` (one level under the
+  domain, as Cloudflare's free certificate covers only one).
+- **Known limits:** a deploy restarts the API and drops calls in progress; the deploy's SSH port is open to the internet
+  (GitHub runner IPs vary; key-only login); sideloaded APK updates must be built on the same PC (same debug signing key).
+- **Next:** the user sets up Atlas, the tunnel and Vercel (can start now); the friend creates the EC2 server; then
+  `deploy/README.md` steps 3-5; then point the Android build at the cloud and send it to friends.
 
 ### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation
@@ -763,7 +796,9 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       - *Later:* Firebase is moving from FCM registration tokens to FIDs (works today; switching is a contract
         change); ringing a closed iPhone (AlarmKit on iOS 26, or Apple's paid account).
     - **Testing plan (user, 2026-11-04):** no Android phone yet; build everything that can be built without a
-      device, then test **both phones together** once the Android phone arrives. The iPhone is available now, so
+      device, then test **both phones together** once the Android phone arrives. **Changed (user, 2026-11-05):**
+      the user can't get an Android phone for now; friends with Android phones will test the APK, against the cloud
+      backend once it's live (see "Cloud deploy + CI/CD"). The iPhone is available now, so
       its on-device test (I2-I5) is starting first. Work up to here committed by the user (`772b6be`).
     - **Android app (A1-A6) -- IN PROGRESS.** User decided (2026-11-04): **command-line SDK locally, no Android
       Studio and no emulator** ("i dont want the emulator to run on my laptop"); testing on a real Android phone

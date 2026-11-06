@@ -1,0 +1,37 @@
+# What runs on the cloud server (see deploy/README.md). Lives in /opt/voicemitra on the server, next to
+# its .env (from deploy/server.env.example) and secrets/firebase.json. The deploy job copies this file
+# there and runs `docker compose pull && docker compose up -d` with IMAGE_TAG set to the commit.
+#
+# No ports are open to the internet: the Cloudflare tunnel connects out and brings requests in, and
+# Cloudflare handles HTTPS. Port 8000 is published on the server's own localhost only, for the deploy's
+# health check and for `curl` when you're logged in.
+
+name: voicemitra
+
+services:
+  api:
+    image: ghcr.io/apoorv012/voicemitra-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      FIREBASE_CREDENTIALS: /run/secrets/firebase.json
+    volumes:
+      - ./secrets/firebase.json:/run/secrets/firebase.json:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    # Ending live calls and writing their logs takes a moment on shutdown.
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.1
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env (Cloudflare Zero Trust -> Tunnels)}
+    depends_on: [api]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

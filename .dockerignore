@@ -1,0 +1,9 @@
+# The image only needs requirements.lock, backend/, core/ and domains/ (see Dockerfile). Keep secrets and
+# everything else out of the build context.
+*
+!requirements.lock
+!backend/
+!core/
+!domains/
+**/__pycache__
+**/*.pyc

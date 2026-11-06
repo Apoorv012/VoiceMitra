@@ -72,12 +72,21 @@ python -m backend.dump_openapi      # writes web/openapi.json
 cd web && npm run gen:api           # regenerates web/src/lib/api-schema.d.ts
 ```
 
+CI checks this: the backend workflow fails if `web/openapi.json` doesn't match the API.
+
 ## Tests
 
 ```
 pytest                              # backend: schedule/adherence logic and the screen read-models
 cd web && npm run lint && npx tsc --noEmit
 ```
+
+GitHub Actions runs the backend tests on every pull request and push to `main` (`.github/workflows/backend.yml`).
+
+## Deploying
+
+Backend on an AWS server (Docker + Cloudflare tunnel), database on MongoDB Atlas, web app on Vercel, deployed
+by GitHub Actions on push to `main`. Step-by-step setup: [`deploy/README.md`](deploy/README.md).
 
 ## Chat-only agent (no audio, no web app)
 
