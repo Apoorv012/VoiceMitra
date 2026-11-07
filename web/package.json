@@ -10,6 +10,7 @@
     "gen:api": "openapi-typescript openapi.json -o src/lib/api-schema.d.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "livekit-client": "^2.23.0",
     "next": "16.4.2",
     "react": "19.3.0",
