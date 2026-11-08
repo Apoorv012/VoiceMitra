@@ -57,10 +57,13 @@ mongorestore --uri "<the mongodb+srv string>" --nsInclude "voicemitra.*" dump
 
 ## 2. Cloudflare tunnel (you, any time)
 
-1. Cloudflare dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel** → *Cloudflared* → name it
-   `voicemitra-cloud`. Copy the **token** from the install command (the long string after `--token`).
-   Skip the install step: the server runs cloudflared in Docker.
-2. **Public hostname**: `voicemitra-api` . `apoorvm.com`, service **HTTP** → `api:8000`.
+1. Cloudflare dashboard → **Networking → Tunnels → Create a tunnel** (older dashboards: Zero Trust →
+   Networks → Tunnels) → name it `voicemitra-cloud`. Under *Setup Environment* pick **Docker** and copy the
+   **token** from the command shown (the long string after `--token`). Don't run the command: the server
+   runs cloudflared from `docker-compose.yml`.
+2. **Public hostname**: `voicemitra-api` . `apoorvm.com`, service **HTTP** → `api:8000`. The new dashboard
+   keeps **Continue** disabled until a connector connects; skip it: open the tunnel from **Networking → Tunnels**
+   → **Routes → Add route** (published application), and enter Service URL `http://api:8000`, no path.
 
 The existing `test-voicemitra` tunnel to your PC stays as it is, for development.
 

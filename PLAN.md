@@ -575,7 +575,16 @@ LLM loop (this one does), and an `eval` command.
 - **Barge-in depth** -- check the agent knows where it was cut off.
 - **Hosting** -- now being done, see "Cloud deploy + CI/CD" below.
 
-### Cloud deploy + CI/CD (2026-11-05) — **READY IN THE REPO, NOT LIVE: waiting on a friend's AWS account**
+### Cloud deploy + CI/CD (2026-11-05) — **LIVE since 2026-11-07: https://voicemitra-api.apoorvm.com**
+- **Went live (2026-11-07, by the user):** EC2 (Mumbai, Ubuntu 24.04, Elastic IP) set up with `bootstrap-server.sh`;
+  Cloudflare tunnel `voicemitra-cloud` with route `voicemitra-api.apoorvm.com` -> `http://api:8000` (Cloudflare's new
+  dashboard: Networking -> Tunnels, the wizard's Continue stays disabled until a connector connects, so the route was
+  added from the tunnel's Routes tab); GitHub `DEPLOY_*` settings set. First deploy (run 42383808653) failed: the
+  server's `MONGODB_URI` host lacked the cluster ID (`cluster0.mongodb.net`); fixed on the server, the re-run passed
+  and `/health/ready` answers ok. `server.env.example` and `deploy/README.md` now spell out both gotchas.
+- **Open risk (found 2026-11-07):** the staff APIs have no sign-in, and they are now on the public internet:
+  `GET /api/patients` and `GET /api/contact` answer 200 to anyone, i.e. the pilot patients' health data and the
+  contact messages are publicly readable. Needs staff auth (or at least a shared secret) before more real data goes in.
 Why (user, 2026-11-05): no Android phone is available to the user, so friends with Android phones will test the APK.
 That needs a backend that's always up, not the home PC. Order: deploy the backend, CI/CD for it, then the
 Android app with friends.
@@ -638,13 +647,13 @@ Android app with friends.
 - **CI fix (2026-11-07):** the first Actions run (42248877224) failed before any test: GitHub's runners moved to a Linux
   6.19+ kernel and `mongo:8.0` refuses to start on it (SERVER-121912). The test job's Mongo container now gets
   `GLIBC_TUNABLES=glibc.pthread.rseq=1` (the workaround other projects use; CI stays on 8.0 like Atlas). Checked:
-  actionlint clean, `mongo:8.0` still starts with it locally (old kernel, so the fix itself is proven only by the next
-  CI run). Remove the variable once `mongo:8.0` starts on the runners without it.
+  actionlint clean, `mongo:8.0` still starts with it locally. **Proven:** the next run (42281170978) passed tests and
+  pushed the image to ghcr.io; deploy skipped (no `DEPLOY_HOST` yet). Remove the variable once `mongo:8.0` starts on
+  the runners without it.
 - **Known limits:** a deploy restarts the API and drops calls in progress; the deploy's SSH port is open to the internet
   (GitHub runner IPs vary; key-only login); sideloaded APK updates must be built on the same PC (same debug signing key).
-- **Next:** the user sets up Atlas, the tunnel and Vercel with `voicemitra.apoorvm.com` (can start now); the friend
-  creates the EC2 server; then `deploy/README.md` steps 3-5 (this is when `voicemitra-api.apoorvm.com` starts
-  working); then point the phone apps at it -- Android: `voicemitra.serverUrl` in `gradle.properties`; iPhone:
+- **Next:** (Atlas, tunnel, Vercel, EC2 and `deploy/README.md` steps 3-5 are done) protect the staff APIs (open
+  risk above); point the phone apps at the API host -- Android: `voicemitra.serverUrl` in `gradle.properties`; iPhone:
   `Store.defaultServer` (today the home tunnel) or the app's server field -- and send the Android build to friends.
 
 ### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
