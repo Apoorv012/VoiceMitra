@@ -2,7 +2,7 @@
 // when the phone is offline. It never touches the API or sockets -- health data is always live.
 //   - navigations: network first, the offline page if the network is down
 //   - /_next/static/*: content-hashed and immutable, so cache first
-const CACHE = "voicemitra-v1";
+const CACHE = "voicemitra-v2";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {

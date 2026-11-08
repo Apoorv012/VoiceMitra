@@ -14,7 +14,13 @@ export const metadata: Metadata = {
   description: "Your medicine companion: gentle daily check-ins by voice, with your doctor one call away.",
   applicationName: "VoiceMitra",
   appleWebApp: { capable: true, title: "VoiceMitra", statusBarStyle: "default" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  icons: {
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
