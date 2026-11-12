@@ -6,9 +6,10 @@ endpoints in the other routers, and live events use the existing WebSockets.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend import views
+from backend.access import require_call_owner, require_caregiver, require_patient, require_staff
 from backend.db import caregivers_col, calls_col, doc_to_model, doctors_col, patients_col
 from backend.live_calls import active_patient_ids
 from backend.models import Call, Caregiver, Doctor, Patient
@@ -23,9 +24,9 @@ async def _patient_data(patient_id: str) -> views.PatientData:
     return data
 
 
-@router.get("/people", response_model=views.People)
+@router.get("/people", response_model=views.People, dependencies=[Depends(require_staff)])
 async def people() -> views.People:
-    """Everyone you can sign in as -- there are no accounts, you just pick who you are."""
+    """Everyone on file (staff only: the operator's pickers)."""
     patients = [doc_to_model(Patient, d) async for d in patients_col().find()]
     doctors = [doc_to_model(Doctor, d) async for d in doctors_col().find()]
     names = {p.id: p.name for p in patients}
@@ -43,24 +44,28 @@ async def people() -> views.People:
 
 # --- patient --------------------------------------------------------------------------------
 
-@router.get("/patients/{patient_id}/home", response_model=views.PatientHome)
+@router.get("/patients/{patient_id}/home", response_model=views.PatientHome,
+            dependencies=[Depends(require_patient)])
 async def patient_home(patient_id: str) -> views.PatientHome:
     return views.patient_home(await _patient_data(patient_id))
 
 
-@router.get("/patients/{patient_id}/medicines", response_model=views.PatientMedicines)
+@router.get("/patients/{patient_id}/medicines", response_model=views.PatientMedicines,
+            dependencies=[Depends(require_patient)])
 async def patient_medicines(patient_id: str) -> views.PatientMedicines:
     return views.patient_medicines(await _patient_data(patient_id))
 
 
-@router.get("/patients/{patient_id}/history", response_model=views.PatientHistory)
+@router.get("/patients/{patient_id}/history", response_model=views.PatientHistory,
+            dependencies=[Depends(require_patient)])
 async def patient_history(patient_id: str) -> views.PatientHistory:
     return views.patient_history(await _patient_data(patient_id))
 
 
 # --- caregiver ------------------------------------------------------------------------------
 
-@router.get("/caregivers/{caregiver_id}/home", response_model=views.CaregiverHome)
+@router.get("/caregivers/{caregiver_id}/home", response_model=views.CaregiverHome,
+            dependencies=[Depends(require_caregiver)])
 async def caregiver_home(caregiver_id: str) -> views.CaregiverHome:
     caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": caregiver_id}))
     if caregiver is None:
@@ -74,7 +79,8 @@ async def caregiver_home(caregiver_id: str) -> views.CaregiverHome:
 
 # --- doctor ---------------------------------------------------------------------------------
 
-@router.get("/doctors/{doctor_id}/overview", response_model=views.DoctorOverview)
+@router.get("/doctors/{doctor_id}/overview", response_model=views.DoctorOverview,
+            dependencies=[Depends(require_staff)])
 async def doctor_overview(doctor_id: str) -> views.DoctorOverview:
     overview = await views.doctor_overview(doctor_id)
     if overview is None:
@@ -82,7 +88,8 @@ async def doctor_overview(doctor_id: str) -> views.DoctorOverview:
     return overview
 
 
-@router.get("/doctors/{doctor_id}/patients/{patient_id}", response_model=views.PatientClinical)
+@router.get("/doctors/{doctor_id}/patients/{patient_id}", response_model=views.PatientClinical,
+            dependencies=[Depends(require_staff)])
 async def doctor_patient(doctor_id: str, patient_id: str) -> views.PatientClinical:
     doctors = [doc_to_model(Doctor, d) async for d in doctors_col().find()]
     if not any(d.id == doctor_id for d in doctors):
@@ -93,7 +100,8 @@ async def doctor_patient(doctor_id: str, patient_id: str) -> views.PatientClinic
     return clinical
 
 
-@router.get("/doctors/{doctor_id}/escalations/{escalation_id}", response_model=views.EscalationView)
+@router.get("/doctors/{doctor_id}/escalations/{escalation_id}", response_model=views.EscalationView,
+            dependencies=[Depends(require_staff)])
 async def doctor_escalation(doctor_id: str, escalation_id: str) -> views.EscalationView:
     view = await views.escalation_view(escalation_id, doctor_id)
     if view is None:
@@ -103,7 +111,7 @@ async def doctor_escalation(doctor_id: str, escalation_id: str) -> views.Escalat
 
 # --- shared ---------------------------------------------------------------------------------
 
-@router.get("/calls/{call_id}", response_model=views.CallTranscript)
+@router.get("/calls/{call_id}", response_model=views.CallTranscript, dependencies=[Depends(require_call_owner)])
 async def call_transcript(call_id: str) -> views.CallTranscript:
     call = doc_to_model(Call, await calls_col().find_one({"_id": call_id}))
     if call is None:
@@ -116,12 +124,13 @@ async def call_transcript(call_id: str) -> views.CallTranscript:
 
 # --- operator -------------------------------------------------------------------------------
 
-@router.get("/operator/roster", response_model=views.OperatorRoster)
+@router.get("/operator/roster", response_model=views.OperatorRoster, dependencies=[Depends(require_staff)])
 async def operator_roster() -> views.OperatorRoster:
     return await views.operator_roster(set(active_patient_ids()))
 
 
-@router.get("/operator/patients/{patient_id}", response_model=views.PatientClinical)
+@router.get("/operator/patients/{patient_id}", response_model=views.PatientClinical,
+            dependencies=[Depends(require_staff)])
 async def operator_patient(patient_id: str) -> views.PatientClinical:
     """The same clinical picture a doctor gets, for hospital staff (no doctor is the viewer)."""
     doctors = [doc_to_model(Doctor, d) async for d in doctors_col().find()]

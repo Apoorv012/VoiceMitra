@@ -37,21 +37,35 @@ export const MESSAGES = {
   close: { en: "Close", hi: "बंद करें" },
   send: { en: "Send", hi: "भेजें" },
 
-  // welcome / who are you
-  who_title: { en: "Who is using VoiceMitra?", hi: "VoiceMitra कौन इस्तेमाल कर रहा है?" },
-  who_sub: { en: "Choose once. This device will remember you.", hi: "एक बार चुनें। यह फ़ोन आपको याद रखेगा।" },
-  role_patient: { en: "I'm a patient", hi: "मैं मरीज़ हूँ" },
-  role_patient_sub: { en: "See your medicines and talk to VoiceMitra", hi: "अपनी दवाइयाँ देखें और VoiceMitra से बात करें" },
-  role_doctor: { en: "I'm a doctor", hi: "मैं डॉक्टर हूँ" },
-  role_doctor_sub: { en: "See who needs attention and take calls", hi: "देखें किसे ध्यान चाहिए और कॉल लें" },
-  role_operator: { en: "I'm hospital staff", hi: "मैं अस्पताल का कर्मचारी हूँ" },
-  role_operator_sub: { en: "Add patients and start calls", hi: "मरीज़ जोड़ें और कॉल शुरू करें" },
-  pick_patient: { en: "Choose your name", hi: "अपना नाम चुनें" },
-  pick_doctor: { en: "Choose your name", hi: "अपना नाम चुनें" },
-  role_caregiver: { en: "I'm family of a patient", hi: "मैं मरीज़ के परिवार से हूँ" },
-  role_caregiver_sub: { en: "Get alerts and see how they're doing", hi: "अलर्ट पाएँ और देखें उनकी तबीयत कैसी है" },
-  pick_caregiver: { en: "Choose your name", hi: "अपना नाम चुनें" },
-  nobody: { en: "No one here yet.", hi: "अभी यहाँ कोई नहीं है।" },
+  // signing in
+  signin_title: { en: "Sign in", hi: "साइन इन करें" },
+  signin_sub: {
+    en: "Use the username and password you were given.",
+    hi: "जो यूज़रनेम और पासवर्ड आपको दिया गया है, उससे साइन इन करें।",
+  },
+  signin_btn: { en: "Sign in", hi: "साइन इन करें" },
+  signin_wrong: {
+    en: "That username and password don't match. Please check and try again.",
+    hi: "यूज़रनेम और पासवर्ड मेल नहीं खाते। कृपया जाँचकर फिर कोशिश करें।",
+  },
+  signin_paused: {
+    en: "Too many tries. Please wait a few minutes and try again.",
+    hi: "बहुत बार कोशिश हो गई। कृपया कुछ मिनट रुककर फिर कोशिश करें।",
+  },
+  signin_error: { en: "Couldn't sign in. Please check your connection.", hi: "साइन इन नहीं हो सका। कृपया अपना इंटरनेट जाँचें।" },
+  signin_forgot: {
+    en: "Forgot your password? Ask the person who set up VoiceMitra for you.",
+    hi: "पासवर्ड भूल गए? जिसने आपके लिए VoiceMitra सेट किया है, उनसे पूछें।",
+  },
+  signin_no_account: {
+    en: "No account yet? VoiceMitra is in a small pilot right now.",
+    hi: "अभी खाता नहीं है? VoiceMitra अभी एक छोटे पायलट में है।",
+  },
+  signin_early_access: { en: "Ask to join or get early access", hi: "जुड़ने या जल्दी इस्तेमाल के लिए पूछें" },
+  sign_out: { en: "Sign out", hi: "साइन आउट करें" },
+  not_allowed_title: { en: "This page isn't yours", hi: "यह पेज आपका नहीं है" },
+  not_allowed_sub: { en: "You're signed in as {name}.", hi: "आप {name} के नाम से साइन इन हैं।" },
+  go_home: { en: "Go to my page", hi: "मेरे पेज पर जाएँ" },
 
   // caregiver
   cg_looking_after: { en: "Looking after {name}", hi: "{name} की देखभाल" },
@@ -164,7 +178,6 @@ export const MESSAGES = {
   address: { en: "Address", hi: "पता" },
   caregiver: { en: "Family contact", hi: "परिवार का संपर्क" },
   language: { en: "Language", hi: "भाषा" },
-  switch_user: { en: "Not you? Switch", hi: "आप नहीं हैं? बदलें" },
   install_title: { en: "Add to your home screen", hi: "होम स्क्रीन पर जोड़ें" },
   install_sub: { en: "Open VoiceMitra like an app, in one tap.", hi: "VoiceMitra को ऐप की तरह एक टैप में खोलें।" },
   install_btn: { en: "Install", hi: "इंस्टॉल करें" },
@@ -191,11 +204,11 @@ export const MESSAGES = {
   phone_unnamed: { en: "Phone", hi: "फ़ोन" },
   phone_error: { en: "Couldn't get a code. Please try again.", hi: "कोड नहीं मिल सका। कृपया फिर कोशिश करें।" },
 
-  // phone app login (username + password for the VoiceMitra phone app)
-  login_title: { en: "Phone app login", hi: "फ़ोन ऐप लॉगिन" },
+  // your login (the same username + password on this website and in the VoiceMitra phone app)
+  login_title: { en: "Your login", hi: "आपका लॉगिन" },
   login_sub: {
-    en: "Sign in to the VoiceMitra phone app with this username and password.",
-    hi: "VoiceMitra फ़ोन ऐप में इस यूज़रनेम और पासवर्ड से लॉगिन करें।",
+    en: "Use this username and password to sign in here and in the VoiceMitra phone app.",
+    hi: "यहाँ और VoiceMitra फ़ोन ऐप में इसी यूज़रनेम और पासवर्ड से साइन इन करें।",
   },
   login_username: { en: "Username", hi: "यूज़रनेम" },
   login_password: { en: "Password", hi: "पासवर्ड" },
@@ -207,7 +220,7 @@ export const MESSAGES = {
   login_change: { en: "Change login", hi: "लॉगिन बदलें" },
   login_save: { en: "Save", hi: "सेव करें" },
   login_cancel: { en: "Cancel", hi: "रद्द करें" },
-  login_saved: { en: "Saved. Use these on the phone app.", hi: "सेव हो गया। फ़ोन ऐप में इन्हीं से लॉगिन करें।" },
+  login_saved: { en: "Saved. Use these to sign in here and on the phone app.", hi: "सेव हो गया। यहाँ और फ़ोन ऐप में इन्हीं से साइन इन करें।" },
   login_short_user: { en: "The username needs at least {n} letters.", hi: "यूज़रनेम में कम से कम {n} अक्षर चाहिए।" },
   login_short_pass: { en: "The password needs at least {n} letters or numbers.", hi: "पासवर्ड में कम से कम {n} अक्षर या अंक चाहिए।" },
   login_taken: { en: "Someone else already has this username. Please pick another.", hi: "यह यूज़रनेम किसी और का है। कृपया दूसरा चुनें।" },

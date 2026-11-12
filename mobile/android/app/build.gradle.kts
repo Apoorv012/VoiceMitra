@@ -54,6 +54,7 @@ android {
         // ApiContractTest talks to a running backend when given one: -PvmServer=http://127.0.0.1:8100
         unitTests.all {
             it.systemProperty("vm.server", providers.gradleProperty("vmServer").getOrElse(""))
+            it.systemProperty("vm.staff", providers.gradleProperty("vmStaff").getOrElse(""))
             // Robolectric reaches into JDK internals that JDK 25 no longer opens by default.
             it.jvmArgs(
                 "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",

@@ -8,7 +8,7 @@ enum Lang: String, CaseIterable {
 /// Small settings kept in UserDefaults (nothing secret).
 enum Prefs {
     /// The tunnel's public HTTPS hostname (README: Cloudflare Tunnel sends /api and /ws to :8000).
-    static let defaultServer = "https://test-voicemitra.apoorvm.com"
+    static let defaultServer = "https://voicemitra-api.apoorvm.com"  // the cloud API; the home tunnel is test-voicemitra
 
     static var server: String {
         get { UserDefaults.standard.string(forKey: "server_url") ?? defaultServer }
@@ -24,8 +24,8 @@ enum Prefs {
     }
 }
 
-/// Who this phone belongs to. A real pairing has a device id + token (POST /api/devices/pair); a dev pick
-/// (debug builds only, from GET /api/app/people) has neither.
+/// Who this phone belongs to: a device id + token from login or pairing. (Both are optional only because
+/// older builds could store a debug "pick a patient" without them; such a pairing no longer works.)
 struct Pairing: Codable, Equatable {
     var deviceId: String?
     var deviceToken: String?

@@ -11,7 +11,7 @@
           "app"
         ],
         "summary": "People",
-        "description": "Everyone you can sign in as -- there are no accounts, you just pick who you are.",
+        "description": "Everyone on file (staff only: the operator's pickers).",
         "operationId": "people_api_app_people_get",
         "responses": {
           "200": {
@@ -1442,8 +1442,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Set Login",
-        "operationId": "set_login_api_patients__patient_id__login_put",
+        "summary": "Set Patient Login",
+        "operationId": "set_patient_login_api_patients__patient_id__login_put",
         "parameters": [
           {
             "name": "patient_id",
@@ -1473,7 +1473,7 @@
             "description": "username or password too short/long"
           },
           "409": {
-            "description": "username taken by another patient"
+            "description": "username taken by someone else"
           },
           "422": {
             "description": "Validation Error",
@@ -1491,8 +1491,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Get Login",
-        "operationId": "get_login_api_patients__patient_id__login_get",
+        "summary": "Get Patient Login",
+        "operationId": "get_patient_login_api_patients__patient_id__login_get",
         "parameters": [
           {
             "name": "patient_id",
@@ -1534,9 +1534,9 @@
         "tags": [
           "auth"
         ],
-        "summary": "Delete Login",
-        "description": "Phones already logged in stay connected (unpair them separately).",
-        "operationId": "delete_login_api_patients__patient_id__login_delete",
+        "summary": "Delete Patient Login",
+        "description": "Signs them out of the website; phones already signed in stay connected (unpair them separately).",
+        "operationId": "delete_patient_login_api_patients__patient_id__login_delete",
         "parameters": [
           {
             "name": "patient_id",
@@ -1545,6 +1545,133 @@
             "schema": {
               "type": "string",
               "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/caregivers/{caregiver_id}/login": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set Caregiver Login",
+        "operationId": "set_caregiver_login_api_caregivers__caregiver_id__login_put",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "username or password too short/long"
+          },
+          "409": {
+            "description": "username taken by someone else"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Caregiver Login",
+        "operationId": "get_caregiver_login_api_caregivers__caregiver_id__login_get",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no login set"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Delete Caregiver Login",
+        "operationId": "delete_caregiver_login_api_caregivers__caregiver_id__login_delete",
+        "parameters": [
+          {
+            "name": "caregiver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Caregiver Id"
             }
           }
         ],
@@ -1596,6 +1723,9 @@
           "401": {
             "description": "wrong username or password"
           },
+          "403": {
+            "description": "`family_login` / `staff_login`: right password, but this login is for the website, not the phone app"
+          },
           "429": {
             "description": "too many failed logins, paused"
           },
@@ -1605,6 +1735,112 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start Session",
+        "operationId": "start_session_api_auth_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "wrong username or password"
+          },
+          "429": {
+            "description": "too many failed logins, paused"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "End Session",
+        "description": "Sign out (always succeeds, signed in or not).",
+        "operationId": "end_session_api_auth_session_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in"
+          }
+        }
+      }
+    },
+    "/api/auth/ws-ticket": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ws Ticket",
+        "description": "Open a socket with `?ticket=` within `expires_in` seconds; each ticket opens one socket.",
+        "operationId": "ws_ticket_api_auth_ws_ticket_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WsTicket"
                 }
               }
             }
@@ -3379,6 +3615,15 @@
         ],
         "title": "LoginRequest"
       },
+      "LoginRole": {
+        "type": "string",
+        "enum": [
+          "staff",
+          "patient",
+          "caregiver"
+        ],
+        "title": "LoginRole"
+      },
       "LoginView": {
         "properties": {
           "username": {
@@ -3391,6 +3636,40 @@
           "username"
         ],
         "title": "LoginView"
+      },
+      "Me": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/LoginRole"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "id",
+          "name"
+        ],
+        "title": "Me",
+        "description": "Who is signed in. `patient_id`: the patient's own id, or (a caregiver) the patient they look after."
       },
       "MedicineStatus": {
         "type": "string",
@@ -4039,6 +4318,17 @@
               }
             ]
           },
+          "caregiver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Id"
+          },
           "doctor_ids": {
             "items": {
               "type": "string"
@@ -4306,6 +4596,26 @@
           "attention"
         ],
         "title": "RosterRow"
+      },
+      "SessionRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "SessionRequest"
       },
       "SetLoginRequest": {
         "properties": {
@@ -4736,6 +5046,24 @@
           "token"
         ],
         "title": "VoiceCallJoin"
+      },
+      "WsTicket": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_in"
+        ],
+        "title": "WsTicket"
       }
     }
   }

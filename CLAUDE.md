@@ -26,6 +26,8 @@ the work as not actually finished.
 - `backend/` — FastAPI **API only** (no HTML): patient/doctor/caregiver/prescription CRUD, call
   triggering, live WebSockets, MongoDB persistence, and `views.py`/`insights.py` -- the read models
   each screen needs (served under `/api/app/*`). Its OpenAPI schema is the contract with the frontend.
+  Every route declares who may call it (`backend/access.py`: staff / that patient / that caregiver);
+  `tests/test_access.py` fails for a route without a rule.
 - `web/` — Next.js (React, TypeScript) app: the patient app (installable PWA, Hindi/English), the doctor
   screens and the operator screens. Talks to the backend over `/api/*` and WebSockets. Its API types are
   generated (`python -m backend.dump_openapi`, then `npm run gen:api` in `web/`); next 16 differs from older

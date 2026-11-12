@@ -2,7 +2,7 @@
 
 Anyone can send a message (no sign-in), so the endpoint is guarded three ways: field lengths are capped,
 a hidden "website" field catches simple bots (a person never fills it), and the whole form pauses after
-MAX_MESSAGES in WINDOW_SECONDS. Nothing is emailed: operators read messages at /operator/messages.
+MAX_MESSAGES in WINDOW_SECONDS. Nothing is emailed: operators read messages at /operator/messages (staff only).
 """
 
 from __future__ import annotations
@@ -12,9 +12,10 @@ import time
 from collections import deque
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from backend.access import require_staff
 from backend.db import contact_messages_col, doc_to_model, model_to_doc
 from backend.models import ContactMessage, ContactTopic
 
@@ -98,14 +99,15 @@ async def send_message(body: ContactRequest) -> ContactReceipt:
     return ContactReceipt(id=message.id)
 
 
-@router.get("/api/contact", response_model=list[ContactMessageView])
+@router.get("/api/contact", response_model=list[ContactMessageView], dependencies=[Depends(require_staff)])
 async def list_messages() -> list[ContactMessageView]:
     """Newest first (the last 200)."""
     cursor = contact_messages_col().find().sort("created_at", -1).limit(200)
     return [ContactMessageView(**doc_to_model(ContactMessage, doc).model_dump()) async for doc in cursor]
 
 
-@router.put("/api/contact/{message_id}/handled", status_code=204, responses={404: {"description": "no such message"}})
+@router.put("/api/contact/{message_id}/handled", status_code=204, responses={404: {"description": "no such message"}},
+            dependencies=[Depends(require_staff)])
 async def set_handled(message_id: str, body: HandledRequest) -> None:
     result = await contact_messages_col().update_one({"_id": message_id}, {"$set": {"handled": body.handled}})
     if result.matched_count == 0:

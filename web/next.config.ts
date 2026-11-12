@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
   // The repo root also has a package.json (the one-command runner), so say which folder is this app's
   // root instead of letting Next guess between the two lockfiles.
   turbopack: { root: process.cwd() },
+  // The old "choose your name" pages (they listed everyone) are gone; links to them now sign in.
+  async redirects() {
+    return [{ source: "/who/:role", destination: "/login", permanent: false }];
+  },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${backend}/api/:path*` },

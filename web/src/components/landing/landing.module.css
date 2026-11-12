@@ -103,6 +103,8 @@ main.main { overflow-x: clip; }
 .sub { margin: 22px auto 0; max-width: 52ch; color: var(--ink-2); font-size: clamp(16px, 1.6vw, 19px); }
 .hindi { margin: 8px 0 0; color: var(--muted); font-family: var(--deva); font-size: 16px; }
 .ctas { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+.early { margin: 18px auto 0; color: var(--muted); font-size: 15px; }
+.early a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 
 /* live-call console */
 .show { padding-bottom: 88px; scroll-margin-top: 24px; }

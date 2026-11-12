@@ -2,7 +2,8 @@
 
 The patient's page shows a 6-digit code ("Connect a phone"); the phone app sends it to
 `POST /api/devices/pair` and gets back a device id + secret token. The token (sent as
-`X-Device-Token`) is the app's only credential -- there is no login yet. Only its hash is stored.
+`X-Device-Token`) is the app's only credential (login, backend/routers/auth.py, hands out the same kind).
+Only its hash is stored. The `/api/devices/{id}` routes check the token themselves.
 """
 
 from __future__ import annotations
@@ -13,9 +14,10 @@ import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.access import require_patient
 from backend.db import devices_col, doc_to_model, model_to_doc, pairing_codes_col, patients_col
 from backend.models import Device, DevicePlatform, PairingCode, Patient
 
@@ -63,7 +65,8 @@ class PairingCodeOut(BaseModel):
     expires_in: int  # seconds: count down from this, so a wrong clock on the screen doesn't matter
 
 
-@router.post("/api/patients/{patient_id}/pairing-code", response_model=PairingCodeOut)
+@router.post("/api/patients/{patient_id}/pairing-code", response_model=PairingCodeOut,
+             dependencies=[Depends(require_patient)])
 async def create_pairing_code(patient_id: str) -> PairingCodeOut:
     if await patients_col().find_one({"_id": patient_id}, {"_id": 1}) is None:
         raise HTTPException(status_code=404, detail="patient not found")
@@ -92,7 +95,7 @@ class DeviceView(BaseModel):
     last_seen: datetime
 
 
-@router.get("/api/patients/{patient_id}/devices", response_model=list[DeviceView])
+@router.get("/api/patients/{patient_id}/devices", response_model=list[DeviceView], dependencies=[Depends(require_patient)])
 async def list_devices(patient_id: str) -> list[DeviceView]:
     """The patient's paired phones (the web page shows them, and notices when a new one pairs)."""
     docs = await devices_col().find({"patient_id": patient_id}).sort("created_at", 1).to_list(length=50)

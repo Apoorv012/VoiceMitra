@@ -314,13 +314,22 @@ class PairingCode(MongoDocument):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class PatientLogin(MongoDocument):
-    """The username + password a patient signs in to the phone app with (mobile/API.md, "Identity: login").
+class LoginRole(str, Enum):
+    staff = "staff"          # hospital/pilot staff: the operator screens, everything
+    patient = "patient"      # the patient: their own app (website and phone apps)
+    caregiver = "caregiver"  # a patient's family contact: their page on the website
 
-    Its own collection, keyed by the patient's id (`id` == patient_id), so the password hash can never
-    end up in a patient response. Only an scrypt hash of the password is stored (backend/auth.py).
+
+class Login(MongoDocument):
+    """A username + password: how staff, patients and caregivers sign in (backend/logins.py).
+
+    One collection (`logins`) for everyone, so a username is unique across all of them. `id` is the id
+    of who signs in: the patient's or caregiver's id, or (staff, who have no other record) a fresh one.
+    Kept apart from the patient/caregiver documents so a password hash can never end up in their
+    responses. Only an scrypt hash of the password is stored (backend/auth.py).
     """
 
+    role: LoginRole
     username: str      # as typed (trimmed), shown on the web page
     username_key: str  # lower-cased: what logins match on, unique
     password_hash: str

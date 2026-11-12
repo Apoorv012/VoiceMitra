@@ -155,3 +155,8 @@ with USB debugging, or sharing the APK file.
   Language switch only in the header. Incoming call: "VoiceMitra" + "Calling…", Answer (120 dp) bigger than Decline
   (92 dp), web good/crit colours. History cards with nothing recorded say so. Side-by-side checks in
   `screenshots/compare_*.png`.
+- **Sign-in lockdown -- DONE (2026-11-11).** The API now needs `X-Device-Token` on every patient call and on the
+  socket (`backend/access.py`): `Api` adds it to every request to the configured host (one interceptor, socket included);
+  the debug patient picker is gone (`/api/app/people` is staff-only); a family/staff login gets a "use the website"
+  message; default server is now `https://voicemitra-api.apoorvm.com`. Verified: assembleDebug, lintDebug, unit tests,
+  `ApiContractTest` against the locked API (`-PvmStaff=<user>:<password>` now needed). Older builds must be replaced.

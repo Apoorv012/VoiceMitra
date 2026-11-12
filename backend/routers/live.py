@@ -11,10 +11,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from fastapi import APIRouter, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from backend import escalations
+from backend.access import require_patient, ws_require_patient, ws_require_staff
 from backend.live_calls import (
     PatientNotReady,
     active_patient_ids,
@@ -65,7 +66,7 @@ async def serve_socket(
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-@router.websocket("/ws/patients/{patient_id}/chat")
+@router.websocket("/ws/patients/{patient_id}/chat", dependencies=[Depends(ws_require_patient)])
 async def patient_chat(ws: WebSocket, patient_id: str) -> None:
     await ws.accept()
     # Subscribe before taking the snapshot so nothing published in between is missed; the client
@@ -95,7 +96,7 @@ async def patient_chat(ws: WebSocket, patient_id: str) -> None:
         unsubscribe_patient(patient_id, queue)
 
 
-@router.websocket("/ws/operator")
+@router.websocket("/ws/operator", dependencies=[Depends(ws_require_staff)])
 async def operator_events(ws: WebSocket) -> None:
     await ws.accept()
     queue = subscribe_operator()
@@ -106,7 +107,7 @@ async def operator_events(ws: WebSocket) -> None:
         unsubscribe_operator(queue)
 
 
-@router.post("/api/patients/{patient_id}/call", status_code=204)
+@router.post("/api/patients/{patient_id}/call", status_code=204, dependencies=[Depends(require_patient)])
 async def start_patient_call(patient_id: str) -> None:
     try:
         await start_call(patient_id)
@@ -114,12 +115,13 @@ async def start_patient_call(patient_id: str) -> None:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/api/patients/{patient_id}/call/end", status_code=204)
+@router.post("/api/patients/{patient_id}/call/end", status_code=204, dependencies=[Depends(require_patient)])
 async def end_patient_call(patient_id: str) -> None:
     await end_call(patient_id)
 
 
-@router.post("/api/patients/{patient_id}/voice-call", status_code=204)
+@router.post("/api/patients/{patient_id}/voice-call", status_code=204,
+             dependencies=[Depends(require_patient)])
 async def start_patient_voice_call(patient_id: str, x_device_token: str | None = Header(default=None)) -> None:
     """Talk now (web or phone app). A phone sends its `X-Device-Token` so it isn't rung for the call
     it just started itself (mobile/API.md)."""
@@ -138,7 +140,8 @@ class VoiceCallJoin(BaseModel):
     token: str
 
 
-@router.get("/api/patients/{patient_id}/voice-call", response_model=VoiceCallJoin)
+@router.get("/api/patients/{patient_id}/voice-call", response_model=VoiceCallJoin,
+            dependencies=[Depends(require_patient)])
 async def get_patient_voice_call(patient_id: str) -> VoiceCallJoin:
     """How a phone joins the voice call it was just rung for: LiveKit `url` + `token` (identity
     `patient`). 404 when no voice call is waiting or in progress (it ended, or was never started)."""

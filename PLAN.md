@@ -115,6 +115,9 @@ voicemitra/
 
   backend/
     main.py, db.py, models.py, queries.py, seed.py, seed_demo.py, live_calls.py, escalations.py
+    access.py                    # who is asking (session cookie / device token) and the rule each route declares
+    logins.py, auth.py           # usernames + passwords for staff, patients, caregivers (scrypt hashes)
+    create_staff.py              # `python -m backend.create_staff <user>`: a staff login, password printed once
     insights.py                  # dose schedule, adherence, "needs attention" rules (pure, tested)
     views.py                     # read models: what each screen is told (the API contract)
     dump_openapi.py              # writes web/openapi.json for the frontend's generated types
@@ -437,7 +440,7 @@ hear the patient but the patient couldn't hear the doctor and the doctor's speec
 Why: the backend-served Jinja pages were a cluttered dump of tables (one template served patient, doctor
 and operator with flags) and not installable. Replaced by a separate frontend, `web/` (Next.js), with the
 backend reduced to an API.
-- **Roles, no accounts (decision):** the first screen (now `/login`, behind the public homepage -- see "Public homepage" below) asks who you are (patient / doctor / staff); the choice
+- **Roles, no accounts (decision; replaced by real sign-in on 2026-11-11, see "Sign-in + access lockdown"):** the first screen (now `/login`, behind the public homepage -- see "Public homepage" below) asks who you are (patient / doctor / staff); the choice
   is kept in `localStorage` so the installed app opens straight to its home. Not security: anyone can pick
   anyone. Staff open a patient's app with `?preview=1` so that doesn't overwrite their own remembered role.
 - **Patient app** (`/patients/[id]`, mobile-first, Hindi + English): Today = one big "Talk to VoiceMitra"
@@ -522,7 +525,7 @@ audiences + contact panel (mockup: claude.ai/artifact/JPVDfE3TfMxtJpiwEAY2Ju).
   (`backend/routers/contact.py`, `ContactMessage` in `contact_messages`) stores it -- no sign-in, lengths capped, a
   hidden honeypot field drops simple bots, and the form pauses after 30 messages in 10 min (429). **No email is sent**:
   operators read them at `/operator/messages` (new "Messages" tab; `GET /api/contact`, mark replied with
-  `PUT /api/contact/{id}/handled`). Like the rest of the staff screens, that inbox is not protected yet (no accounts).
+  `PUT /api/contact/{id}/handled`). Staff only since the sign-in lockdown (2026-11-11).
   After the user's review: the topic choices are an even 2x2 grid, the left column has a 3-step "What happens next"
   list (reply by email, demo call, set it up), and the form's inputs are scoped under `.form` so the app's dark-mode
   `input[type=tel]` style no longer turns the Phone box black.
@@ -532,6 +535,68 @@ audiences + contact panel (mockup: claude.ai/artifact/JPVDfE3TfMxtJpiwEAY2Ju).
 - **Not done:** Hindi version of the homepage (English with one Hindi line); dark mode (the homepage is light-only on
   purpose); an email/notification to the user when a message arrives; "See a sample call" only scrolls to the
   console (there is no recorded audio yet).
+
+### Sign-in + access lockdown (2026-11-11) — **BUILT AND VERIFIED LOCALLY; not deployed yet (the user commits/pushes)**
+Why: since 2026-11-07 the API was public with no sign-in (patients' records, call transcripts, LiveKit join tokens and
+contact messages readable by anyone), and the website's `/login` was a picker listing everyone's names.
+**Decisions (user, 2026-11-11):** patients use the **same username + password on the website and in the phone apps**;
+caregivers get a **username + password set by staff** and use the **website only** (the apps stay patient-only, a family
+or staff login there gets a clear "use the website" message); staff logins come from a **script that generates the
+password and prints it once**; doctor screens are **staff-only** while the doctor flow is off (doctor logins later). No
+sign-ups: people who want to join or get early access are pointed to the contact form.
+- **Who is asking** (`backend/access.py`): the website's `vm_session` cookie (HttpOnly, Secure, SameSite=Lax; 30 days,
+  staff 7; only a SHA-256 of it stored in `web_sessions`, TTL index) or a phone's `X-Device-Token`. Each route declares
+  one rule: `require_staff`, `require_patient` (staff or that patient), `require_caregiver`, `require_call_owner`,
+  `signed_in`; sockets `ws_require_*`. 401 = not signed in, 403 = someone else. Public: `/health`, `POST /api/contact`,
+  the two logins, pairing, signing out; `/api/devices/{id}` checks the phone's own token. **Everything else is staff only**
+  (patients CRUD, prescriptions, roster, `/api/app/people`, contact inbox, doctor/escalation routes).
+- **Sockets** go straight to the API host, which never sees the website's cookie: the page gets a 60 s single-use ticket
+  (`POST /api/auth/ws-ticket`, in memory -- one API process) and connects with `?ticket=`; phones send the header.
+- **Logins** (`backend/logins.py`): one `logins` collection (`role` staff/patient/caregiver, username unique across all;
+  old `patient_logins` rows are moved in at startup). Changing a password signs that person out of other browsers;
+  removing a family contact removes their login. Rate limits: the old global one plus 5 wrong tries per username / 10 min.
+  `POST /api/auth/session` / `GET /api/auth/me` / `DELETE /api/auth/session` for the website; `POST /api/auth/login`
+  (apps) answers 403 `family_login` / `staff_login` for a right password on a website-only login.
+  `python -m backend.create_staff <user> [--reset]` writes to the DB in `.env` (Atlas on the user's PC).
+  `seed_demo` makes demo logins (fresh passwords printed each run). FastAPI's `/docs` is **off by default**
+  (user, 2026-11-12); `API_DOCS_ENABLED=true` in a local `.env` turns it on.
+- **Website:** `/login` is a real sign-in form (Hindi/English, `?next=`, an "ask to join or get early access" link to the
+  contact form with the "Join the pilot" topic picked -- the topic was "Run a pilot", relabelled for clinics *and*
+  families). `src/proxy.ts` (Next 16's middleware) sends visitors without a cookie to `/login`; `RequireSignIn` in each
+  role layout shows "This page isn't yours" to the wrong person; a 401 anywhere goes to `/login`. Identity comes from
+  `/api/auth/me`, not `localStorage`. The `/who/*` name pickers are gone (redirect to `/login`). Staff set logins on the
+  patient's page ("Sign-in logins": patient + family cards, generated password shown once with Copy); the patient's
+  Me tab card is now "Your login" (change it). Homepage: a hero line and the contact panel say "Want to join the pilot
+  or get early access?"; audience links go to `/login`.
+- **Phone apps** (needed, or they'd stop working): both send `X-Device-Token` on every request to the configured host
+  and on the socket; the debug "pick a patient" is removed; both now default to `https://voicemitra-api.apoorvm.com`.
+  **Apps built before this can't load anything from the locked API: reinstall them.**
+- **Verified:** pytest 98/98 (17 new in `tests/test_access.py`: every HTTP route in the schema answers 401 to a stranger,
+  every socket declares a rule and refuses strangers, patient/caregiver/device isolation, cookie flags, sign-out, password
+  change, per-username pause, tickets single-use + expiry, `create_staff`); web tsc, eslint, `next build` clean; Android
+  `assembleDebug`, `lintDebug`, unit tests, and `ApiContractTest` against the locked API (no token -> 401); iPhone compiles
+  with xtool. Browser run on a throwaway DB (dropped after): stranger -> `/login?next=`; wrong-password message; staff
+  sign-in -> roster, live socket via ticket (reused/missing ticket refused); setting a patient's login with the hand-over
+  box; that patient sees only their own pages and data (other patient / operator -> "not yours", API 403; own socket
+  opens, another's refused); family login sees only its page; old `/who/patient` redirects; the early-access link picks
+  "Join the pilot" at 375 px with no sideways scroll; `/docs` 404.
+- **Not verified:** on the real servers (Vercel passing `Set-Cookie` through its `/api` rewrite is expected but untested);
+  the apps on a phone; a full voice/chat call through the locked stack (only the sockets and call-control routes were checked).
+- **Rollout (user):** (1) from the PC, `.venv/Scripts/python -m backend.create_staff <you>` against Atlas, keep the printed
+  password (can wait, user 2026-11-12); (2) nothing to set for the docs (off by default); (3) commit + push (CI deploys the API,
+  Vercel the website; for a few minutes one may be newer than the other); (4) sign in, set logins for the 3 pilot
+  patients and their family contacts; (5) reinstall the iPhone app, build the APK; (6) check
+  `curl https://voicemitra-api.apoorvm.com/api/patients` -> 401.
+- **Cloud database re-seeded (user, 2026-11-12):** the Atlas `voicemitra` DB was wiped except the 2 contact messages and
+  the 3 pilot patients put back fresh (same details, medicines and family contacts; no calls, logs, phones or old
+  phone-app logins). Each patient and family contact got a login (`apoorv` / `apoorv-family` etc.); the passwords are in
+  the git-ignored `pilot-logins.local.txt` on the user's PC, and the full pre-wipe backup in the git-ignored
+  `prod-backup-2026-11-12.local.json`. Done with a one-off script (not in the repo, so no health details are
+  committed). No staff login yet (the user will make one later). Until the sign-in update is deployed, the running API
+  is the old code: it doesn't know these logins, and phones that were signed in are signed out.
+- **Known limits:** sessions are checked against the database on every request; tickets and the login rate limit are in
+  memory (fine: one API process); a forgotten password needs staff to set a new one; removing a patient's login doesn't
+  unpair their phones (unpair separately).
 
 ### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
 **User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's
@@ -570,8 +635,7 @@ LLM loop (this one does), and an `eval` command.
 ### Other to-dos (not now)
 - **Eval harness** (Chunk 5) -- wanted, built together with the LLM-judged escalation, since that is what it
   has to measure. Design notes (non-determinism) under Chunk 5.
-- **Login / accounts** -- deliberately last, once everything else is final (it slows development). Until then
-  the app is not for strangers: anyone can open anyone's records, and prescriptions are health data.
+- ~~**Login / accounts**~~ -- **done 2026-11-11**, see "Sign-in + access lockdown".
 - **Barge-in depth** -- check the agent knows where it was cut off.
 - **Hosting** -- now being done, see "Cloud deploy + CI/CD" below.
 
@@ -582,9 +646,8 @@ LLM loop (this one does), and an `eval` command.
   added from the tunnel's Routes tab); GitHub `DEPLOY_*` settings set. First deploy (run 42383808653) failed: the
   server's `MONGODB_URI` host lacked the cluster ID (`cluster0.mongodb.net`); fixed on the server, the re-run passed
   and `/health/ready` answers ok. `server.env.example` and `deploy/README.md` now spell out both gotchas.
-- **Open risk (found 2026-11-07):** the staff APIs have no sign-in, and they are now on the public internet:
-  `GET /api/patients` and `GET /api/contact` answer 200 to anyone, i.e. the pilot patients' health data and the
-  contact messages are publicly readable. Needs staff auth (or at least a shared secret) before more real data goes in.
+- **Open risk (found 2026-11-07) -- FIXED in code 2026-11-11, live once deployed:** the staff APIs had no sign-in on the
+  public internet (`GET /api/patients`, `GET /api/contact` answered anyone). See "Sign-in + access lockdown".
 Why (user, 2026-11-05): no Android phone is available to the user, so friends with Android phones will test the APK.
 That needs a backend that's always up, not the home PC. Order: deploy the backend, CI/CD for it, then the
 Android app with friends.
@@ -637,7 +700,7 @@ Android app with friends.
   real server, the tunnel, Atlas.
 - **Atlas -- SET UP (2026-11-06, by the user):** cluster `cluster0.pow8zrc` (MongoDB 8.0); the local `.env` now points
   at it (the old local URI is kept as a comment), so `npm run dev` on the PC uses the cloud database too. **Started
-  fresh** (user): 3 pilot patients added through the API -- Apoorv Mittal (vitamin D deficiency; Vitamin D3 weekly +
+  fresh** (user; wiped and re-seeded with logins 2026-11-12, see "Sign-in + access lockdown"): 3 pilot patients added through the API -- Apoorv Mittal (vitamin D deficiency; Vitamin D3 weekly +
   Calcium; allergy egg; father Manish Mittal), Aditya Pratap Singh (mild hypothyroidism; Levothyroxine 7 AM; penicillin;
   father's name not given, placeholder "Mr. Singh" to be edited), Gauri Soni (iron-deficiency anaemia; iron twice a day +
   folic acid; sulfa drugs; father Hari Soni); random phone numbers, no doctor, no phone-app logins yet. The old local
@@ -652,9 +715,9 @@ Android app with friends.
   the runners without it.
 - **Known limits:** a deploy restarts the API and drops calls in progress; the deploy's SSH port is open to the internet
   (GitHub runner IPs vary; key-only login); sideloaded APK updates must be built on the same PC (same debug signing key).
-- **Next:** (Atlas, tunnel, Vercel, EC2 and `deploy/README.md` steps 3-5 are done) protect the staff APIs (open
-  risk above); point the phone apps at the API host -- Android: `voicemitra.serverUrl` in `gradle.properties`; iPhone:
-  `Store.defaultServer` (today the home tunnel) or the app's server field -- and send the Android build to friends.
+- **Next:** (Atlas, tunnel, Vercel, EC2 and `deploy/README.md` steps 3-5 are done; the staff APIs are locked and both
+  apps default to the API host as of 2026-11-11) deploy the lockdown (rollout steps in its section) and send the
+  Android build to friends.
 
 ### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation

@@ -24,7 +24,7 @@ final class AppModel {
     @ObservationIgnored private let socket = PatientSocket()
     @ObservationIgnored private var isActive = false
 
-    var api: API? { API(server: server) }
+    var api: API? { API(server: server, deviceToken: pairing?.deviceToken) }
 
     init() {
         server = Prefs.server
@@ -71,11 +71,11 @@ final class AppModel {
 
     private func reconnect() {
         syncCallContext()
-        guard isActive, let pairing, let url = api?.patientSocketURL(patientId: pairing.patientId) else {
+        guard isActive, let pairing, let request = api?.patientSocketRequest(patientId: pairing.patientId) else {
             socket.stop()
             return
         }
-        socket.start(url: url)
+        socket.start(request: request)
     }
 
     private func syncCallContext() {
@@ -114,11 +114,6 @@ final class AppModel {
         let r = try await api.login(username: username.trimmingCharacters(in: .whitespaces), password: password,
                                     name: UIDevice.current.name)
         setPairing(Pairing(deviceId: r.deviceId, deviceToken: r.deviceToken, patientId: r.patientId, patientName: r.patientName))
-    }
-
-    /// Debug builds only: use the app as a patient without pairing (GET /api/app/people).
-    func pickDev(_ person: Person) {
-        setPairing(Pairing(deviceId: nil, deviceToken: nil, patientId: person.id, patientName: person.name))
     }
 
     func unpair() async {

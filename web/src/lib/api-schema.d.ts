@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * People
-         * @description Everyone you can sign in as -- there are no accounts, you just pick who you are.
+         * @description Everyone on file (staff only: the operator's pickers).
          */
         get: operations["people_api_app_people_get"];
         put?: never;
@@ -532,16 +532,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Login */
-        get: operations["get_login_api_patients__patient_id__login_get"];
-        /** Set Login */
-        put: operations["set_login_api_patients__patient_id__login_put"];
+        /** Get Patient Login */
+        get: operations["get_patient_login_api_patients__patient_id__login_get"];
+        /** Set Patient Login */
+        put: operations["set_patient_login_api_patients__patient_id__login_put"];
         post?: never;
         /**
-         * Delete Login
-         * @description Phones already logged in stay connected (unpair them separately).
+         * Delete Patient Login
+         * @description Signs them out of the website; phones already signed in stay connected (unpair them separately).
          */
-        delete: operations["delete_login_api_patients__patient_id__login_delete"];
+        delete: operations["delete_patient_login_api_patients__patient_id__login_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/caregivers/{caregiver_id}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Caregiver Login */
+        get: operations["get_caregiver_login_api_caregivers__caregiver_id__login_get"];
+        /** Set Caregiver Login */
+        put: operations["set_caregiver_login_api_caregivers__caregiver_id__login_put"];
+        post?: never;
+        /** Delete Caregiver Login */
+        delete: operations["delete_caregiver_login_api_caregivers__caregiver_id__login_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -558,6 +577,64 @@ export interface paths {
         put?: never;
         /** Login */
         post: operations["login_api_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Session */
+        post: operations["start_session_api_auth_session_post"];
+        /**
+         * End Session
+         * @description Sign out (always succeeds, signed in or not).
+         */
+        delete: operations["end_session_api_auth_session_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/ws-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ws Ticket
+         * @description Open a socket with `?ticket=` within `expires_in` seconds; each ticket opens one socket.
+         */
+        post: operations["ws_ticket_api_auth_ws_ticket_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1158,10 +1235,28 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * LoginRole
+         * @enum {string}
+         */
+        LoginRole: "staff" | "patient" | "caregiver";
         /** LoginView */
         LoginView: {
             /** Username */
             username: string;
+        };
+        /**
+         * Me
+         * @description Who is signed in. `patient_id`: the patient's own id, or (a caregiver) the patient they look after.
+         */
+        Me: {
+            role: components["schemas"]["LoginRole"];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Patient Id */
+            patient_id?: string | null;
         };
         /**
          * MedicineStatus
@@ -1351,6 +1446,8 @@ export interface components {
             /** Allergies */
             allergies: string[];
             caregiver: components["schemas"]["CaregiverInput"] | null;
+            /** Caregiver Id */
+            caregiver_id?: string | null;
             /** Doctor Ids */
             doctor_ids: string[];
         };
@@ -1424,6 +1521,13 @@ export interface components {
             /** In Call */
             in_call: boolean;
             attention: components["schemas"]["AttentionView"];
+        };
+        /** SessionRequest */
+        SessionRequest: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /** SetLoginRequest */
         SetLoginRequest: {
@@ -1547,6 +1651,13 @@ export interface components {
             url: string;
             /** Token */
             token: string;
+        };
+        /** WsTicket */
+        WsTicket: {
+            /** Ticket */
+            ticket: string;
+            /** Expires In */
+            expires_in: number;
         };
     };
     responses: never;
@@ -2588,7 +2699,7 @@ export interface operations {
             };
         };
     };
-    get_login_api_patients__patient_id__login_get: {
+    get_patient_login_api_patients__patient_id__login_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2626,7 +2737,7 @@ export interface operations {
             };
         };
     };
-    set_login_api_patients__patient_id__login_put: {
+    set_patient_login_api_patients__patient_id__login_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -2655,7 +2766,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description username taken by another patient */
+            /** @description username taken by someone else */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2673,12 +2784,126 @@ export interface operations {
             };
         };
     };
-    delete_login_api_patients__patient_id__login_delete: {
+    delete_patient_login_api_patients__patient_id__login_delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_caregiver_login_api_caregivers__caregiver_id__login_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginView"];
+                };
+            };
+            /** @description no login set */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_caregiver_login_api_caregivers__caregiver_id__login_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description username or password too short/long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description username taken by someone else */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_caregiver_login_api_caregivers__caregiver_id__login_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caregiver_id: string;
             };
             cookie?: never;
         };
@@ -2731,6 +2956,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description `family_login` / `staff_login`: right password, but this login is for the website, not the phone app */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2746,6 +2978,118 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    start_session_api_auth_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description wrong username or password */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description too many failed logins, paused */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    end_session_api_auth_session_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ws_ticket_api_auth_ws_ticket_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WsTicket"];
+                };
             };
         };
     };

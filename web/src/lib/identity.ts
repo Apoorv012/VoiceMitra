@@ -1,85 +1,55 @@
 "use client";
 
-// "Who is using this device". There are no accounts: a person picks who they are once and the choice is
-// remembered, so the installed app opens straight to their own home. A convenience, not security --
-// anyone can pick anyone, which is what a real sign-in would replace.
+// Who is signed in. The API decides (a session cookie set by POST /api/auth/session); this only asks it
+// (GET /api/auth/me) so screens can greet the person and send them to their own home. Every API call is
+// checked again on the server, so nothing here is security.
 
-import { useSyncExternalStore } from "react";
+import { mutate } from "swr";
+import { api, useApi } from "@/lib/api";
+import type { components } from "@/lib/api-schema";
 
-export type Identity =
-  | { role: "patient"; id: string }
-  | { role: "doctor"; id: string }
-  | { role: "caregiver"; id: string }
-  | { role: "operator" };
+export type Me = components["schemas"]["Me"];
 
-const KEY = "vm_who";
-const listeners = new Set<() => void>();
+export const ME_PATH = "/api/auth/me";
 
-let cachedRaw: string | null | undefined;
-let cachedValue: Identity | null = null;
-
-function snapshot(): Identity | null {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(KEY);
-  } catch {
-    /* storage blocked: behave as signed out */
-  }
-  if (raw === cachedRaw) return cachedValue; // useSyncExternalStore needs a stable reference
-  cachedRaw = raw;
-  try {
-    cachedValue = raw ? (JSON.parse(raw) as Identity) : null;
-  } catch {
-    cachedValue = null;
-  }
-  return cachedValue;
+/** undefined while loading, null when nobody is signed in, otherwise who it is. */
+export function useIdentity(): Me | null | undefined {
+  const { data, error } = useApi<Me>(ME_PATH, 0, { shouldRetryOnError: false, revalidateOnFocus: true });
+  if (data) return data;
+  if (error) return error.status === 401 ? null : undefined; // a network error: keep waiting, don't bounce
+  return undefined;
 }
 
-function subscribe(fn: () => void) {
-  listeners.add(fn);
-  window.addEventListener("storage", fn);
-  return () => {
-    listeners.delete(fn);
-    window.removeEventListener("storage", fn);
-  };
-}
-
-function notify() {
-  listeners.forEach((fn) => fn());
-}
-
-export function setIdentity(identity: Identity) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(identity));
-  } catch {
-    /* ignore */
-  }
-  notify();
-}
-
-export function clearIdentity() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* ignore */
-  }
-  notify();
-}
-
-/** undefined while the first client render is pending (server markup), then the identity or null. */
-export function useIdentity(): Identity | null | undefined {
-  return useSyncExternalStore(subscribe, snapshot, () => undefined);
-}
-
-export function homePath(identity: Identity): string {
-  switch (identity.role) {
+export function homePath(me: Me): string {
+  switch (me.role) {
     case "patient":
-      return `/patients/${identity.id}`;
-    case "doctor":
-      return `/doctors/${identity.id}`;
+      return `/patients/${me.id}`;
     case "caregiver":
-      return `/caregivers/${identity.id}`;
-    case "operator":
+      return `/caregivers/${me.id}`;
+    case "staff":
       return "/operator";
   }
+}
+
+/** Sign in on this browser; returns who it is. Throws ApiError (401 wrong, 429 paused). */
+export async function signIn(username: string, password: string): Promise<Me> {
+  const me = await api<Me>("/api/auth/session", { method: "POST", json: { username, password } });
+  await mutate(ME_PATH, me, { revalidate: false });
+  return me;
+}
+
+/** Sign out and start fresh at the sign-in page (a full load, so no one's data stays in memory). */
+export async function signOut(): Promise<void> {
+  try {
+    await api("/api/auth/session", { method: "DELETE" });
+  } finally {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose
+    window.location.assign("/login");
+  }
+}
+
+/** Where to go after signing in: `?next=` if it is a path on this site, else the person's home. */
+export function afterSignIn(me: Me, next: string | null): string {
+  if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/login")) return next;
+  return homePath(me);
 }

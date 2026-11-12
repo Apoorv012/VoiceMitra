@@ -19,30 +19,30 @@ final class PatientSocket {
     private(set) var isConnected = false
     var onConnectedChange: (Bool) -> Void = { _ in }
 
-    private var url: URL?
+    private var request: URLRequest?
     private var task: URLSessionWebSocketTask?
     private var generation = 0
     private var attempt = 0
     private var pinger: Task<Void, Never>?
 
-    func start(url: URL) {
-        if self.url == url, task != nil { return }
-        self.url = url
+    func start(request: URLRequest) {
+        if self.request == request, task != nil { return }
+        self.request = request
         attempt = 0
         open()
     }
 
     func stop() {
-        url = nil
+        request = nil
         close()
     }
 
     private func open() {
         close()
-        guard let url else { return }
+        guard let request else { return }
         generation += 1
         let gen = generation
-        let t = URLSession.shared.webSocketTask(with: url)
+        let t = URLSession.shared.webSocketTask(with: request)
         task = t
         t.resume()
         receive(gen)
@@ -88,7 +88,7 @@ final class PatientSocket {
     }
 
     private func failed(_ gen: Int) {
-        guard gen == generation, url != nil else { return }
+        guard gen == generation, request != nil else { return }
         pinger?.cancel()
         task?.cancel()
         task = nil
@@ -99,7 +99,7 @@ final class PatientSocket {
         let next = generation
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            guard let self, self.generation == next, self.url != nil else { return }
+            guard let self, self.generation == next, self.request != nil else { return }
             self.open()
         }
     }

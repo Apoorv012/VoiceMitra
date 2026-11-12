@@ -1,20 +1,19 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { ConnectPhone } from "@/components/ConnectPhone";
 import { PhoneLogin } from "@/components/PhoneLogin";
 import { Icon } from "@/components/Icon";
 import { LangSwitch } from "@/components/LangSwitch";
 import { Avatar, ErrorState, Loading } from "@/components/ui";
 import { useApi } from "@/lib/api";
-import { clearIdentity } from "@/lib/identity";
+import { signOut } from "@/lib/identity";
 import { useT } from "@/lib/i18n";
 import { useInstall } from "@/lib/install";
 import type { PatientHome } from "@/lib/types";
 
 export default function Me() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { t } = useT();
   const install = useInstall();
   const { data, error, mutate } = useApi<PatientHome>(`/api/app/patients/${id}/home`, 0);
@@ -81,12 +80,9 @@ export default function Me() {
       <button
         type="button"
         className="btn secondary block"
-        onClick={() => {
-          clearIdentity();
-          router.push("/login");
-        }}
+        onClick={() => void signOut()}
       >
-        <Icon name="logout" />{t("switch_user")}
+        <Icon name="logout" />{t("sign_out")}
       </button>
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { ContactTopic } from "@/lib/types";
 import s from "./landing.module.css";
@@ -9,7 +9,8 @@ export const CONTACT_EMAIL = "apoorvmittal125@gmail.com";
 
 const TOPICS: { value: ContactTopic; label: string; hint: string }[] = [
   { value: "demo", label: "Book a demo", hint: "When suits you, and what you'd like to see." },
-  { value: "pilot", label: "Run a pilot", hint: "Your clinic, roughly how many patients, and which languages." },
+  // Also where "ask to join / early access" links land (/?topic=pilot#contact): there are no sign-ups.
+  { value: "pilot", label: "Join the pilot", hint: "Early access for your clinic or your family: who it's for, roughly how many patients, and which languages." },
   { value: "family", label: "Set up for family", hint: "Who it's for, and what medicines they take." },
   { value: "other", label: "Something else", hint: "How can we help?" },
 ];
@@ -54,12 +55,36 @@ export function CopyEmail() {
 
 type Sent = { name: string; email: string };
 
+const TOPIC_EVENT = "vm:contact-topic";
+
+/** A link to the form that also picks its topic (e.g. "Join the pilot" from the hero's early-access line). */
+export function TopicLink({ topic, children }: { topic: ContactTopic; children: ReactNode }) {
+  return (
+    <a href="#contact" onClick={() => window.dispatchEvent(new CustomEvent(TOPIC_EVENT, { detail: topic }))}>
+      {children}
+    </a>
+  );
+}
+
 /** The homepage contact form. Messages are saved by the backend (POST /api/contact) and read by operators. */
 export function ContactForm() {
   const [topic, setTopic] = useState<ContactTopic>("demo");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
+
+  // A link can pick the topic: /?topic=pilot#contact from another page (the sign-in page's "ask for early
+  // access"), or a TopicLink on this one.
+  useEffect(() => {
+    const pick = (asked: unknown) => {
+      const match = TOPICS.find((t) => t.value === asked);
+      if (match) setTopic(match.value);
+    };
+    pick(new URLSearchParams(window.location.search).get("topic"));
+    const onPick = (e: Event) => pick((e as CustomEvent).detail);
+    window.addEventListener(TOPIC_EVENT, onPick);
+    return () => window.removeEventListener(TOPIC_EVENT, onPick);
+  }, []);
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

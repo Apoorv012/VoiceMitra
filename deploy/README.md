@@ -146,6 +146,25 @@ curl https://voicemitra-api.apoorvm.com/health/ready
 
 It should say `{"status":"ok","version":"<commit>"}`.
 
+**Sign-in.** Everything except the homepage's contact form and the sign-in itself needs a login. Make your staff
+login from your PC (`.env` there points at Atlas); it prints a generated password once:
+
+```bash
+.venv/Scripts/python -m backend.create_staff <username>
+```
+
+Then sign in at `https://voicemitra.apoorvm.com/login` and set each patient's and family contact's login on the
+patient's page ("Sign-in logins"). Check that strangers get nothing (both should say 401, and `/docs` 404):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" https://voicemitra-api.apoorvm.com/api/patients
+```
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" https://voicemitra-api.apoorvm.com/api/contact
+```
+
 ## 6. Website on Vercel at voicemitra.apoorvm.com (you, any time; API calls work once step 5 is done)
 
 1. <https://vercel.com> → sign in with GitHub → **Add New → Project** → import `Apoorv012/VoiceMitra`.
@@ -168,13 +187,17 @@ Vercel redeploys on every push that changes `web/`, and builds a preview for pul
 
 ## 7. Phone apps (point them at the API host, never the website)
 
-In `mobile/android/gradle.properties` uncomment `voicemitra.serverUrl=https://voicemitra-api.apoorvm.com`,
-then build and send the APK (`mobile/android/README.md`). Phones that already have the app pick up the new
+`mobile/android/gradle.properties` sets `voicemitra.serverUrl=https://voicemitra-api.apoorvm.com` (done
+2026-11-11); build and send the APK (`mobile/android/README.md`). Patients sign in with the login staff set for them
+on the website. Phones that already have the app pick up the new
 address with the update, unless someone typed an address under Me → Advanced. Build updates on the same PC
 each time: a sideloaded update has to be signed with the same key as the installed app.
 
-iPhone: Settings (gear) → server address `https://voicemitra-api.apoorvm.com`, or change `defaultServer` in
-`mobile/ios/VoiceMitra/Sources/VoiceMitra/Store.swift` (today the home tunnel) before building.
+iPhone: `defaultServer` in `mobile/ios/VoiceMitra/Sources/VoiceMitra/Store.swift` is the API host (2026-11-11);
+rebuild and reinstall. A phone where someone typed another address keeps it (Me → Advanced).
+
+Apps older than 2026-11-11 don't send their device token on every request, so against the locked-down API they
+fail to load anything: update them.
 
 ---
 

@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, WebSocket
 
 from backend import family_feed
+from backend.access import require_caregiver, ws_require_caregiver
 from backend.db import caregiver_notifications_col, caregivers_col, doc_to_model
 from backend.live_calls import active_patient_ids
 from backend.models import Caregiver
@@ -31,7 +32,8 @@ async def _mark_seen(caregiver: Caregiver, query: dict) -> None:
     family_feed.publish(caregiver.patient_id, {"type": "alerts_seen"})
 
 
-@router.post("/api/caregivers/{caregiver_id}/alerts/{alert_id}/seen", status_code=204)
+@router.post("/api/caregivers/{caregiver_id}/alerts/{alert_id}/seen", status_code=204,
+             dependencies=[Depends(require_caregiver)])
 async def mark_alert_seen(caregiver_id: str, alert_id: str) -> None:
     caregiver = await _caregiver(caregiver_id)
     if caregiver is None:
@@ -39,7 +41,7 @@ async def mark_alert_seen(caregiver_id: str, alert_id: str) -> None:
     await _mark_seen(caregiver, {"_id": alert_id})
 
 
-@router.post("/api/caregivers/{caregiver_id}/alerts/seen", status_code=204)
+@router.post("/api/caregivers/{caregiver_id}/alerts/seen", status_code=204, dependencies=[Depends(require_caregiver)])
 async def mark_all_alerts_seen(caregiver_id: str) -> None:
     caregiver = await _caregiver(caregiver_id)
     if caregiver is None:
@@ -47,7 +49,7 @@ async def mark_all_alerts_seen(caregiver_id: str) -> None:
     await _mark_seen(caregiver, {})
 
 
-@router.websocket("/ws/caregivers/{caregiver_id}")
+@router.websocket("/ws/caregivers/{caregiver_id}", dependencies=[Depends(ws_require_caregiver)])
 async def caregiver_events(ws: WebSocket, caregiver_id: str) -> None:
     await ws.accept()
     caregiver = await _caregiver(caregiver_id)

@@ -8,13 +8,18 @@ Base URL: the tunnel's public HTTPS hostname (README: "Cloudflare Tunnel sends `
 :8000"), configurable in each app (a settings field, or a build constant for the pilot). Local dev on the same
 Wi-Fi: `http://<pc-ip>:8000` (Android needs cleartext allowed for that host in debug builds only).
 
-**The apps talk to the API host only, never the website.** Cloud (once live, `deploy/README.md`):
-`https://voicemitra-api.apoorvm.com` (API only; **not created yet**). Development: the home tunnel
+**The apps talk to the API host only, never the website.** Cloud (live since 2026-11-07, the apps' default since
+2026-11-11): `https://voicemitra-api.apoorvm.com` (API only). Development: the home tunnel
 `https://test-voicemitra.apoorvm.com`. The website (`voicemitra.apoorvm.com`, on Vercel) is for browsers; the apps
 never load or call it.
 
 The app's only credential is a **device token**, which it gets either by logging in (the main way) or by pairing
 (the fallback). Both return the same thing; everything after that is the same.
+
+**Send `X-Device-Token` on every request once signed in -- and on the patient socket's handshake** (since
+2026-11-11, `backend/access.py`). Without it the API answers **401** to everything about a patient; with another
+patient's id in the path, **403**. The token only ever goes to the configured API host. Login, pairing and
+`/health` are the only calls that need no token.
 
 ## Identity: login (username + password) (Built -- login agent)
 
@@ -24,11 +29,11 @@ as a fallback, e.g. "Use a code instead" on the login screen.
 
 | | |
 |---|---|
-| `POST /api/auth/login` | App. Body `{"username": "sunita", "password": "...", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> **exactly the pairing response** `{"device_id", "device_token", "patient_id", "patient_name"}`. Username is trimmed and case-insensitive; the password is taken as typed. **401** `wrong username or password` (same for an unknown username and a wrong password); **429** after too many failed logins (paused ~10 min, counted across all phones, like wrong pairing codes). Same `push_token` replaces that phone's old record, as with pairing. |
+| `POST /api/auth/login` | App. Body `{"username": "sunita", "password": "...", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> **exactly the pairing response** `{"device_id", "device_token", "patient_id", "patient_name"}`. Username is trimmed and case-insensitive; the password is taken as typed. **401** `wrong username or password` (same for an unknown username and a wrong password); **429** after too many failed logins (paused ~10 min, counted across all phones, like wrong pairing codes). Same `push_token` replaces that phone's old record, as with pairing. **403** `family_login` / `staff_login`: the password was right, but it is a family or staff login, which work on the website only -- tell them to use voicemitra.apoorvm.com. |
 | `DELETE /api/devices/{device_id}` | **Log out** = the existing unpair call (header `X-Device-Token`). 204. Then show the login screen. |
-| `PUT /api/patients/{patient_id}/login` | Web only. Body `{"username", "password"}` -> 204. Sets or changes the login. Username 3-40 characters (after trimming), password at least 6 -- otherwise **400**; **409** if another patient has that username. 404 unknown patient. Phones already logged in stay logged in. |
-| `GET /api/patients/{patient_id}/login` | Web only. -> `{"username"}`, or 404 if none is set. The password is never returned (only an scrypt hash is stored). |
-| `DELETE /api/patients/{patient_id}/login` | Web only. 204. Removes the login (phones already logged in stay connected). |
+| `PUT /api/patients/{patient_id}/login` | Web only (staff, or the patient changing their own). Body `{"username", "password"}` -> 204. Sets or changes the login (the same one the patient signs in to the website with). Username 3-40 characters (after trimming), password at least 6 -- otherwise **400**; **409** if another patient has that username. 404 unknown patient. Phones already logged in stay logged in. |
+| `GET /api/patients/{patient_id}/login` | Web only (staff or the patient). -> `{"username"}`, or 404 if none is set. The password is never returned (only an scrypt hash is stored). |
+| `DELETE /api/patients/{patient_id}/login` | Web, staff only. 204. Removes the login (phones already logged in stay connected). |
 
 After a successful login the app stores `device_id`, `device_token`, `patient_id` exactly as after pairing, and
 the `X-Device-Token` rules below apply unchanged (on 404/401 forget them and show the login screen).
@@ -56,7 +61,7 @@ The app stores `device_id`, `device_token`, `patient_id`. Every other call below
   `state`), `next_dose`, `week[]`, `adherence`, `last_checkin`, `how_doing`, `reminders[]`, `caregiver`.
   Times are ISO; show them in `timezone` (default Asia/Kolkata).
 - `GET /api/app/patients/{patient_id}/medicines`, `.../history` -- same pattern, for later screens.
-- `GET /api/app/people` -> everyone (dev-only patient picker until pairing exists).
+- `GET /api/app/people` -> everyone: **staff only** now (the apps' debug "pick a patient" was removed 2026-11-11).
 - OpenAPI: `python -m backend.dump_openapi` writes `web/openapi.json` (the full schema).
 
 ## Calls
@@ -73,6 +78,9 @@ The app stores `device_id`, `device_token`, `patient_id`. Every other call below
   `patient` (e.g. the patient's web page left open) pushes the first one out of the room.
 
 ## Live events (Existing): `wss://<host>/ws/patients/{patient_id}/chat`
+
+Open it with the `X-Device-Token` header on the handshake (a socket without it, or for another patient, is refused
+with close code 1008). The website opens the same socket with a short-lived `?ticket=` instead.
 
 JSON messages (shapes in `web/src/lib/events.ts`). The ones the apps need:
 

@@ -40,13 +40,24 @@ Two programs, one repo:
    If a port is already taken (a server left over from earlier), it tells you and stops instead of starting a
    second one.
 
-The homepage (`/`) introduces VoiceMitra and has a contact form; **Log in** opens `/login`. There are no accounts: that screen asks who you are (patient, family or staff; the doctor role is hidden while the doctor flow is off) and the device remembers it.
+The homepage (`/`) introduces VoiceMitra and has a contact form; **Log in** opens `/login`, a username + password
+sign-in. Nobody signs up: staff logins come from a script, and staff set each patient's and family contact's login
+on the patient's page (operator → patient → "Sign-in logins"). Patients use the same login in the phone apps;
+families and staff use the website only. Who may see what is in `backend/access.py`.
+
+Make yourself a staff login (prints a generated password once; `--reset` gives a new one). It writes to the database
+in `.env`, which on this PC is the cloud one, so the login also works on the live website:
+
+```bash
+.venv/Scripts/python -m backend.create_staff <username>
+```
 
 ## Data
 
 - `python -m backend.seed` — one demo patient, doctor and prescription. **Wipes** the database it points at.
 - `MONGODB_DB_NAME=voicemitra_demo python -m backend.seed_demo` — five patients with two weeks of history, a
-  resolved emergency and transcripts, for demos and for seeing every screen state. Refuses to run against the
+  resolved emergency and transcripts, for demos and for seeing every screen state. It prints sign-in logins
+  (staff `demo`, each patient and family contact) with fresh passwords every run. Refuses to run against the
   default `voicemitra` database. It is a separate database on the same local MongoDB, so it never touches your
   real test calls; start the stack on it with `npm run demo`.
 
@@ -56,7 +67,7 @@ Phone browsers only allow the microphone on HTTPS, so voice calls need the tunne
 programs: Cloudflare Tunnel sends `/api`, `/ws` and `/health` to :8000 and everything else to :3000 (config in
 `%USERPROFILE%\.cloudflared\config.yml`; install with `winget install Cloudflare.cloudflared`, then
 `cloudflared tunnel login`, `tunnel create voicemitra-test`, `tunnel route dns voicemitra-test <hostname>`).
-The URL is public and there is no login, so close the tunnel window when you're not testing.
+The URL is public (everything behind it needs a sign-in), so still close the tunnel window when you're not testing.
 
 On the phone, "Me → Install" (Android) or Share → Add to Home Screen (iPhone) puts it on the home screen. The
 service worker only runs in the built app (the default), not with `--hot`; hot mode also removes any worker left

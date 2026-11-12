@@ -21,3 +21,7 @@ mobile/android/.idea/
 mobile/ios/.build/
 mobile/ios/xtool/
 *.ipa
+
+# Local-only notes (e.g. demo logins printed by backend/seed_demo.py)
+*.local.txt
+*.local.json

@@ -182,3 +182,8 @@ Run with the backend + tunnel up (`npm run dev`). Use a **test patient** with a 
     one of them stays in the room (API.md: one `patient`); note which.
 14. [ ] (not yet) **SideStore (I6):** `build-ipa.sh` -> install via SideStore -> sign in -> rings; after a SideStore refresh
     the app opens and is still signed in.
+
+**Sign-in lockdown (2026-11-11):** the app sends `X-Device-Token` on every request and on the socket handshake
+(the API refuses patient data without it), shows a "use the website" message for family/staff logins, drops the debug
+patient picker, and defaults to `https://voicemitra-api.apoorvm.com`. Compiles with xtool; **not yet reinstalled on the
+phone** -- the installed build can't load anything from the locked API until it is.

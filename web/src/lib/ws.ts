@@ -1,6 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ApiError, api, toSignIn } from "@/lib/api";
+
+/**
+ * A single-use ticket for opening one socket. Sockets go straight to the API host, which never sees this
+ * site's sign-in cookie, so the page asks for a ticket (through `/api`, with the cookie) and hands it over.
+ */
+async function ticket(): Promise<string> {
+  const { ticket } = await api<{ ticket: string }>("/api/auth/ws-ticket", { method: "POST" });
+  return ticket;
+}
 
 /**
  * WebSocket URL for a backend socket path such as "/ws/patients/<id>/chat".
@@ -37,8 +47,22 @@ export function useSocket<E>(path: string | null, onEvent: (event: E) => void) {
     let retryMs = 500;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const connect = () => {
-      const ws = new WebSocket(wsUrl(path));
+    const retry = () => {
+      timer = setTimeout(connect, retryMs);
+      retryMs = Math.min(retryMs * 2, 10_000);
+    };
+
+    const connect = async () => {
+      let t: string;
+      try {
+        t = await ticket();
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) return toSignIn();
+        if (!closed) retry();
+        return;
+      }
+      if (closed) return;
+      const ws = new WebSocket(`${wsUrl(path)}${path.includes("?") ? "&" : "?"}ticket=${encodeURIComponent(t)}`);
       socket.current = ws;
       ws.onopen = () => {
         retryMs = 500;
@@ -54,11 +78,10 @@ export function useSocket<E>(path: string | null, onEvent: (event: E) => void) {
       ws.onclose = () => {
         setConnected(false);
         if (closed) return;
-        timer = setTimeout(connect, retryMs);
-        retryMs = Math.min(retryMs * 2, 10_000);
+        retry();
       };
     };
-    connect();
+    void connect();
 
     return () => {
       closed = true;

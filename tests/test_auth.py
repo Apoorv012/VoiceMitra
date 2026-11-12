@@ -7,7 +7,7 @@ import pytest
 from backend.auth import hash_password, verify_password
 from backend.db import model_to_doc
 from backend.models import Patient
-from backend.routers import auth
+from backend import logins
 
 pytestmark = pytest.mark.anyio
 
@@ -29,7 +29,8 @@ def _login(username="sunita", password="secret12", push_token="fcm-1", platform=
 
 @pytest.fixture(autouse=True)
 def _fresh_limiter(monkeypatch):
-    monkeypatch.setattr(auth, "_bad_logins", type(auth._bad_logins)())
+    monkeypatch.setattr(logins, "_bad_logins", type(logins._bad_logins)())
+    monkeypatch.setattr(logins, "_bad_by_username", type(logins._bad_by_username)(type(logins._bad_logins)))
 
 
 def test_password_hash_round_trip():
@@ -111,7 +112,7 @@ async def test_username_is_unique_ignoring_case(client, mongo):
 async def test_hash_never_leaves_the_backend(client, mongo):
     patient = await _patient(mongo)
     await _set(client, patient.id, password="secret12")
-    stored = (await mongo["patient_logins"].find_one({"_id": patient.id}))["password_hash"]
+    stored = (await mongo["logins"].find_one({"_id": patient.id}))["password_hash"]
     assert "secret12" not in stored
     for url in ["/api/patients", f"/api/patients/{patient.id}", f"/api/patients/{patient.id}/login",
                 f"/api/app/patients/{patient.id}/home", "/api/app/people"]:
@@ -120,7 +121,7 @@ async def test_hash_never_leaves_the_backend(client, mongo):
 
 
 async def test_guessing_passwords_is_paused(client, mongo, monkeypatch):
-    monkeypatch.setattr(auth, "MAX_BAD_LOGINS", 3)
+    monkeypatch.setattr(logins, "MAX_BAD_LOGINS", 3)
     patient = await _patient(mongo)
     await _set(client, patient.id)
     for _ in range(3):

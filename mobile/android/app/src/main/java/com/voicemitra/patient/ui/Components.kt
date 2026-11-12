@@ -312,6 +312,9 @@ fun EmptyState(icon: ImageVector, text: String) {
 /** What to tell the patient for a failed request. */
 fun Strings.explain(e: Throwable, on401: String? = null, on400: String? = null): String = when {
     e is ApiException && e.code == 401 && on401 != null -> on401
+    // Right password, but a login for the website (backend/routers/auth.py): say where to use it.
+    e is ApiException && e.code == 403 && e.message == "family_login" -> familyLogin
+    e is ApiException && e.code == 403 && e.message == "staff_login" -> staffLogin
     e is ApiException && e.code == 400 && on400 != null -> on400
     e is ApiException && e.code == 429 -> tooManyTries
     e is ApiException && e.code >= 500 -> serverError

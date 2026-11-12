@@ -12,10 +12,6 @@ struct Person: Codable, Identifiable, Hashable {
     let description: String?
 }
 
-struct People: Decodable {
-    let patients: [Person]
-}
-
 struct Slot: Decodable, Identifiable {
     let dosageId: String
     let medicine: String
@@ -194,25 +190,30 @@ struct APIError: LocalizedError {
     var pairingGone: Bool { status == 401 || status == 404 }
 }
 
+/// Once signed in, every request -- and the patient socket's handshake -- carries the phone's `X-Device-Token`:
+/// the server tells a phone nothing about a patient without it (mobile/API.md).
 struct API {
     let base: URL
+    let deviceToken: String?
 
-    init?(server: String) {
+    init?(server: String, deviceToken: String? = nil) {
+        self.deviceToken = deviceToken
         let trimmed = server.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed),
               let scheme = url.scheme, scheme == "http" || scheme == "https", url.host != nil else { return nil }
         base = url
     }
 
-    /// wss://<host>/ws/patients/{id}/chat
-    func patientSocketURL(patientId: String) -> URL? {
+    /// wss://<host>/ws/patients/{id}/chat, with the device token on the handshake.
+    func patientSocketRequest(patientId: String) -> URLRequest? {
         guard var c = URLComponents(url: base.appendingPathComponent("ws/patients/\(patientId)/chat"),
                                     resolvingAgainstBaseURL: false) else { return nil }
         c.scheme = base.scheme == "https" ? "wss" : "ws"
-        return c.url
+        guard let url = c.url else { return nil }
+        var r = URLRequest(url: url)
+        if let deviceToken { r.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token") }
+        return r
     }
-
-    func people() async throws -> People { try await send("GET", "api/app/people") }
 
     func home(patientId: String) async throws -> PatientHome {
         try await send("GET", "api/app/patients/\(patientId)/home")
@@ -267,7 +268,7 @@ struct API {
         var r = URLRequest(url: base.appendingPathComponent(path), timeoutInterval: 20)
         r.httpMethod = method
         r.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token { r.setValue(token, forHTTPHeaderField: "X-Device-Token") }
+        if let token = token ?? deviceToken { r.setValue(token, forHTTPHeaderField: "X-Device-Token") }
         if let body {
             r.httpBody = body
             r.setValue("application/json", forHTTPHeaderField: "Content-Type")

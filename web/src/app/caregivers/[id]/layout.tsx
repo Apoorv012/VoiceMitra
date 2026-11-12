@@ -1,21 +1,17 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { LangSwitch } from "@/components/LangSwitch";
-import { setIdentity } from "@/lib/identity";
+import { RequireSignIn } from "@/components/RequireSignIn";
 
 /** The caregiver's app: one screen about the patient they look after, in the patient app's look. */
 export default function CaregiverLayout({ children }: { children: ReactNode }) {
   const { id } = useParams<{ id: string }>();
 
-  // Same as the patient app: opening the link on a device remembers who this is (?preview=1 doesn't).
-  useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has("preview")) setIdentity({ role: "caregiver", id });
-  }, [id]);
-
   return (
+    <RequireSignIn allow={(me) => me.role === "staff" || (me.role === "caregiver" && me.id === id)}>
     <div className="phone patient-app">
       <header className="p-head">
         <span className="row" style={{ gap: 10 }}>
@@ -26,5 +22,6 @@ export default function CaregiverLayout({ children }: { children: ReactNode }) {
       </header>
       <main className="p-main">{children}</main>
     </div>
+    </RequireSignIn>
   );
 }

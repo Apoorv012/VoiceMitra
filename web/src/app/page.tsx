@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Newsreader } from "next/font/google";
 import Link from "next/link";
-import { ContactForm, CopyEmail } from "@/components/landing/ContactForm";
+import { ContactForm, CopyEmail, TopicLink } from "@/components/landing/ContactForm";
 import s from "@/components/landing/landing.module.css";
 
-// The public homepage. The app's "who are you?" screen lives at /login (and the installed app opens there).
+// The public homepage. Signing in is at /login (and the installed app opens there). There are no sign-ups:
+// people who want to join the pilot or get early access use the contact form (topic "pilot").
 
 const serif = Newsreader({ subsets: ["latin"], variable: "--font-serif", display: "swap", axes: ["opsz"] });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap", weight: ["400", "500"] });
@@ -70,6 +71,9 @@ export default function Home() {
               See a sample call
             </a>
           </div>
+          <p className={s.early}>
+            Now in a small pilot. Want to join or get early access? <TopicLink topic="pilot">Tell us below</TopicLink>.
+          </p>
         </section>
 
         <section className={`${s.in} ${s.show}`} id="call" aria-label="Example call">
@@ -126,15 +130,18 @@ export default function Home() {
         <section className={`${s.in} ${s.sec} ${s.anchor}`} id="who">
           <h2 className={s.secH}>Made for the three people around every prescription.</h2>
           <div className={s.aud}>
-            <div><div className={s.eyebrow}>Patients</div><h3>Just answer the phone</h3><p>Hindi or English, at the times the doctor set. No app to learn.</p><Link href="/who/patient">Open the patient app</Link></div>
-            <div><div className={s.eyebrow}>Families</div><h3>Know they&apos;re okay</h3><p>Get a message if a dose is missed or something sounds wrong.</p><Link href="/who/caregiver">Caregiver sign in</Link></div>
+            <div><div className={s.eyebrow}>Patients</div><h3>Just answer the phone</h3><p>Hindi or English, at the times the doctor set. No app to learn.</p><Link href="/login">Patient sign in</Link></div>
+            <div><div className={s.eyebrow}>Families</div><h3>Know they&apos;re okay</h3><p>Get a message if a dose is missed or something sounds wrong.</p><Link href="/login">Family sign in</Link></div>
             <div><div className={s.eyebrow}>Hospitals</div><h3>See adherence at a glance</h3><p>Every call logged, every red flag routed to the right doctor.</p><Link href="/login">Staff sign in</Link></div>
           </div>
 
           <div className={s.contact} id="contact">
             <div className={s.contactIntro}>
-              <h2>Running a pilot at your clinic?</h2>
-              <p>Tell us about your patients and what you&apos;d like to try. We&apos;ll set up a demo call, or help you get started with your family.</p>
+              <h2>Want to join the pilot or get early access?</h2>
+              <p>
+                VoiceMitra is in a small pilot, and we set up every account ourselves, so there&apos;s no sign-up. Fill
+                in the form and tell us about your clinic or your family. We&apos;ll book a demo call or get you started.
+              </p>
               <CopyEmail />
               <div className={s.next}>
                 <h3 className={s.nextTitle}>What happens next</h3>

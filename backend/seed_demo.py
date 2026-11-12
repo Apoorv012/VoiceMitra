@@ -6,6 +6,9 @@ transcripts and one resolved emergency -- enough to see (and demo) every state t
 WIPES the database it points at, so it refuses to run against the default `voicemitra` database (where
 real test calls live) unless the name contains "demo". Point the backend at the same name to see it:
     MONGODB_DB_NAME=voicemitra_demo uvicorn backend.main:app
+
+It also makes sign-in logins -- staff `demo`, each patient and family contact by first name -- with fresh
+random passwords, printed at the end (they change on every run).
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+import secrets
 import sys
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -20,13 +24,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from backend import db  # noqa: E402
+from backend import db, logins  # noqa: E402
 from backend.insights import TZ  # noqa: E402
 from backend.models import (  # noqa: E402
     Call, CallLogEntry, CallLogEntryType, CallType, Caregiver, CaregiverNotification, CaregiverNotifyOn,
     DailyLog, Doctor, Dosage, DoseConfidence, DoseEvent, DoseFrequency, DoseSource, DoseStatus,
-    Escalation, EscalationStatus, MedicineStatus, Patient, PatientStatus, Prescription, Symptom,
-    SymptomSeverity,
+    Escalation, EscalationStatus, LoginRole, MedicineStatus, Patient, PatientStatus, Prescription, Symptom,
+    SymptomSeverity, new_id,
 )
 
 DAYS = 14
@@ -94,8 +98,16 @@ async def seed() -> None:
     await db.ensure_indexes()
     for col in (db.patients_col, db.caregivers_col, db.prescriptions_col, db.dose_events_col, db.doctors_col,
                 db.calls_col, db.daily_logs_col, db.escalations_col, db.reminders_col,
-                db.caregiver_notifications_col):
+                db.caregiver_notifications_col, db.logins_col, db.web_sessions_col):
         await col().delete_many({})
+    made: list[tuple[str, str, str]] = []  # (who, username, password)
+
+    async def login(role: LoginRole, subject_id: str, who: str, username: str) -> None:
+        password = secrets.token_urlsafe(9)
+        await logins.set_login(role, subject_id, username, password)
+        made.append((who, username, password))
+
+    await login(LoginRole.staff, new_id(), "staff", "demo")
 
     doctor = Doctor(name="Dr. Mehta", age=45, description="General physician · Apollo Clinic, Delhi",
                     phone_number="+919800000001", address="Apollo Clinic, Delhi")
@@ -173,10 +185,17 @@ async def seed() -> None:
 
         await db.patients_col().insert_one(db.model_to_doc(patient))
         doctor.patient_ids.append(patient.id)
+        await login(LoginRole.patient, patient.id, f"patient {patient.name}", patient.name.split()[0].lower())
+        if caregiver:
+            await login(LoginRole.caregiver, caregiver.id, f"family of {patient.name}",
+                        caregiver.name.split()[0].lower() + "-family")
         print(f"seeded {patient.name} ({patient.id})")
 
     await db.doctors_col().insert_one(db.model_to_doc(doctor))
     print(f"seeded {doctor.name} ({doctor.id}) in database '{name}'")
+    print("\nSign-in logins (new passwords every run):")
+    for who, username, password in made:
+        print(f"  {who:32} {username:20} {password}")
 
 
 async def escalate(patient: Patient, doctor: Doctor, call: Call, reason: str, at: datetime, caregiver) -> None:

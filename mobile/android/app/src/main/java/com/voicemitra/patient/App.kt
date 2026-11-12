@@ -38,7 +38,7 @@ class App : Application() {
         // Read once up front (a few ms, local file) so a ring arriving at a cold start knows the server.
         val initial = runBlocking { prefs.current() }
         settings = prefs.settings.stateIn(scope, SharingStarted.Eagerly, initial)
-        api = Api { settings.value.serverUrl }
+        api = Api({ settings.value.serverUrl }, { settings.value.pairing?.deviceToken })
         Notifications.createChannels(this)
         calls = CallManager(this)
         holdSocket()

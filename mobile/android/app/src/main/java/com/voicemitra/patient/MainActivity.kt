@@ -75,7 +75,6 @@ import com.voicemitra.patient.ui.LocalStrings
 import com.voicemitra.patient.ui.LoginScreen
 import com.voicemitra.patient.ui.MeTab
 import com.voicemitra.patient.ui.MedicinesTab
-import com.voicemitra.patient.ui.PickPatientScreen
 import com.voicemitra.patient.ui.Setup
 import com.voicemitra.patient.ui.SetupScreen
 import com.voicemitra.patient.ui.Strings
@@ -86,7 +85,7 @@ import com.voicemitra.patient.ui.VoiceMitraTheme
 import kotlinx.coroutines.launch
 
 /** Signed out: login (with the server address under Advanced), the code pad, the debug picker. Signed in: the four tabs, plus the setup checklist. */
-enum class Screen { Login, Code, Pick, Today, Medicines, History, Me, Setup }
+enum class Screen { Login, Code, Today, Medicines, History, Me, Setup }
 
 /** A debug-picker "pairing" (no device on the server): nothing to verify or unpair. */
 val Pairing.isDebug get() = deviceId == "debug"
@@ -162,11 +161,9 @@ private fun Root() {
         when (current) {
             Screen.Login -> LoginScreen(
                 onUseCode = { authScreen = Screen.Code },
-                onPickPatient = if (BuildConfig.DEBUG) ({ authScreen = Screen.Pick }) else null,
                 settings = settings,
             )
             Screen.Code -> CodeScreen(onUseLogin = { authScreen = Screen.Login })
-            Screen.Pick -> PickPatientScreen(onBack = { authScreen = Screen.Login })
             Screen.Today -> TodayTab(pairing!!.patientId, talk) {
                 context.startActivity(CallActivity.intent(context, if (talk == TalkState.InCall) CallActivity.ACTION_SHOW else CallActivity.ACTION_TALK, null))
             }

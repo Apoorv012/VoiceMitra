@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from backend.access import require_staff
 
 from backend.db import calls_col, doc_to_model
 from backend.models import Call
 
-router = APIRouter(prefix="/api/calls", tags=["calls"])
+router = APIRouter(prefix="/api/calls", tags=["calls"], dependencies=[Depends(require_staff)])
 
 
 @router.get("/{call_id}", response_model=Call, response_model_by_alias=False)

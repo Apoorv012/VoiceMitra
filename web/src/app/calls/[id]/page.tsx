@@ -58,7 +58,7 @@ export default function CallPage() {
   const identity = useIdentity();
   const { t, lang } = useT();
   const { data, error, mutate } = useApi<CallTranscript>(`/api/app/calls/${id}`, 0);
-  const staff = identity?.role === "doctor" || identity?.role === "operator";
+  const staff = identity?.role === "staff";
 
   return (
     <main className="phone patient-app" style={{ paddingBottom: 32 }}>

@@ -7,6 +7,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -33,9 +34,6 @@ data class DeviceInfo(
 
 @Serializable
 data class Person(val id: String, val name: String, val age: Int? = null, val description: String? = null)
-
-@Serializable
-data class People(val patients: List<Person> = emptyList())
 
 @Serializable
 data class Slot(
@@ -140,9 +138,19 @@ class ApiException(val code: Int, message: String) : Exception(message)
 /**
  * The backend's REST API. Every call throws [ApiException] for an HTTP error or [IOException] when the
  * server can't be reached; screens turn both into plain words with a "Try again".
+ *
+ * Once signed in, every request to the server -- the patient socket's handshake included -- carries the
+ * phone's `X-Device-Token` (`deviceToken()`): the server answers nothing about a patient without it.
  */
-class Api(private val baseUrl: () -> String) {
+class Api(private val baseUrl: () -> String, private val deviceToken: () -> String? = { null }) {
     val http: OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val req = chain.request()
+            val token = deviceToken()
+            val ours = req.url.host == baseUrl().toHttpUrlOrNull()?.host  // never hand the token to another host
+            if (token == null || !ours || req.header(TOKEN) != null) chain.proceed(req)
+            else chain.proceed(req.newBuilder().header(TOKEN, token).build())
+        }
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -170,8 +178,6 @@ class Api(private val baseUrl: () -> String) {
 
     suspend fun unpair(p: Pairing) =
         sendNoContent(Request.Builder().url(url("/api/devices/${p.deviceId}")).header(TOKEN, p.deviceToken).delete().build())
-
-    suspend fun people(): People = send(Request.Builder().url(url("/api/app/people")).get().build(), People.serializer())
 
     suspend fun home(patientId: String): PatientHome =
         send(Request.Builder().url(url("/api/app/patients/$patientId/home")).get().build(), PatientHome.serializer())

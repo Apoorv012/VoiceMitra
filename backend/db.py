@@ -71,6 +71,14 @@ def contact_messages_col():
     return get_db()["contact_messages"]
 
 
+def logins_col():
+    return get_db()["logins"]
+
+
+def web_sessions_col():
+    return get_db()["web_sessions"]
+
+
 async def ensure_indexes() -> None:
     # `_id` (== the domain id) is already indexed+unique by Mongo itself; only
     # foreign-key lookup fields need explicit indexes.
@@ -88,6 +96,24 @@ async def ensure_indexes() -> None:
     await devices_col().create_index("push_token")
     await pairing_codes_col().create_index("code")
     await contact_messages_col().create_index("created_at")
+    await logins_col().create_index("username_key", unique=True)
+    await web_sessions_col().create_index("subject_id")
+    # Mongo deletes a session once `expires_at` (a real BSON date, unlike most dates here) has passed.
+    await web_sessions_col().create_index("expires_at", expireAfterSeconds=0)
+    await _move_patient_logins()
+
+
+async def _move_patient_logins() -> None:
+    """Phone-app logins used to live in `patient_logins` (patients only). Copy them into `logins` once."""
+    old = get_db()["patient_logins"]
+    async for doc in old.find():
+        clash = await logins_col().find_one({"username_key": doc["username_key"], "_id": {"$ne": doc["_id"]}})
+        if clash is not None:
+            print(f"[logins] not moving patient login {doc['username']!r}: the username is taken; set it again")
+            continue  # left in `patient_logins`, nothing lost
+        if await logins_col().find_one({"_id": doc["_id"]}) is None:
+            await logins_col().insert_one({**doc, "role": "patient"})
+        await old.delete_one({"_id": doc["_id"]})
 
 
 def doc_to_model(model_cls, doc: dict | None):

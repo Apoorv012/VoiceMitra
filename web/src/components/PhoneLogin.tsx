@@ -1,7 +1,8 @@
 "use client";
 
-// "Phone app login": sets the username + password the patient signs in to the VoiceMitra phone app with
-// (mobile/API.md, "Identity: login"). Shows the current username, never the password (it isn't stored).
+// "Your login" on the patient's Me tab: the username + password they sign in with, here and in the VoiceMitra
+// phone app (the same login). Staff set the first one; the patient can change it here. Shows the current
+// username, never the password (it isn't stored).
 
 import { useId, useState, type FormEvent } from "react";
 import { Icon } from "@/components/Icon";

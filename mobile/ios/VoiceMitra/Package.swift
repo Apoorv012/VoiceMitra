@@ -18,8 +18,6 @@ let package = Package(
             dependencies: [.product(name: "LiveKit", package: "client-sdk-swift")],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                // The "pick a patient" list (no pairing) only exists in debug builds (xtool dev).
-                .define("DEV_PICKER", .when(configuration: .debug)),
             ],
             // xtool on Linux can't pre-link package targets (lld has no `-r`), so each one (LiveKit.o etc.) is
             // really a static archive. The final link only pulls archive members whose *symbols* are used, which

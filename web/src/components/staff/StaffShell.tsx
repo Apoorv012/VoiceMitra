@@ -1,20 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { Avatar } from "@/components/ui";
-import { clearIdentity } from "@/lib/identity";
+import { signOut } from "@/lib/identity";
 
 export type NavItem = { href: string; label: string; icon: IconName; match?: (path: string) => boolean };
 
-/** Chrome for the doctor and operator screens: brand, navigation, who's signed in, and a way to switch. */
+/** Chrome for the doctor and operator screens: brand, navigation, who's signed in, and signing out. */
 export function StaffShell({
   nav, name, role, children,
 }: { nav: NavItem[]; name: string; role: string; children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   return (
     <>
       <header className="s-head">
@@ -42,11 +41,9 @@ export function StaffShell({
             <button
               type="button"
               className="btn ghost sm"
-              aria-label="Switch user"
-              onClick={() => {
-                clearIdentity();
-                router.push("/login");
-              }}
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={() => void signOut()}
             >
               <Icon name="logout" />
             </button>

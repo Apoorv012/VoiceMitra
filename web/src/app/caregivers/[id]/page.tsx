@@ -1,20 +1,19 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { DayDot, Empty, ErrorState, Loading, SlotChip, WeekLegend } from "@/components/ui";
 import { api, useApi } from "@/lib/api";
 import type { CaregiverEvent } from "@/lib/events";
 import { dayLabel, isToday, timeOf, weekdayOf, when } from "@/lib/format";
-import { clearIdentity } from "@/lib/identity";
+import { signOut } from "@/lib/identity";
 import { useT } from "@/lib/i18n";
 import type { AlertView, CaregiverHome } from "@/lib/types";
 import { useSocket } from "@/lib/ws";
 
 export default function CaregiverPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { t, lang } = useT();
   const { data, error, mutate } = useApi<CaregiverHome>(`/api/app/caregivers/${id}/home`, 60_000);
   const [busy, setBusy] = useState<string | null>(null);
@@ -172,12 +171,9 @@ export default function CaregiverPage() {
 
       <button
         type="button" className="btn ghost sm" style={{ alignSelf: "center" }}
-        onClick={() => {
-          clearIdentity();
-          router.push("/login");
-        }}
+        onClick={() => void signOut()}
       >
-        <Icon name="logout" />{t("switch_user")}
+        <Icon name="logout" />{t("sign_out")}
       </button>
     </>
   );

@@ -87,7 +87,7 @@ class ScreenshotTest {
     }
 
     @Test
-    fun login() = shoot("01_login") { lang -> LoginScreen(onUseCode = {}, onPickPatient = null, settings = SampleData.settings(lang)) }
+    fun login() = shoot("01_login") { lang -> LoginScreen(onUseCode = {}, settings = SampleData.settings(lang)) }
 
     @Test
     fun codePad() = shoot("02_code") { CodeScreen(onUseLogin = {}, initial = "482") }

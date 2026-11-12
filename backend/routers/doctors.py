@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from backend.access import require_staff
 
 from backend.db import doc_to_model, doctors_col
 from backend.models import Doctor
 from backend.queries import get_doctor_bundle
 
-router = APIRouter(prefix="/api/doctors", tags=["doctors"])
+router = APIRouter(prefix="/api/doctors", tags=["doctors"], dependencies=[Depends(require_staff)])
 
 
 @router.get("", response_model=list[Doctor], response_model_by_alias=False)

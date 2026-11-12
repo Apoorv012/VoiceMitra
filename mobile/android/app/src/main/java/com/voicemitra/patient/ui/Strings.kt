@@ -62,6 +62,10 @@ class Strings private constructor(val lang: Lang) {
         "यूज़रनेम या पासवर्ड गलत है। कृपया जाँचकर फिर कोशिश करें।")
     val tooManyTries = t("Too many tries. Please wait 10 minutes, then try again.",
         "बहुत बार कोशिश हो गई। कृपया 10 मिनट रुककर फिर कोशिश करें।")
+    val familyLogin = t("This is a family login. Family members use the website: open voicemitra.apoorvm.com in a browser.",
+        "यह परिवार वालों का लॉगिन है। परिवार वाले वेबसाइट इस्तेमाल करते हैं: ब्राउज़र में voicemitra.apoorvm.com खोलें।")
+    val staffLogin = t("This is a staff login. Staff use the website: voicemitra.apoorvm.com.",
+        "यह स्टाफ़ का लॉगिन है। स्टाफ़ वेबसाइट इस्तेमाल करता है: voicemitra.apoorvm.com।")
     val fillBoth = t("Please type both your username and password.", "कृपया यूज़रनेम और पासवर्ड दोनों लिखें।")
     val useCode = t("Use a code instead", "कोड से जोड़ें")
     val useLogin = t("Sign in with a username instead", "यूज़रनेम से लॉगिन करें")
@@ -76,10 +80,6 @@ class Strings private constructor(val lang: Lang) {
     val wrongCode = t("That code didn't work. It may have expired. Please get a new code and try again.",
         "यह कोड नहीं चला। शायद इसका समय निकल गया। कृपया नया कोड लेकर फिर कोशिश करें।")
 
-    // debug picker
-    val pickPatient = t("Choose a patient (test builds only)", "मरीज़ चुनें (सिर्फ़ टेस्ट के लिए)")
-    val pickPatientSub = t("Skips sign-in. Push rings won't reach this phone.", "लॉगिन छोड़ देता है। इस फ़ोन पर पुश कॉल नहीं आएगी।")
-    val nobody = t("No one here yet.", "अभी यहाँ कोई नहीं है।")
 
     // today: talk card
     val talkTitle = t("Talk to VoiceMitra", "VoiceMitra से बात करें")

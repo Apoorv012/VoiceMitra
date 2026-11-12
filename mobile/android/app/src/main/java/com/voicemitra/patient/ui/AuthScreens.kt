@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import com.voicemitra.patient.App
 import com.voicemitra.patient.data.Pairing
 import com.voicemitra.patient.data.PairResponse
-import com.voicemitra.patient.data.Person
 import com.voicemitra.patient.push.PushToken
 import kotlinx.coroutines.launch
 
@@ -105,7 +104,7 @@ private fun AuthHeading(title: String, sub: String, icon: ImageVector? = null) {
 
 /** The main way in: the username + password the family set on the web app (mobile/API.md "Identity: login"). */
 @Composable
-fun LoginScreen(onUseCode: () -> Unit, onPickPatient: (() -> Unit)?, settings: com.voicemitra.patient.data.Settings? = null) {
+fun LoginScreen(onUseCode: () -> Unit, settings: com.voicemitra.patient.data.Settings? = null) {
     val s = LocalStrings.current
     val app by lazy { App.instance }  // looked up on use, so the screen also renders without the app (screenshots)
     val scope = rememberCoroutineScope()
@@ -180,7 +179,6 @@ fun LoginScreen(onUseCode: () -> Unit, onPickPatient: (() -> Unit)?, settings: c
         }
         VmButton(if (busy) s.signingIn else s.signIn, ::submit, busy = busy)
         VmButton(s.useCode, onUseCode, kind = BtnKind.Secondary, icon = Icons.Outlined.Pin, xl = false)
-        if (onPickPatient != null) VmButton(s.pickPatient, onPickPatient, kind = BtnKind.Ghost, xl = false)
         // The server address, folded away (the language switch is in the header).
         if (settings != null) Advanced(settings) { url -> scope.launch { app.prefs.setServerUrl(url) } }
     }
@@ -269,51 +267,5 @@ private fun NumberPad(onDigit: (Char) -> Unit, onDelete: () -> Unit, deleteLabel
                 }
             }
         }
-    }
-}
-
-/**
- * Debug builds only: pick a patient from `/api/app/people` without signing in. Nothing is registered with
- * the backend, so push rings don't reach this phone (the socket still rings it while the app is open).
- */
-@Composable
-fun PickPatientScreen(onBack: () -> Unit) {
-    val s = LocalStrings.current
-    val app by lazy { App.instance }
-    val scope = rememberCoroutineScope()
-    var people by remember { mutableStateOf<List<Person>?>(null) }
-    var error by remember { mutableStateOf<Throwable?>(null) }
-    var attempt by remember { mutableIntStateOf(0) }
-    LaunchedEffect(attempt) {
-        error = null
-        try {
-            people = app.api.people().patients
-        } catch (e: Exception) {
-            error = e
-        }
-    }
-    TabPage {
-        H1(s.pickPatient)
-        Muted(s.pickPatientSub, small = false)
-        error?.let { ErrorState(s.explain(it), { attempt++ }, it.isOffline()) }
-        val list = people
-        if (list == null && error == null) LoadingState()
-        if (list != null && list.isEmpty()) EmptyState(Icons.Outlined.Mic, s.nobody)
-        if (!list.isNullOrEmpty()) VmCard(padding = 0.dp, spacing = 0.dp) {
-            list.forEach { p ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable { scope.launch { app.prefs.savePairing(Pairing("debug", "debug", p.id, p.name), null) } }
-                        .heightIn(min = 64.dp).padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Avatar(initials(p.name), size = 44.dp)
-                    Spacer(Modifier.width(14.dp))
-                    Text(p.name, style = MaterialTheme.typography.titleMedium, color = Vm.colors.ink, modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Vm.colors.muted)
-                }
-            }
-        }
-        VmButton(s.back, onBack, kind = BtnKind.Ghost, xl = false)
     }
 }

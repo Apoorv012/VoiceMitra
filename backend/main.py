@@ -29,8 +29,12 @@ async def lifespan(app: FastAPI):
     dose_scheduler.stop()
 
 
-# The backend is an API only: JSON and WebSockets. The screens live in the web app (web/).
-app = FastAPI(title="VoiceMitra", lifespan=lifespan)
+# The backend is an API only: JSON and WebSockets. The screens live in the web app (web/). Who may call
+# what: backend/access.py. The interactive docs (/docs, /redoc, /openapi.json) are off unless
+# API_DOCS_ENABLED=true (set it in a local .env); `python -m backend.dump_openapi` still writes the schema.
+_docs = os.environ.get("API_DOCS_ENABLED", "false").lower() == "true"
+app = FastAPI(title="VoiceMitra", lifespan=lifespan, docs_url="/docs" if _docs else None,
+              redoc_url="/redoc" if _docs else None, openapi_url="/openapi.json" if _docs else None)
 
 app.include_router(app_api.router)
 app.include_router(patients.router)

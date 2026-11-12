@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from backend import dose_scheduler
+from backend import dose_scheduler, logins
+from backend.access import require_staff
 from backend.db import (
     caregivers_col,
     doc_to_model,
@@ -15,7 +16,9 @@ from backend.db import (
 from backend.models import Caregiver, DoseFrequency, Dosage, Patient, Prescription
 from backend.queries import get_patient_bundle
 
-router = APIRouter(prefix="/api/patients", tags=["patients"])
+# Staff only. (A patient's own endpoints under /api/patients/{id}/... -- calls, devices, login -- live in
+# live.py, devices.py and auth.py with their own rules.)
+router = APIRouter(prefix="/api/patients", tags=["patients"], dependencies=[Depends(require_staff)])
 
 
 @router.get("", response_model=list[Patient], response_model_by_alias=False)
@@ -78,6 +81,7 @@ class PatientProfile(BaseModel):
     description: str | None
     allergies: list[str]
     caregiver: CaregiverInput | None
+    caregiver_id: str | None = None
     doctor_ids: list[str]
 
 
@@ -91,6 +95,7 @@ async def _profile(patient: Patient) -> PatientProfile:
         address=patient.address, description=patient.description, allergies=patient.allergies,
         caregiver=CaregiverInput(name=caregiver.name, relation=caregiver.relation, phone_number=caregiver.phone_number)
         if caregiver else None,
+        caregiver_id=caregiver.id if caregiver else None,
         doctor_ids=doctor_ids,
     )
 
@@ -128,6 +133,7 @@ async def update_patient(patient_id: str, body: UpdatePatientRequest) -> Patient
         if body.caregiver is None:
             if patient.caregiver_id:
                 await caregivers_col().delete_one({"_id": patient.caregiver_id})
+                await logins.delete(patient.caregiver_id)
             changes["caregiver_id"] = None
         elif patient.caregiver_id:
             await caregivers_col().update_one({"_id": patient.caregiver_id}, {"$set": body.caregiver.model_dump()})

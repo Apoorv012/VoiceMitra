@@ -59,9 +59,6 @@ struct SignInView: View {
                 }
                 .buttonStyle(.plain)
 
-                #if DEV_PICKER
-                DevPicker()
-                #endif
             }
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
@@ -230,6 +227,13 @@ private struct PasswordForm: View {
             try await model.login(username: username, password: password)
         } catch let e as APIError where e.status == 401 {
             error = model.t("Wrong username or password. Please try again.", "यूज़रनेम या पासवर्ड गलत है। कृपया फिर कोशिश करें।")
+        } catch let e as APIError where e.status == 403 && e.detail == "family_login" {
+            // Right password, but a login for the website (backend/routers/auth.py): say where to use it.
+            error = model.t("This is a family login. Family members use the website: open voicemitra.apoorvm.com in a browser.",
+                            "यह परिवार वालों का लॉगिन है। परिवार वाले वेबसाइट इस्तेमाल करते हैं: ब्राउज़र में voicemitra.apoorvm.com खोलें।")
+        } catch let e as APIError where e.status == 403 && e.detail == "staff_login" {
+            error = model.t("This is a staff login. Staff use the website: voicemitra.apoorvm.com.",
+                            "यह स्टाफ़ का लॉगिन है। स्टाफ़ वेबसाइट इस्तेमाल करता है: voicemitra.apoorvm.com।")
         } catch let e as APIError where e.status == 429 {
             error = model.t("Too many tries. Please try again later.", "बहुत बार कोशिश हो गई। कृपया थोड़ी देर बाद फिर कोशिश करें।")
         } catch {
@@ -321,39 +325,3 @@ private struct CodeForm: View {
         }
     }
 }
-
-#if DEV_PICKER
-/// Debug builds only: act as any patient from GET /api/app/people, without signing in.
-private struct DevPicker: View {
-    @Environment(AppModel.self) private var model
-    @State private var people: [Person]?
-    @State private var error: String?
-
-    var body: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 8) {
-                if let people {
-                    ForEach(people) { p in
-                        Button(p.name) { model.pickDev(p) }
-                            .buttonStyle(SecondaryButtonStyle())
-                    }
-                } else if let error {
-                    Text(error).foregroundStyle(VM.critInk)
-                } else {
-                    ProgressView()
-                }
-            }
-            .padding(.top, 8)
-        } label: {
-            Label("Developer: pick a patient", systemImage: "hammer").font(.subheadline).foregroundStyle(VM.muted)
-        }
-        .task(id: model.server) {
-            do {
-                people = try await model.api?.people().patients ?? []
-            } catch {
-                self.error = "\(error.localizedDescription)"
-            }
-        }
-    }
-}
-#endif

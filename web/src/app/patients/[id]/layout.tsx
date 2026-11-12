@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CallProvider } from "@/components/call/CallProvider";
 import { CallSheet } from "@/components/call/CallSheet";
 import { Icon, type IconName } from "@/components/Icon";
 import { LangSwitch } from "@/components/LangSwitch";
-import { setIdentity } from "@/lib/identity";
+import { RequireSignIn } from "@/components/RequireSignIn";
 import { useT, type MessageKey } from "@/lib/i18n";
 
 const TABS: { href: string; icon: IconName; label: MessageKey }[] = [
@@ -23,14 +23,10 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
   const { t } = useT();
   const base = `/patients/${id}`;
 
-  // Opening a patient's link on a device remembers them, so the installed app opens straight here.
-  // Staff open this app with ?preview=1 to look at (or run a call as) a patient without that
-  // overwriting who they are on this browser.
-  useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has("preview")) setIdentity({ role: "patient", id });
-  }, [id]);
-
+  // The patient themself, or staff looking at (or running a call as) the patient (the operator's
+  // "Patient app" link).
   return (
+    <RequireSignIn allow={(me) => me.role === "staff" || (me.role === "patient" && me.id === id)}>
     <CallProvider patientId={id}>
       <div className="phone patient-app">
         <header className="p-head">
@@ -58,5 +54,6 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
       </div>
       <CallSheet />
     </CallProvider>
+    </RequireSignIn>
   );
 }
