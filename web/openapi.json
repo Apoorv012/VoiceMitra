@@ -1187,7 +1187,7 @@
           "devices"
         ],
         "summary": "List Devices",
-        "description": "The patient's paired phones (the web page shows them, and notices when a new one pairs).",
+        "description": "The patient's own phones (the web page shows them, and notices when a new one pairs). Their family\ncontact's phones are not listed (older records without `role` are the patient's).",
         "operationId": "list_devices_api_patients__patient_id__devices_get",
         "parameters": [
           {
@@ -1275,7 +1275,7 @@
           "devices"
         ],
         "summary": "Get Device",
-        "description": "The app checks it is still paired (404 = unpaired, 401 = wrong token: pair again).",
+        "description": "The app checks it is still signed in (404 = unpaired / no longer the family contact, 401 = wrong\ntoken: sign in again).",
         "operationId": "get_device_api_devices__device_id__get",
         "parameters": [
           {
@@ -1663,6 +1663,7 @@
           "auth"
         ],
         "summary": "Delete Caregiver Login",
+        "description": "Signs them out of the website; phones already signed in stay connected, as for patients (removing\nthe family contact signs those out too).",
         "operationId": "delete_caregiver_login_api_caregivers__caregiver_id__login_delete",
         "parameters": [
           {
@@ -1698,6 +1699,7 @@
           "auth"
         ],
         "summary": "Login",
+        "description": "A patient's login -> a patient phone; a family contact's -> a caregiver phone (`role` caregiver).",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
           "content": {
@@ -1724,7 +1726,7 @@
             "description": "wrong username or password"
           },
           "403": {
-            "description": "`family_login` / `staff_login`: right password, but this login is for the website, not the phone app"
+            "description": "`staff_login`: right password, but staff logins are for the website, not the phone app"
           },
           "429": {
             "description": "too many failed logins, paused"
@@ -2954,6 +2956,9 @@
             "type": "string",
             "title": "Device Id"
           },
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
           "patient_id": {
             "type": "string",
             "title": "Patient Id"
@@ -2961,13 +2966,38 @@
           "patient_name": {
             "type": "string",
             "title": "Patient Name"
+          },
+          "caregiver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Id"
+          },
+          "caregiver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Name"
           }
         },
         "type": "object",
         "required": [
           "device_id",
+          "role",
           "patient_id",
-          "patient_name"
+          "patient_name",
+          "caregiver_id",
+          "caregiver_name"
         ],
         "title": "DeviceInfo"
       },
@@ -2978,6 +3008,14 @@
           "ios"
         ],
         "title": "DevicePlatform"
+      },
+      "DeviceRole": {
+        "type": "string",
+        "enum": [
+          "patient",
+          "caregiver"
+        ],
+        "title": "DeviceRole"
       },
       "DeviceView": {
         "properties": {
@@ -3849,6 +3887,9 @@
             "type": "string",
             "title": "Device Token"
           },
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
           "patient_id": {
             "type": "string",
             "title": "Patient Id"
@@ -3856,16 +3897,42 @@
           "patient_name": {
             "type": "string",
             "title": "Patient Name"
+          },
+          "caregiver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Id"
+          },
+          "caregiver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caregiver Name"
           }
         },
         "type": "object",
         "required": [
           "device_id",
           "device_token",
+          "role",
           "patient_id",
-          "patient_name"
+          "patient_name",
+          "caregiver_id",
+          "caregiver_name"
         ],
-        "title": "PairResponse"
+        "title": "PairResponse",
+        "description": "`role` caregiver: a family contact signed in (login only); `patient_id` is the patient they look after."
       },
       "PairingCodeOut": {
         "properties": {

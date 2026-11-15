@@ -2,7 +2,8 @@
 
 The patient's page shows a 6-digit code ("Connect a phone"); the phone app sends it to
 `POST /api/devices/pair` and gets back a device id + secret token. The token (sent as
-`X-Device-Token`) is the app's only credential (login, backend/routers/auth.py, hands out the same kind).
+`X-Device-Token`) is the app's only credential (login, backend/routers/auth.py, hands out the same kind --
+also to a patient's family contact, whose phone gets `role` caregiver). Pairing is for patients only.
 Only its hash is stored. The `/api/devices/{id}` routes check the token themselves.
 """
 
@@ -18,8 +19,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.access import require_patient
-from backend.db import devices_col, doc_to_model, model_to_doc, pairing_codes_col, patients_col
-from backend.models import Device, DevicePlatform, PairingCode, Patient
+from backend.db import caregivers_col, devices_col, doc_to_model, model_to_doc, pairing_codes_col, patients_col
+from backend.models import Caregiver, Device, DevicePlatform, DeviceRole, PairingCode, Patient
 
 router = APIRouter(tags=["devices"])
 
@@ -97,8 +98,10 @@ class DeviceView(BaseModel):
 
 @router.get("/api/patients/{patient_id}/devices", response_model=list[DeviceView], dependencies=[Depends(require_patient)])
 async def list_devices(patient_id: str) -> list[DeviceView]:
-    """The patient's paired phones (the web page shows them, and notices when a new one pairs)."""
-    docs = await devices_col().find({"patient_id": patient_id}).sort("created_at", 1).to_list(length=50)
+    """The patient's own phones (the web page shows them, and notices when a new one pairs). Their family
+    contact's phones are not listed (older records without `role` are the patient's)."""
+    query = {"patient_id": patient_id, "role": {"$ne": DeviceRole.caregiver.value}}
+    docs = await devices_col().find(query).sort("created_at", 1).to_list(length=50)
     views = []
     for d in docs:
         device = doc_to_model(Device, d)
@@ -117,10 +120,14 @@ class PairRequest(BaseModel):
 
 
 class PairResponse(BaseModel):
+    """`role` caregiver: a family contact signed in (login only); `patient_id` is the patient they look after."""
     device_id: str
     device_token: str
+    role: DeviceRole
     patient_id: str
     patient_name: str
+    caregiver_id: str | None
+    caregiver_name: str | None
 
 
 def _too_many_bad_codes() -> bool:
@@ -152,33 +159,56 @@ async def pair_device(body: PairRequest) -> PairResponse:
 
 async def create_device(
     patient: Patient, platform: DevicePlatform, push_token: str | None, name: str | None,
+    caregiver: Caregiver | None = None,
 ) -> PairResponse:
-    """Register a phone for `patient` and hand back its secret token. Shared by pairing and login."""
+    """Register a phone for `patient` (or, with `caregiver`, for that patient's family contact) and hand
+    back its secret token. Shared by pairing and login."""
     if push_token:
         # The same phone pairing again (or for someone else): drop its old record, or it would ring twice.
         await devices_col().delete_many({"push_token": push_token})
     token = secrets.token_urlsafe(32)
     device = Device(patient_id=patient.id, platform=platform, push_token=push_token or None,
-                    name=name, token_hash=hash_token(token))
+                    name=name, token_hash=hash_token(token),
+                    role=DeviceRole.caregiver if caregiver else DeviceRole.patient,
+                    caregiver_id=caregiver.id if caregiver else None)
     await devices_col().insert_one(model_to_doc(device))
-    return PairResponse(device_id=device.id, device_token=token, patient_id=patient.id, patient_name=patient.name)
+    return PairResponse(device_id=device.id, device_token=token, role=device.role, patient_id=patient.id,
+                        patient_name=patient.name, caregiver_id=device.caregiver_id,
+                        caregiver_name=caregiver.name if caregiver else None)
+
+
+async def delete_caregiver_devices(caregiver_id: str) -> None:
+    """The family contact was removed: sign their phones out (their next call answers 401/404)."""
+    await devices_col().delete_many({"role": DeviceRole.caregiver.value, "caregiver_id": caregiver_id})
 
 
 class DeviceInfo(BaseModel):
     device_id: str
+    role: DeviceRole
     patient_id: str
     patient_name: str
+    caregiver_id: str | None
+    caregiver_name: str | None
 
 
 @router.get("/api/devices/{device_id}", response_model=DeviceInfo)
 async def get_device(device_id: str, x_device_token: str | None = Header(default=None)) -> DeviceInfo:
-    """The app checks it is still paired (404 = unpaired, 401 = wrong token: pair again)."""
+    """The app checks it is still signed in (404 = unpaired / no longer the family contact, 401 = wrong
+    token: sign in again)."""
     device = await _authorised(device_id, x_device_token)
     patient = doc_to_model(Patient, await patients_col().find_one({"_id": device.patient_id}))
     if patient is None:
         raise HTTPException(status_code=404, detail="patient not found")
+    caregiver = None
+    if device.role == DeviceRole.caregiver:
+        caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": device.caregiver_id}))
+        if caregiver is None or patient.caregiver_id != caregiver.id:
+            # No longer this patient's family contact: the phone is signed out for good.
+            await devices_col().delete_one({"_id": device_id})
+            raise HTTPException(status_code=404, detail="no longer the family contact for this patient")
     await devices_col().update_one({"_id": device_id}, {"$set": {"last_seen": datetime.utcnow().isoformat()}})
-    return DeviceInfo(device_id=device.id, patient_id=patient.id, patient_name=patient.name)
+    return DeviceInfo(device_id=device.id, role=device.role, patient_id=patient.id, patient_name=patient.name,
+                      caregiver_id=device.caregiver_id, caregiver_name=caregiver.name if caregiver else None)
 
 
 class UpdateDeviceRequest(BaseModel):

@@ -11,11 +11,31 @@ enum PatientEvent {
     case refresh
 }
 
-/// Keeps the patient socket open while the app is in the foreground: reconnects with backoff, pings to
-/// notice a dead connection. Call `start` when the app becomes active and `stop` when it leaves.
+extension PatientEvent {
+    /// A patient socket message as an event; nil for the ones the app ignores (transcript lines...).
+    static func parse(type: String, _ obj: [String: Any]) -> PatientEvent? {
+        switch type {
+        case "voice_call": return join(obj).map { .voiceCall($0) }
+        case "snapshot": return .snapshot(voice: (obj["voice"] as? [String: Any]).flatMap(join))
+        case "voice_call_ended": return .voiceCallEnded
+        case "call_ended": return .refresh
+        default: return nil
+        }
+    }
+
+    private static func join(_ obj: [String: Any]) -> VoiceJoin? {
+        guard let url = obj["url"] as? String, let token = obj["token"] as? String else { return nil }
+        return VoiceJoin(callId: obj["call_id"] as? String, url: url, token: token)
+    }
+}
+
+/// Keeps one live socket open while the app is in the foreground -- the patient's `/ws/patients/{id}/chat` or
+/// the caregiver's `/ws/caregivers/{id}`: reconnects with backoff, pings to notice a dead connection. Call
+/// `start` when the app becomes active and `stop` when it leaves. Hands every JSON message (its `type` and the
+/// whole object) to `onMessage`; the app model decides what it means.
 @MainActor
-final class PatientSocket {
-    var onEvent: (PatientEvent) -> Void = { _ in }
+final class LiveSocket {
+    var onMessage: (_ type: String, _ obj: [String: Any]) -> Void = { _, _ in }
     private(set) var isConnected = false
     var onConnectedChange: (Bool) -> Void = { _ in }
 
@@ -113,22 +133,6 @@ final class PatientSocket {
     private func handle(_ data: Data) {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = obj["type"] as? String else { return }
-        switch type {
-        case "voice_call":
-            if let join = Self.join(obj) { onEvent(.voiceCall(join)) }
-        case "snapshot":
-            onEvent(.snapshot(voice: (obj["voice"] as? [String: Any]).flatMap(Self.join)))
-        case "voice_call_ended":
-            onEvent(.voiceCallEnded)
-        case "call_ended":
-            onEvent(.refresh)
-        default:
-            break
-        }
-    }
-
-    private static func join(_ obj: [String: Any]) -> VoiceJoin? {
-        guard let url = obj["url"] as? String, let token = obj["token"] as? String else { return nil }
-        return VoiceJoin(callId: obj["call_id"] as? String, url: url, token: token)
+        onMessage(type, obj)
     }
 }

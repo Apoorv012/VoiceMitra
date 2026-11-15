@@ -29,8 +29,9 @@ def fake(monkeypatch):
     return sender
 
 
-async def _device(mongo, patient_id="p1", platform="android", push_token="tok-a") -> Device:
-    device = Device(patient_id=patient_id, platform=platform, push_token=push_token, token_hash="h-" + str(push_token))
+async def _device(mongo, patient_id="p1", platform="android", push_token="tok-a", **kw) -> Device:
+    device = Device(patient_id=patient_id, platform=platform, push_token=push_token, token_hash="h-" + str(push_token),
+                    **kw)
     await mongo["devices"].insert_one(model_to_doc(device))
     return device
 
@@ -114,3 +115,85 @@ async def test_starting_a_voice_call_rings_and_ending_it_cancels(mongo, fake, mo
         await asyncio.sleep(0)
     await asyncio.gather(*push_fcm._tasks)
     assert [d["type"] for _, d in fake.sent] == ["ring", "call_ended", "call_ended"]
+
+
+# --- caregiver phones (mobile/API.md, "Caregivers in the apps") ---------------------------------
+
+async def test_rings_skip_caregiver_phones_but_old_records_ring(mongo, fake):
+    await _device(mongo, push_token="tok-family", role="caregiver", caregiver_id="c1")
+    old = await _device(mongo, push_token="tok-old")
+    await mongo["devices"].update_one({"_id": old.id}, {"$unset": {"role": "", "caregiver_id": ""}})
+
+    await push_fcm.ring("p1", "call-1")
+    await push_fcm.cancel_ring("p1", "call-1")
+    assert [(t, d["type"]) for t, d in fake.sent] == [("tok-old", "ring"), ("tok-old", "call_ended")]
+
+
+async def test_alert_push_goes_to_that_caregivers_android_phones(mongo, fake):
+    await _device(mongo, push_token="tok-rahul", role="caregiver", caregiver_id="c1")
+    await _device(mongo, push_token="apns-rahul", platform="ios", role="caregiver", caregiver_id="c1")
+    await _device(mongo, push_token="tok-other-family", role="caregiver", caregiver_id="c2")
+    await _device(mongo, push_token="tok-patient")
+    stale = await _device(mongo, push_token="tok-stale", role="caregiver", caregiver_id="c1")
+    fake.results = {"tok-stale": SendResult.unregistered}
+
+    assert await push_fcm.alert("c1", "p1", "n1") == 1
+    data = {"type": "alert", "alert_id": "n1", "caregiver_id": "c1", "patient_id": "p1"}
+    assert sorted(fake.sent, key=lambda s: s[0]) == [("tok-rahul", data), ("tok-stale", data)]
+    assert (await mongo["devices"].find_one({"_id": stale.id}))["push_token"] is None
+
+
+def test_alerts_live_an_hour_rings_a_minute():
+    assert push_fcm._ttl({"type": "alert"}).total_seconds() == 3600
+    assert push_fcm._ttl({"type": "ring"}).total_seconds() == 60
+    assert push_fcm._ttl({"type": "call_ended"}).total_seconds() == 60
+
+
+async def _family(mongo):
+    from backend.models import Caregiver, Patient
+
+    patient = Patient(name="Sunita", age=70, phone_number="+911")
+    caregiver = Caregiver(patient_id=patient.id, name="Rahul", relation="son", phone_number="+912")
+    patient.caregiver_id = caregiver.id
+    await mongo["caregivers"].insert_one(model_to_doc(caregiver))
+    await mongo["patients"].insert_one(model_to_doc(patient))
+    await _device(mongo, patient_id=patient.id, push_token="tok-rahul", role="caregiver", caregiver_id=caregiver.id)
+    await _device(mongo, patient_id=patient.id, push_token="tok-sunita")
+    return patient, caregiver
+
+
+async def test_a_new_caregiver_alert_pushes_to_their_phone(mongo, fake):
+    import asyncio
+
+    from domains.med_adherence import caregiver as caregiver_alerts
+
+    patient, carer = await _family(mongo)
+    result = await caregiver_alerts.notify_caregiver_unreachable(patient.id, "call-1")
+    assert result["notified"]
+    await asyncio.gather(*push_fcm._tasks)
+    alert = await mongo["caregiver_notifications"].find_one({})
+    assert fake.sent == [("tok-rahul", {"type": "alert", "alert_id": alert["_id"], "caregiver_id": carer.id,
+                                        "patient_id": patient.id})]
+    assert "reach" not in str(fake.sent)  # ids only, no message text
+
+
+async def test_a_failing_push_never_breaks_the_alert(mongo, monkeypatch):
+    import asyncio
+
+    from domains.med_adherence import caregiver as caregiver_alerts
+
+    async def broken(tokens, data):
+        raise RuntimeError("FCM down")
+
+    monkeypatch.setattr(push_fcm, "_sender", broken)
+    patient, _ = await _family(mongo)
+    assert (await caregiver_alerts.notify_caregiver_unreachable(patient.id, "call-1"))["notified"]
+    await asyncio.gather(*push_fcm._tasks)
+    assert await mongo["caregiver_notifications"].count_documents({}) == 1
+
+    def spawn_fails(*a, **kw):
+        raise RuntimeError("no loop")
+
+    monkeypatch.setattr(push_fcm, "spawn", spawn_fails)
+    assert (await caregiver_alerts.notify_caregiver_unreachable(patient.id, "call-2"))["notified"]
+    assert await mongo["caregiver_notifications"].count_documents({}) == 2

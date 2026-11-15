@@ -29,7 +29,7 @@ as a fallback, e.g. "Use a code instead" on the login screen.
 
 | | |
 |---|---|
-| `POST /api/auth/login` | App. Body `{"username": "sunita", "password": "...", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> **exactly the pairing response** `{"device_id", "device_token", "patient_id", "patient_name"}`. Username is trimmed and case-insensitive; the password is taken as typed. **401** `wrong username or password` (same for an unknown username and a wrong password); **429** after too many failed logins (paused ~10 min, counted across all phones, like wrong pairing codes). Same `push_token` replaces that phone's old record, as with pairing. **403** `family_login` / `staff_login`: the password was right, but it is a family or staff login, which work on the website only -- tell them to use voicemitra.apoorvm.com. |
+| `POST /api/auth/login` | App. Body `{"username": "sunita", "password": "...", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> **exactly the pairing response** `{"device_id", "device_token", "role", "patient_id", "patient_name", "caregiver_id", "caregiver_name"}` (a patient's login: `role` `patient`; a family contact's: `role` `caregiver`, see "Caregivers in the apps"). Username is trimmed and case-insensitive; the password is taken as typed. **401** `wrong username or password` (same for an unknown username and a wrong password); **429** after too many failed logins (paused ~10 min, counted across all phones, like wrong pairing codes). Same `push_token` replaces that phone's old record, as with pairing. **403** `staff_login`: the password was right, but it is a staff login, which works on the website only -- tell them to use voicemitra.apoorvm.com. (`family_login` is no longer sent since C1; keep handling it the same way.) |
 | `DELETE /api/devices/{device_id}` | **Log out** = the existing unpair call (header `X-Device-Token`). 204. Then show the login screen. |
 | `PUT /api/patients/{patient_id}/login` | Web only (staff, or the patient changing their own). Body `{"username", "password"}` -> 204. Sets or changes the login (the same one the patient signs in to the website with). Username 3-40 characters (after trimming), password at least 6 -- otherwise **400**; **409** if another patient has that username. 404 unknown patient. Phones already logged in stay logged in. |
 | `GET /api/patients/{patient_id}/login` | Web only (staff or the patient). -> `{"username"}`, or 404 if none is set. The password is never returned (only an scrypt hash is stored). |
@@ -38,13 +38,68 @@ as a fallback, e.g. "Use a code instead" on the login screen.
 After a successful login the app stores `device_id`, `device_token`, `patient_id` exactly as after pairing, and
 the `X-Device-Token` rules below apply unchanged (on 404/401 forget them and show the login screen).
 
+## Caregivers in the apps (New -- C1, decided 2026-11-15; built by the Android agent, iPhone builds against it)
+
+A family contact (caregiver) can now sign in to the apps with **their own website login** (the one staff set on the
+patient's page). They see a caregiver home, not the patient's tabs. Staff logins still get 403 `staff_login`.
+Pairing codes stay patient-only.
+
+- `POST /api/auth/login` with a caregiver's username/password -> 200 instead of 403 `family_login`. The response
+  (for patients too) gains a `role` field:
+
+  ```json
+  {"device_id": "...", "device_token": "...", "role": "caregiver",
+   "patient_id": "<the patient they look after>", "patient_name": "Sunita Devi",
+   "caregiver_id": "...", "caregiver_name": "Rahul"}
+  ```
+
+  Patients: `"role": "patient"`, `caregiver_id`/`caregiver_name` null. Pairing returns `"role": "patient"` too.
+  An app that sees no `role` treats it as `patient`. 403 `family_login` is no longer sent (keep handling it as
+  "use the website" for safety).
+- `GET /api/devices/{device_id}` returns the same extra fields (`role`, `caregiver_id`, `caregiver_name`). On launch,
+  open the screen that matches `role`. If the caregiver was removed as the family contact, this returns **404**
+  (the device is gone) -> forget the login and show the login screen.
+- A caregiver device's `X-Device-Token` makes the request the **caregiver** (`backend/access.py`), so it may call
+  only the caregiver routes; patient routes answer 403.
+- Caregiver calls (all Existing on the website, now also with `X-Device-Token`):
+  - `GET /api/app/caregivers/{caregiver_id}/home` -> `CaregiverHome` (`backend/views.py`): `timezone`, `caregiver`,
+    `patient`, `in_call`, `alerts[]` (newest first: `id`, `at`, `message`, `trigger` `unreachable`|`escalation`,
+    `urgent`, `seen_at`, `call_id`), `unseen`, `today[]`, `next_dose`, `week[]`, `adherence`, `last_checkin`,
+    `how_doing`. **404** = no longer this patient's family contact.
+  - `POST /api/caregivers/{caregiver_id}/alerts/{alert_id}/seen` -> 204. `POST /api/caregivers/{caregiver_id}/alerts/seen`
+    (all) -> 204.
+  - Socket `wss://<host>/ws/caregivers/{caregiver_id}` with `X-Device-Token` on the handshake. Messages `snapshot`,
+    `alert`, `alerts_seen`, `call_started`, `call_ended` -- each one just means "refetch the home".
+    Close codes: **1008** at the access check (no/unknown token -- e.g. the family contact was removed, which deletes
+    their phones -- or another caregiver's id); **4404** after the handshake when the caregiver record is gone. On
+    either, don't keep reconnecting blindly: refetch the home / `GET /api/devices/{id}`; a **401/404** there is the
+    sign-out signal (forget the login, show the login screen). Other closes (network): reconnect with backoff.
+  - `DELETE /api/devices/{device_id}` = log out, as for patients.
+- What the caregiver screen shows (mirror the website's `/caregivers/[id]` page and its `cg_*` strings in
+  `web/src/lib/i18n.tsx`, Hindi + English): "Looking after <patient>" + greeting; "<patient> is on a call with
+  VoiceMitra" while `in_call`; Alerts (new ones with Mark seen, Mark all seen, earlier ones folded away; labels
+  Urgent / Couldn't be reached / Not feeling well); today's medicines with their state and the last check-in; this
+  week's dots + legend; how they're doing; Log out. Read-only otherwise: no Talk now, no ringing.
+- **Push (Android only):** when an alert is created for that caregiver, each of their Android devices gets an FCM
+  data message (high priority, TTL 1 h, no health information):
+
+  ```json
+  {"type": "alert", "alert_id": "<id>", "caregiver_id": "<id>", "patient_id": "<id>"}
+  ```
+
+  The app shows an ordinary (not full-screen, not ringing) notification such as "Update about Sunita -- open
+  VoiceMitra", which opens the caregiver home. Caregiver devices **never** get `ring` / `call_ended` pushes.
+  The iPhone shows new alerts only while the app is open (the socket), as for ringing.
+- Web: `GET /api/patients/{patient_id}/devices` lists the patient's own phones only (caregiver phones are not listed
+  there).
+
 ## Identity: pairing (Built -- B1, now the fallback)
 
 | | |
 |---|---|
 | `POST /api/patients/{patient_id}/pairing-code` | Web only (patient's **Me** tab, "Connect a phone" card). -> `{"code": "482913", "expires_at": "<iso, UTC with offset>", "expires_in": 600}`. 6 digits, valid 10 min (`expires_in` seconds -- count down from that, not from the clock), single use; asking again retires the previous code. 404 unknown patient. |
 | `POST /api/devices/pair` | App. Body `{"code": "482913", "platform": "android" \| "ios", "push_token": "<FCM token or null>", "name": "Pixel 7"}` -> `{"device_id": "...", "device_token": "...", "patient_id": "...", "patient_name": "..."}`. Non-digits in `code` are ignored (spaces OK). 400 on a wrong/expired/used code; **429** after too many wrong codes (paused ~10 min). Pairing again with the same `push_token` replaces that phone's old record. |
-| `GET /api/devices/{device_id}` | App, header `X-Device-Token`. -> `{"device_id", "patient_id", "patient_name"}`. Use on launch to check the phone is still paired. |
+| `GET /api/devices/{device_id}` | App, header `X-Device-Token`. -> `{"device_id", "role", "patient_id", "patient_name", "caregiver_id", "caregiver_name"}` (C1: `role` `patient` \| `caregiver`; the caregiver fields are null on a patient's phone). Use on launch to check the phone is still signed in and which screen to open. |
 | `PUT /api/devices/{device_id}` | App, header `X-Device-Token`. Body `{"push_token": "..."}` (FCM rotates tokens). 204. |
 | `DELETE /api/devices/{device_id}` | App ("Unpair"), header `X-Device-Token`. 204. |
 | `GET /api/patients/{patient_id}/devices` | Web: the paired phones `[{"id", "platform", "name", "created_at", "last_seen"}]` (no tokens). |

@@ -13,6 +13,9 @@ import com.voicemitra.patient.call.Line
 import com.voicemitra.patient.data.Adherence
 import com.voicemitra.patient.data.Alert
 import com.voicemitra.patient.data.Caregiver
+import com.voicemitra.patient.data.CaregiverAlert
+import com.voicemitra.patient.data.CaregiverHome
+import com.voicemitra.patient.data.CaregiverPerson
 import com.voicemitra.patient.data.Checkin
 import com.voicemitra.patient.data.Day
 import com.voicemitra.patient.data.HowDoing
@@ -25,6 +28,7 @@ import com.voicemitra.patient.data.PatientMedicines
 import com.voicemitra.patient.data.Person
 import com.voicemitra.patient.data.Settings
 import com.voicemitra.patient.data.Slot
+import com.voicemitra.patient.ui.CaregiverBody
 import com.voicemitra.patient.ui.CodeScreen
 import com.voicemitra.patient.ui.HistoryBody
 import com.voicemitra.patient.ui.LocalNow
@@ -162,6 +166,30 @@ class ScreenshotTest {
         )
     }
 
+    // A family contact's phone (C1): the caregiver home, no tab bar.
+    @Test
+    fun caregiverHome() = shoot("12_caregiver", signedIn = true) {
+        TabPage { CaregiverBody(SampleData.caregiverHome, busy = null, onSeen = {}, onLogOut = {}) }
+    }
+
+    @Test
+    fun caregiverQuiet() = shoot("13_caregiver_quiet", signedIn = true) {
+        TabPage {
+            CaregiverBody(SampleData.caregiverQuiet, busy = null, onSeen = {}, onLogOut = {}, notificationsOff = true)
+        }
+    }
+
+    @Test
+    fun caregiverSignOut() = shoot("12_caregiver_signout", signedIn = true) {
+        TabPage { CaregiverBody(SampleData.caregiverHome, busy = null, onSeen = {}, onLogOut = {}, confirmAtStart = true) }
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h2300dp-420dpi")
+    fun caregiverFullLength() = shoot("12_caregiver_full", signedIn = true) {
+        TabPage { CaregiverBody(SampleData.caregiverHome, busy = null, onSeen = {}, onLogOut = {}, earlierOpenAtStart = true) }
+    }
+
     @Test
     fun offline() = shoot("11_offline", tab = Screen.Today) {
         TabPage { ErrorState(LocalStrings.current.netError, onRetry = {}, offline = true) }
@@ -220,6 +248,35 @@ object SampleData {
         ),
         alerts = listOf(Alert("a1", "2026-11-03T08:40:00+05:30", "Sunita said she felt dizzy this morning and skipped her medicines.", "Rahul")),
     )
+
+    /** Rahul looks after Sunita: two new alerts (one urgent), one seen earlier; she's on a call right now. */
+    val caregiverHome = CaregiverHome(
+        timezone = "Asia/Kolkata",
+        caregiver = CaregiverPerson("c1", "Rahul Verma", "son"),
+        patient = Person(id = "p1", name = "Sunita Verma", age = 72),
+        inCall = true,
+        alerts = listOf(
+            CaregiverAlert("a3", "2026-11-05T12:10:00+05:30",
+                "URGENT: Sunita Verma reported chest pain on today's medicine call. Please check on them right away.",
+                trigger = "escalation", urgent = true),
+            CaregiverAlert("a2", "2026-11-05T08:40:00+05:30",
+                "We could not reach Sunita Verma for today's medicine reminder call. Please check on them.",
+                trigger = "unreachable"),
+            CaregiverAlert("a1", "2026-11-03T08:40:00+05:30",
+                "Sunita Verma isn't feeling well: dizziness in the morning (from today's medicine call).",
+                trigger = "escalation", seenAt = "2026-11-03T09:15:00+05:30"),
+        ),
+        unseen = 2,
+        today = home.today,
+        nextDose = home.nextDose,
+        week = home.week,
+        adherence = home.adherence,
+        lastCheckin = home.lastCheckin,
+        howDoing = home.howDoing,
+    )
+
+    /** Nothing to worry about: no alerts, not on a call (and this phone's notifications are off). */
+    val caregiverQuiet = caregiverHome.copy(inCall = false, alerts = emptyList(), unseen = 0)
 
     val transcript = listOf(
         Line(false, "Namaste Sunita ji! Kya aapne subah 8:30 wali Metformin le li?"),

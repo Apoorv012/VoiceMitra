@@ -54,6 +54,29 @@ on it (needs a pairing file made on the PC once).
 
 ## Status
 
+- **C1 Caregivers in the app (2026-11-15; compiles clean with `wsl-build.sh VoiceMitra build`, no warnings; not run
+  on a device, phone not connected):** built against `../API.md` "Caregivers in the apps" while the backend side
+  was being built in parallel, so it hasn't run against a live C1 backend yet. Login, pairing and the launch check
+  now decode `role` (missing = patient), `caregiver_id`, `caregiver_name`, and the Keychain pairing keeps them (older
+  saved pairings still decode, as patients). `RootView` opens the patient tabs or the new
+  **`CaregiverHomeView`**, which follows the website's `/caregivers/[id]` page and its `cg_*` wording (EN + हि):
+  "Looking after <patient>" + "Hello, <caregiver>"; the in-call banner while `in_call`; Alerts (new ones on
+  red/amber with Mark as seen, Mark all as seen when there are 2 or more, earlier ones folded under "Earlier (n)"
+  with "Seen <when>"; labels Urgent / Couldn't be reached / Not feeling well); "<patient>'s medicines today"
+  with each dose's state and the last check-in; the week dots + legend; "How <patient> is doing" (summary only,
+  no band pill, like the website, since the band words speak to the patient); an "Up to date / Connecting…"
+  line saying alerts only show while the app is open; Sign out (`DELETE /api/devices/{id}`). Data from
+  `GET /api/app/caregivers/{id}/home`, pull to refresh, Mark seen through the two POST routes then refetch. The socket
+  (renamed `PatientSocket` -> `LiveSocket`, now generic) opens `/ws/caregivers/{id}` with `X-Device-Token` while
+  in the foreground and refetches on every message (backoff 1-30 s, closed in the background). A 404 on the home or
+  the launch check (removed as family contact) or a 401 forgets the login and shows the sign-in screen, which
+  shows "You're no longer the family contact for this patient." for a 404. A caregiver session never opens the patient socket, never rings
+  (CallKit gets no api/patient id) and has no Talk now; the patient loaders are skipped. Sign-in hint now
+  includes "Family members: use your website login"; 403 `family_login` is still handled as a fallback message.
+  The Today cards (`TodayMedsCard`, `WeekCard`, `HowDoingCard`) now take their data as parameters so both homes
+  use them. There is no dev/sample-data preview path in this app, so none was added for the caregiver home.
+  On-device checks: 15-20 below.
+
 **Final state for now (2026-11-05; the user: "everything is working as expected in the iphone app ... we can keep
 it like this"). Paused here.**
 
@@ -182,6 +205,22 @@ Run with the backend + tunnel up (`npm run dev`). Use a **test patient** with a 
     one of them stays in the room (API.md: one `patient`); note which.
 14. [ ] (not yet) **SideStore (I6):** `build-ipa.sh` -> install via SideStore -> sign in -> rings; after a SideStore refresh
     the app opens and is still signed in.
+
+Caregivers (C1; needs the backend's C1 changes deployed, and a test patient whose family contact has a website login):
+
+15. [ ] **Caregiver login:** the family contact's website username + password -> the caregiver home (no tabs, no Talk
+    now). Kill and reopen the app -> still the caregiver home.
+16. [ ] **Home matches the website:** patient name, alerts, today's medicines with their states, last check-in, week
+    dots, "How <patient> is doing" are the same as on the website's caregiver page; Hindi switches every label;
+    the largest Dynamic Type size is still readable.
+17. [ ] **Mark seen:** "Mark as seen" on one new alert moves it under "Earlier" with "Seen <when>"; with 2+ new alerts,
+    "Mark all as seen" clears them; the website shows them as seen too.
+18. [ ] **Live refresh:** with the app open, start a call for the patient (in-call banner appears, goes away when it
+    ends) and let it raise an alert (e.g. don't answer, ~120 s -> "Couldn't be reached") -> it shows up without
+    pulling to refresh. The caregiver phone **doesn't ring**.
+19. [ ] **Sign out / removed:** Sign out -> sign-in screen. Sign in again, then change the patient's family contact
+    on the website and reopen the app -> sign-in screen with "You're no longer the family contact for this patient."
+20. [ ] **Patient login still works:** sign in as the test patient -> the four tabs, Talk now and ringing as before.
 
 **Sign-in lockdown (2026-11-11):** the app sends `X-Device-Token` on every request and on the socket handshake
 (the API refuses patient data without it), shows a "use the website" message for family/staff logins, drops the debug

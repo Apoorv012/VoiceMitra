@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.voicemitra.patient.App
+import com.voicemitra.patient.data.Adherence
+import com.voicemitra.patient.data.Day
 import com.voicemitra.patient.data.PatientHome
 import com.voicemitra.patient.data.Slot
 
@@ -136,39 +138,7 @@ fun TodayBody(h: PatientHome, talk: TalkState, onTalk: () -> Unit) {
     }
 
     // This week
-    if (h.week.isNotEmpty()) VmCard {
-        H2(s.thisWeek)
-        val a = h.adherence
-        val total = a.taken + a.missed + a.unrecorded
-        val anyScheduled = h.week.any { it.state != "none" }
-        if (anyScheduled) {
-            if (total > 0) Text(s.fill(s.weekSummary, "taken" to a.taken, "total" to total),
-                style = MaterialTheme.typography.bodyMedium, color = c.ink2)
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                h.week.forEach { d ->
-                    val today = isToday(d.date, tz, now)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(weekdayOf(d.date, s.lang), style = MaterialTheme.typography.labelMedium,
-                            color = if (today) c.accent else c.muted, maxLines = 1)
-                        DayDot(d.state, size = 36.dp, ring = today)
-                    }
-                }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 4.dp)) {
-                listOf("good" to s.dayGood, "mixed" to s.dayMixed, "missed" to s.dayMissed, "unknown" to s.dayUnknown).forEach { (st, label) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        DayDot(st, size = 22.dp)
-                        Spacer(Modifier.width(6.dp))
-                        Text(label, style = MaterialTheme.typography.bodySmall, color = c.ink2)
-                    }
-                }
-            }
-            if (a.unrecorded > 0) Text(s.fill(s.weekUnchecked, "n" to a.unrecorded), style = MaterialTheme.typography.bodySmall, color = c.muted)
-        } else {
-            Muted(s.weekNone)
-        }
-    }
+    if (h.week.isNotEmpty()) WeekCard(h.week, h.adherence, tz)
 
     // How you're doing
     h.howDoing?.let { hd ->
@@ -205,13 +175,55 @@ fun TodayBody(h: PatientHome, talk: TalkState, onTalk: () -> Unit) {
     }
 }
 
+/** "This week": the seven day dots, the legend and the totals (the patient's Today tab and the caregiver home). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun WeekCard(week: List<Day>, adherence: Adherence, tz: String) {
+    val s = LocalStrings.current
+    val c = Vm.colors
+    val now = LocalNow.current()
+    VmCard {
+        H2(s.thisWeek)
+        val a = adherence
+        val total = a.taken + a.missed + a.unrecorded
+        val anyScheduled = week.any { it.state != "none" }
+        if (anyScheduled) {
+            if (total > 0) Text(s.fill(s.weekSummary, "taken" to a.taken, "total" to total),
+                style = MaterialTheme.typography.bodyMedium, color = c.ink2)
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                week.forEach { d ->
+                    val today = isToday(d.date, tz, now)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(weekdayOf(d.date, s.lang), style = MaterialTheme.typography.labelMedium,
+                            color = if (today) c.accent else c.muted, maxLines = 1)
+                        DayDot(d.state, size = 36.dp, ring = today)
+                    }
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp)) {
+                listOf("good" to s.dayGood, "mixed" to s.dayMixed, "missed" to s.dayMissed, "unknown" to s.dayUnknown).forEach { (st, label) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        DayDot(st, size = 22.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(label, style = MaterialTheme.typography.bodySmall, color = c.ink2)
+                    }
+                }
+            }
+            if (a.unrecorded > 0) Text(s.fill(s.weekUnchecked, "n" to a.unrecorded), style = MaterialTheme.typography.bodySmall, color = c.muted)
+        } else {
+            Muted(s.weekNone)
+        }
+    }
+}
+
 /** Everything due at the same time as the next dose. */
 private fun dueTogether(h: PatientHome, next: Slot): List<Slot> =
     h.today.filter { it.at == next.at }.ifEmpty { listOf(next) }
 
 /** `.dose`: time, medicine + dose, state. The next dose is tinted. */
 @Composable
-private fun DoseRow(slot: Slot, tz: String, highlight: Boolean) {
+fun DoseRow(slot: Slot, tz: String, highlight: Boolean) {
     val c = Vm.colors
     Row(
         Modifier.fillMaxWidth()

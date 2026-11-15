@@ -17,19 +17,26 @@ import java.util.concurrent.TimeUnit
 
 // --- what the backend sends (mobile/API.md; field names as in the JSON) -----------------------
 
+/** Login / pairing. `role` caregiver (C1): a family contact signed in; `patientId` is the patient they look after. */
 @Serializable
 data class PairResponse(
     @SerialName("device_id") val deviceId: String,
     @SerialName("device_token") val deviceToken: String,
+    val role: String? = null,  // patient|caregiver; missing (older servers) = patient
     @SerialName("patient_id") val patientId: String,
     @SerialName("patient_name") val patientName: String,
+    @SerialName("caregiver_id") val caregiverId: String? = null,
+    @SerialName("caregiver_name") val caregiverName: String? = null,
 )
 
 @Serializable
 data class DeviceInfo(
     @SerialName("device_id") val deviceId: String,
+    val role: String? = null,
     @SerialName("patient_id") val patientId: String,
     @SerialName("patient_name") val patientName: String,
+    @SerialName("caregiver_id") val caregiverId: String? = null,
+    @SerialName("caregiver_name") val caregiverName: String? = null,
 )
 
 @Serializable
@@ -113,6 +120,38 @@ data class PatientHistory(
     val timezone: String = "Asia/Kolkata",
     val checkins: List<Checkin> = emptyList(),
     val alerts: List<Alert> = emptyList(),
+)
+
+/** An alert on the caregiver home (`AlertView`): `trigger` unreachable|escalation; `seenAt` null = new. */
+@Serializable
+data class CaregiverAlert(
+    val id: String,
+    val at: String,
+    val message: String,
+    val trigger: String = "escalation",
+    val urgent: Boolean = false,
+    @SerialName("seen_at") val seenAt: String? = null,
+    @SerialName("call_id") val callId: String = "",
+)
+
+@Serializable
+data class CaregiverPerson(val id: String, val name: String, val relation: String = "")
+
+/** `GET /api/app/caregivers/{id}/home` (backend/views.py `CaregiverHome`). */
+@Serializable
+data class CaregiverHome(
+    val timezone: String = "Asia/Kolkata",
+    val caregiver: CaregiverPerson,
+    val patient: Person,
+    @SerialName("in_call") val inCall: Boolean = false,
+    val alerts: List<CaregiverAlert> = emptyList(),
+    val unseen: Int = 0,
+    val today: List<Slot> = emptyList(),
+    @SerialName("next_dose") val nextDose: Slot? = null,
+    val week: List<Day> = emptyList(),
+    val adherence: Adherence = Adherence(),
+    @SerialName("last_checkin") val lastCheckin: Checkin? = null,
+    @SerialName("how_doing") val howDoing: HowDoing? = null,
 )
 
 @Serializable
@@ -206,12 +245,27 @@ class Api(private val baseUrl: () -> String, private val deviceToken: () -> Stri
         sendNoContent(Request.Builder().url(url("/api/patients/$patientId/call/end")).post(EMPTY).build())
 
     /** `wss://host/ws/patients/{id}/chat` for the patient's live events. */
-    fun socketUrl(patientId: String): String =
-        url("/ws/patients/$patientId/chat").replaceFirst("https://", "wss://").replaceFirst("http://", "ws://")
+    fun socketUrl(patientId: String): String = ws("/ws/patients/$patientId/chat")
+
+    // --- a family contact's phone (mobile/API.md "Caregivers in the apps") ------------------------
+
+    suspend fun caregiverHome(caregiverId: String): CaregiverHome =
+        send(Request.Builder().url(url("/api/app/caregivers/$caregiverId/home")).get().build(), CaregiverHome.serializer())
+
+    suspend fun markAlertSeen(caregiverId: String, alertId: String) =
+        sendNoContent(Request.Builder().url(url("/api/caregivers/$caregiverId/alerts/$alertId/seen")).post(EMPTY).build())
+
+    suspend fun markAllAlertsSeen(caregiverId: String) =
+        sendNoContent(Request.Builder().url(url("/api/caregivers/$caregiverId/alerts/seen")).post(EMPTY).build())
+
+    /** `wss://host/ws/caregivers/{id}`: every message means "refetch the home". */
+    fun caregiverSocketUrl(caregiverId: String): String = ws("/ws/caregivers/$caregiverId")
 
     // --- plumbing -------------------------------------------------------------------------------
 
     private fun url(path: String) = baseUrl().trimEnd('/') + path
+
+    private fun ws(path: String) = url(path).replaceFirst("https://", "wss://").replaceFirst("http://", "ws://")
 
     private suspend fun <B, T> post(path: String, body: B, bodySer: KSerializer<B>, outSer: KSerializer<T>): T {
         val rb = json.encodeToString(bodySer, body).toRequestBody(jsonType)

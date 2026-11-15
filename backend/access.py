@@ -3,7 +3,8 @@
 Two ways in:
 - the website: a `vm_session` cookie, set by `POST /api/auth/session` (the browser reaches the API through
   the website's own `/api/*`, so the cookie belongs to the website's host);
-- the phone apps: their `X-Device-Token` header (mobile/API.md), which makes them the patient they belong to.
+- the phone apps: their `X-Device-Token` header (mobile/API.md), which makes them the patient they belong to,
+  or -- a phone a family contact signed in on -- that caregiver.
 
 Every route declares one of the rules below as a dependency (`tests/test_access.py` fails for a route that
 has none and is not on its public list):
@@ -31,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Request, WebSocket, WebSocketException, status
 
 from backend.db import calls_col, web_sessions_col
-from backend.models import Login, LoginRole
+from backend.models import DeviceRole, Login, LoginRole
 
 SESSION_COOKIE = "vm_session"
 SESSION_DAYS = {LoginRole.staff: 7, LoginRole.patient: 30, LoginRole.caregiver: 30}
@@ -95,6 +96,10 @@ async def _device_principal(token: str) -> Principal | None:
     device = await device_for_token(token)
     if device is None:
         return None
+    if device.role == DeviceRole.caregiver:
+        if not device.caregiver_id:
+            return None
+        return Principal(role=LoginRole.caregiver, id=device.caregiver_id, device_id=device.id)
     return Principal(role=LoginRole.patient, id=device.patient_id, device_id=device.id)
 
 

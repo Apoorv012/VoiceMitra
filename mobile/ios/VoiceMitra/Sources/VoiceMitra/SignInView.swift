@@ -31,6 +31,12 @@ struct SignInView: View {
                 }
                 .padding(.top, 4)
 
+                if let notice = model.signInNotice {
+                    Notice(text: notice, icon: "info.circle.fill", ink: VM.warnInk, soft: VM.warnSoft) {
+                        model.signInNotice = nil
+                    }
+                }
+
                 Group {
                     if useCode {
                         CodeForm()
@@ -161,8 +167,9 @@ private struct PasswordForm: View {
                 Text(model.t("Sign in", "साइन इन करें"))
                     .font(.title.bold())
                     .foregroundStyle(VM.ink)
-                Text(model.t("Use the username and password set on the VoiceMitra website (Me → Phone app login).",
-                             "VoiceMitra वेबसाइट पर बनाया यूज़रनेम और पासवर्ड डालें (मैं → फ़ोन ऐप लॉगिन)।"))
+                // Patients and their family contacts (caregivers, API.md C1) both sign in here.
+                Text(model.t("Use the username and password set on the VoiceMitra website (Me → Phone app login). Family members: use your website login.",
+                             "VoiceMitra वेबसाइट पर बनाया यूज़रनेम और पासवर्ड डालें (मैं → फ़ोन ऐप लॉगिन)। परिवार वाले: अपना वेबसाइट वाला लॉगिन डालें।"))
                     .font(.body)
                     .foregroundStyle(VM.muted)
             }
@@ -228,9 +235,10 @@ private struct PasswordForm: View {
         } catch let e as APIError where e.status == 401 {
             error = model.t("Wrong username or password. Please try again.", "यूज़रनेम या पासवर्ड गलत है। कृपया फिर कोशिश करें।")
         } catch let e as APIError where e.status == 403 && e.detail == "family_login" {
-            // Right password, but a login for the website (backend/routers/auth.py): say where to use it.
-            error = model.t("This is a family login. Family members use the website: open voicemitra.apoorvm.com in a browser.",
-                            "यह परिवार वालों का लॉगिन है। परिवार वाले वेबसाइट इस्तेमाल करते हैं: ब्राउज़र में voicemitra.apoorvm.com खोलें।")
+            // Right password, but this server doesn't let family logins into the app yet (since C1 it does;
+            // kept as a fallback, API.md): say where to use it.
+            error = model.t("This family login doesn't work in the app on this server yet. Please use the website: voicemitra.apoorvm.com.",
+                            "यह परिवार वालों का लॉगिन इस सर्वर पर अभी ऐप में नहीं चलता। कृपया वेबसाइट इस्तेमाल करें: voicemitra.apoorvm.com।")
         } catch let e as APIError where e.status == 403 && e.detail == "staff_login" {
             error = model.t("This is a staff login. Staff use the website: voicemitra.apoorvm.com.",
                             "यह स्टाफ़ का लॉगिन है। स्टाफ़ वेबसाइट इस्तेमाल करता है: voicemitra.apoorvm.com।")

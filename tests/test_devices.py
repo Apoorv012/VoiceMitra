@@ -41,6 +41,7 @@ async def test_code_pairs_a_phone_once(client, mongo):
     paired = res.json()
     assert paired["patient_id"] == patient.id and paired["patient_name"] == "Sunita"
     assert paired["device_token"] and paired["device_id"]
+    assert paired["role"] == "patient" and paired["caregiver_id"] is None and paired["caregiver_name"] is None
 
     # Single use.
     assert (await client.post("/api/devices/pair", json=pair)).status_code == 400
@@ -90,7 +91,8 @@ async def test_token_guards_update_check_and_unpair(client, mongo):
     assert (await client.get(dev, headers=bad)).status_code == 401
     assert (await client.get(dev)).status_code == 401
     info = (await client.get(dev, headers=good)).json()
-    assert info == {"device_id": paired["device_id"], "patient_id": patient.id, "patient_name": "Sunita"}
+    assert info == {"device_id": paired["device_id"], "role": "patient", "patient_id": patient.id,
+                    "patient_name": "Sunita", "caregiver_id": None, "caregiver_name": None}
 
     assert (await client.put(dev, json={"push_token": "fcm-2"}, headers=bad)).status_code == 401
     assert (await client.put(dev, json={"push_token": "fcm-2"}, headers=good)).status_code == 204
@@ -118,3 +120,26 @@ async def test_guessing_codes_is_paused_after_too_many_wrong_ones(client, mongo,
     for _ in range(3):
         assert (await client.post("/api/devices/pair", json={"code": wrong, "platform": "ios"})).status_code == 400
     assert (await client.post("/api/devices/pair", json={"code": code, "platform": "ios"})).status_code == 429
+
+
+async def test_old_device_records_without_a_role_are_patient_phones(client, mongo):
+    patient = await _patient(mongo)
+    paired = (await _pair(client, patient.id)).json()
+    await mongo["devices"].update_one({"_id": paired["device_id"]}, {"$unset": {"role": "", "caregiver_id": ""}})
+    good = {"X-Device-Token": paired["device_token"]}
+    info = (await client.get(f"/api/devices/{paired['device_id']}", headers=good)).json()
+    assert info["role"] == "patient" and info["caregiver_id"] is None
+    listed = (await client.get(f"/api/patients/{patient.id}/devices")).json()
+    assert [d["id"] for d in listed] == [paired["device_id"]]
+    assert (await client.get(f"/api/app/patients/{patient.id}/home", headers=good)).status_code == 200
+
+
+async def test_the_devices_list_leaves_out_family_phones(client, mongo):
+    from backend.models import Device
+
+    patient = await _patient(mongo)
+    mine = (await _pair(client, patient.id)).json()
+    await mongo["devices"].insert_one(model_to_doc(Device(
+        patient_id=patient.id, role="caregiver", caregiver_id="c1", platform="android", token_hash="x")))
+    listed = (await client.get(f"/api/patients/{patient.id}/devices")).json()
+    assert [d["id"] for d in listed] == [mine["device_id"]]

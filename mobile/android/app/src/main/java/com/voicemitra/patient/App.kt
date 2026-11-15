@@ -31,6 +31,10 @@ class App : Application() {
     lateinit var api: Api private set
     lateinit var calls: CallManager private set
 
+    /** True after a family contact's phone was signed out because they are no longer the family contact
+     *  (the login screen says so once). */
+    val signedOutNotice = MutableStateFlow(false)
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -44,7 +48,10 @@ class App : Application() {
         holdSocket()
     }
 
-    /** The patient socket is open while the app is on screen or a call is on (and the phone is signed in). */
+    /**
+     * The patient socket is open while the app is on screen or a call is on (and the phone is signed in as
+     * the patient). A family contact's phone never opens it: its caregiver home holds its own socket.
+     */
     private fun holdSocket() {
         val socket = PatientSocket(this)
         val lifecycle = ProcessLifecycleOwner.get().lifecycle
@@ -55,7 +62,7 @@ class App : Application() {
         scope.launch {
             combine(settings, calls.state, foreground) { s, call, fg ->
                 val busy = call !is CallState.Idle && call !is CallState.Ended
-                s.pairing?.patientId?.takeIf { fg || busy }?.let { it to s.serverUrl }
+                s.pairing?.takeIf { !it.isCaregiver }?.patientId?.takeIf { fg || busy }?.let { it to s.serverUrl }
             }.distinctUntilChanged().collect { want ->
                 socket.stop()
                 if (want != null) socket.start(want.first)

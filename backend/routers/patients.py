@@ -15,6 +15,7 @@ from backend.db import (
 )
 from backend.models import Caregiver, DoseFrequency, Dosage, Patient, Prescription
 from backend.queries import get_patient_bundle
+from backend.routers.devices import delete_caregiver_devices
 
 # Staff only. (A patient's own endpoints under /api/patients/{id}/... -- calls, devices, login -- live in
 # live.py, devices.py and auth.py with their own rules.)
@@ -134,6 +135,7 @@ async def update_patient(patient_id: str, body: UpdatePatientRequest) -> Patient
             if patient.caregiver_id:
                 await caregivers_col().delete_one({"_id": patient.caregiver_id})
                 await logins.delete(patient.caregiver_id)
+                await delete_caregiver_devices(patient.caregiver_id)
             changes["caregiver_id"] = None
         elif patient.caregiver_id:
             await caregivers_col().update_one({"_id": patient.caregiver_id}, {"$set": body.caregiver.model_dump()})

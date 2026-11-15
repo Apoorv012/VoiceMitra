@@ -1,11 +1,14 @@
 """Caregiver notification. Deliberately not an LLM-callable tool: it fires from the escalation code
 path itself, so the agent can neither skip it nor spam a family member. Delivery is simulated for the
 POC -- the stored CaregiverNotification (shown on the patient/family page and noted in the call log)
-is the notification; a real SMS/WhatsApp send would slot in where the record is written."""
+is the notification; a real SMS/WhatsApp send would slot in where the record is written. The family
+contact's Android phones also get a push with ids only (backend/push_fcm.py `alert`)."""
 
 from __future__ import annotations
 
-from backend import family_feed
+import logging
+
+from backend import family_feed, push_fcm
 from backend.db import (
     calls_col,
     caregiver_notifications_col,
@@ -16,6 +19,8 @@ from backend.db import (
 )
 from backend.models import Caregiver, CaregiverNotification, CaregiverNotifyOn, Patient
 from domains.med_adherence.context import CallContext
+
+log = logging.getLogger(__name__)
 
 
 async def _notify(
@@ -43,6 +48,10 @@ async def _notify(
     await caregiver_notifications_col().insert_one(model_to_doc(notification))
     await calls_col().update_one({"_id": call_id}, {"$set": {"caregiver_notified": True}})
     family_feed.publish(patient.id, {"type": "alert", "alert_id": notification.id, "urgent": urgent})
+    try:  # in the background; a push failure never undoes the alert
+        push_fcm.spawn(push_fcm.alert(caregiver.id, patient.id, notification.id), f"alert {notification.id}")
+    except Exception:
+        log.exception("could not start the alert push for %s", notification.id)
     return {"notified": True, "caregiver": caregiver.name, "relation": caregiver.relation}
 
 

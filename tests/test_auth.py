@@ -6,7 +6,7 @@ import pytest
 
 from backend.auth import hash_password, verify_password
 from backend.db import model_to_doc
-from backend.models import Patient
+from backend.models import Caregiver, Patient
 from backend import logins
 
 pytestmark = pytest.mark.anyio
@@ -81,8 +81,10 @@ async def test_login_gives_a_working_device_token(client, mongo):
     res = await client.post("/api/auth/login", json=_login(username="  SUNITA "))
     assert res.status_code == 200
     body = res.json()
-    assert set(body) == {"device_id", "device_token", "patient_id", "patient_name"}
+    assert set(body) == {"device_id", "device_token", "role", "patient_id", "patient_name", "caregiver_id",
+                         "caregiver_name"}
     assert body["patient_id"] == patient.id and body["patient_name"] == "Sunita"
+    assert body["role"] == "patient" and body["caregiver_id"] is None and body["caregiver_name"] is None
 
     dev = f"/api/devices/{body['device_id']}"
     good = {"X-Device-Token": body["device_token"]}
@@ -127,3 +129,65 @@ async def test_guessing_passwords_is_paused(client, mongo, monkeypatch):
     for _ in range(3):
         assert (await client.post("/api/auth/login", json=_login(password="wrong123"))).status_code == 401
     assert (await client.post("/api/auth/login", json=_login())).status_code == 429
+
+
+# --- family contacts (mobile/API.md, "Caregivers in the apps") ----------------------------------
+
+async def _with_caregiver(client, mongo, name="Sunita") -> tuple[Patient, Caregiver]:
+    patient = Patient(name=name, age=70, phone_number="+911")
+    caregiver = Caregiver(patient_id=patient.id, name="Rahul", relation="son", phone_number="+912")
+    patient.caregiver_id = caregiver.id
+    await mongo["caregivers"].insert_one(model_to_doc(caregiver))
+    await mongo["patients"].insert_one(model_to_doc(patient))
+    assert (await client.put(f"/api/caregivers/{caregiver.id}/login",
+                             json={"username": "rahul", "password": "family12"})).status_code == 204
+    return patient, caregiver
+
+
+async def test_a_family_login_gives_a_caregiver_phone(client, mongo):
+    patient, caregiver = await _with_caregiver(client, mongo)
+    res = await client.post("/api/auth/login", json=_login("Rahul", "family12", push_token="fcm-rahul"))
+    assert res.status_code == 200
+    body = res.json()
+    assert {k: v for k, v in body.items() if k not in ("device_id", "device_token")} == {
+        "role": "caregiver", "patient_id": patient.id, "patient_name": "Sunita",
+        "caregiver_id": caregiver.id, "caregiver_name": "Rahul"}
+    stored = await mongo["devices"].find_one({"_id": body["device_id"]})
+    assert stored["role"] == "caregiver" and stored["caregiver_id"] == caregiver.id
+    assert stored["patient_id"] == patient.id
+
+    dev = f"/api/devices/{body['device_id']}"
+    info = (await client.get(dev, headers={"X-Device-Token": body["device_token"]})).json()
+    assert info == {"device_id": body["device_id"], "role": "caregiver", "patient_id": patient.id,
+                    "patient_name": "Sunita", "caregiver_id": caregiver.id, "caregiver_name": "Rahul"}
+
+    # The patient's devices card lists only the patient's own phones.
+    assert (await client.get(f"/api/patients/{patient.id}/devices")).json() == []
+
+
+async def test_a_removed_family_contact_is_signed_out_of_the_app(client, mongo):
+    patient, caregiver = await _with_caregiver(client, mongo)
+    body = (await client.post("/api/auth/login", json=_login("rahul", "family12"))).json()
+    token = {"X-Device-Token": body["device_token"]}
+    assert (await client.patch(f"/api/patients/{patient.id}", json={"caregiver": None})).status_code == 200
+    assert await mongo["devices"].count_documents({}) == 0
+    assert (await client.get(f"/api/devices/{body['device_id']}", headers=token)).status_code == 404
+
+
+async def test_a_caregiver_phone_whose_contact_changed_gets_404(client, mongo):
+    """Even without going through the removal route (e.g. a record changed by hand): the check says 404."""
+    patient, caregiver = await _with_caregiver(client, mongo)
+    body = (await client.post("/api/auth/login", json=_login("rahul", "family12"))).json()
+    await mongo["patients"].update_one({"_id": patient.id}, {"$set": {"caregiver_id": "someone-else"}})
+    token = {"X-Device-Token": body["device_token"]}
+    assert (await client.get(f"/api/devices/{body['device_id']}", headers=token)).status_code == 404
+    assert await mongo["devices"].count_documents({}) == 0
+    # And that login no longer signs in to the app.
+    assert (await client.post("/api/auth/login", json=_login("rahul", "family12"))).status_code == 401
+
+
+async def test_pairing_codes_stay_patient_only(client, mongo):
+    patient, _ = await _with_caregiver(client, mongo)
+    code = (await client.post(f"/api/patients/{patient.id}/pairing-code")).json()["code"]
+    res = await client.post("/api/devices/pair", json={"code": code, "platform": "android"})
+    assert res.json()["role"] == "patient" and res.json()["caregiver_id"] is None

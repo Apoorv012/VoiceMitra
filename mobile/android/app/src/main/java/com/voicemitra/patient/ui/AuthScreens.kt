@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Pin
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
@@ -72,7 +73,8 @@ fun deviceName(): String {
 
 /** Store what login/pairing returned. The FCM token went with the request, so it's already on the server. */
 suspend fun App.signedIn(res: PairResponse, pushToken: String?) {
-    prefs.savePairing(Pairing(res.deviceId, res.deviceToken, res.patientId, res.patientName), pushToken)
+    prefs.savePairing(Pairing(res.deviceId, res.deviceToken, res.patientId, res.patientName, Pairing.roleOf(res.role),
+        res.caregiverId, res.caregiverName), pushToken)
 }
 
 /** The web header's brand mark: a mic in a rounded green square. */
@@ -104,7 +106,7 @@ private fun AuthHeading(title: String, sub: String, icon: ImageVector? = null) {
 
 /** The main way in: the username + password the family set on the web app (mobile/API.md "Identity: login"). */
 @Composable
-fun LoginScreen(onUseCode: () -> Unit, settings: com.voicemitra.patient.data.Settings? = null) {
+fun LoginScreen(onUseCode: () -> Unit, settings: com.voicemitra.patient.data.Settings? = null, notice: String? = null) {
     val s = LocalStrings.current
     val app by lazy { App.instance }  // looked up on use, so the screen also renders without the app (screenshots)
     val scope = rememberCoroutineScope()
@@ -139,6 +141,10 @@ fun LoginScreen(onUseCode: () -> Unit, settings: com.voicemitra.patient.data.Set
 
     TabPage {
         AuthHeading(s.loginTitle, s.loginSub)
+        // Why this phone was signed out, e.g. "You're no longer the family contact for this patient."
+        if (notice != null) Callout(Icons.Outlined.Info, Tone.Warn) {
+            Text(notice, style = MaterialTheme.typography.bodyLarge)
+        }
         OutlinedTextField(
             value = username,
             onValueChange = { username = it; error = null; blank = false },

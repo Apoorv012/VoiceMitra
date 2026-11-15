@@ -472,7 +472,8 @@ export interface paths {
         };
         /**
          * List Devices
-         * @description The patient's paired phones (the web page shows them, and notices when a new one pairs).
+         * @description The patient's own phones (the web page shows them, and notices when a new one pairs). Their family
+         *     contact's phones are not listed (older records without `role` are the patient's).
          */
         get: operations["list_devices_api_patients__patient_id__devices_get"];
         put?: never;
@@ -509,7 +510,8 @@ export interface paths {
         };
         /**
          * Get Device
-         * @description The app checks it is still paired (404 = unpaired, 401 = wrong token: pair again).
+         * @description The app checks it is still signed in (404 = unpaired / no longer the family contact, 401 = wrong
+         *     token: sign in again).
          */
         get: operations["get_device_api_devices__device_id__get"];
         /**
@@ -559,7 +561,11 @@ export interface paths {
         /** Set Caregiver Login */
         put: operations["set_caregiver_login_api_caregivers__caregiver_id__login_put"];
         post?: never;
-        /** Delete Caregiver Login */
+        /**
+         * Delete Caregiver Login
+         * @description Signs them out of the website; phones already signed in stay connected, as for patients (removing
+         *     the family contact signs those out too).
+         */
         delete: operations["delete_caregiver_login_api_caregivers__caregiver_id__login_delete"];
         options?: never;
         head?: never;
@@ -575,7 +581,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
+        /**
+         * Login
+         * @description A patient's login -> a patient phone; a family contact's -> a caregiver phone (`role` caregiver).
+         */
         post: operations["login_api_auth_login_post"];
         delete?: never;
         options?: never;
@@ -1009,16 +1018,26 @@ export interface components {
         DeviceInfo: {
             /** Device Id */
             device_id: string;
+            role: components["schemas"]["DeviceRole"];
             /** Patient Id */
             patient_id: string;
             /** Patient Name */
             patient_name: string;
+            /** Caregiver Id */
+            caregiver_id: string | null;
+            /** Caregiver Name */
+            caregiver_name: string | null;
         };
         /**
          * DevicePlatform
          * @enum {string}
          */
         DevicePlatform: "android" | "ios";
+        /**
+         * DeviceRole
+         * @enum {string}
+         */
+        DeviceRole: "patient" | "caregiver";
         /** DeviceView */
         DeviceView: {
             /** Id */
@@ -1310,16 +1329,24 @@ export interface components {
             /** Name */
             name?: string | null;
         };
-        /** PairResponse */
+        /**
+         * PairResponse
+         * @description `role` caregiver: a family contact signed in (login only); `patient_id` is the patient they look after.
+         */
         PairResponse: {
             /** Device Id */
             device_id: string;
             /** Device Token */
             device_token: string;
+            role: components["schemas"]["DeviceRole"];
             /** Patient Id */
             patient_id: string;
             /** Patient Name */
             patient_name: string;
+            /** Caregiver Id */
+            caregiver_id: string | null;
+            /** Caregiver Name */
+            caregiver_name: string | null;
         };
         /** PairingCodeOut */
         PairingCodeOut: {
@@ -2956,7 +2983,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description `family_login` / `staff_login`: right password, but this login is for the website, not the phone app */
+            /** @description `staff_login`: right password, but staff logins are for the website, not the phone app */
             403: {
                 headers: {
                     [name: string]: unknown;

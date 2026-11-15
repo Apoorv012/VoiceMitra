@@ -160,17 +160,62 @@ struct LoginRequest: Encodable {
     }
 }
 
+/// Login and pairing answer with this. `role` / `caregiverId` / `caregiverName` are new in C1 (API.md
+/// "Caregivers in the apps"); no `role` means a patient.
 struct PairResponse: Decodable {
     let deviceId: String
     let deviceToken: String
     let patientId: String
     let patientName: String
+    let role: String?
+    let caregiverId: String?
+    let caregiverName: String?
+
+    var pairing: Pairing {
+        Pairing(deviceId: deviceId, deviceToken: deviceToken, patientId: patientId, patientName: patientName,
+                role: role ?? "patient", caregiverId: caregiverId, caregiverName: caregiverName)
+    }
 }
 
+/// GET /api/devices/{id}: the launch check, with the same C1 fields as login.
 struct DeviceInfo: Decodable {
     let deviceId: String
     let patientId: String
     let patientName: String
+    let role: String?
+    let caregiverId: String?
+    let caregiverName: String?
+}
+
+// MARK: - Caregiver home (GET /api/app/caregivers/{id}/home, backend/views.py CaregiverHome)
+
+/// An alert sent to the family contact (backend/views.py AlertView).
+struct CaregiverAlert: Decodable, Identifiable {
+    let id: String
+    let at: Date
+    let message: String
+    /// unreachable|escalation
+    let trigger: String
+    let urgent: Bool
+    let seenAt: Date?
+    let callId: String?
+}
+
+struct CaregiverHome: Decodable {
+    let timezone: String
+    let caregiver: CaregiverView
+    let patient: Person
+    /// The patient is on a call with VoiceMitra right now.
+    let inCall: Bool
+    /// Newest first.
+    let alerts: [CaregiverAlert]
+    let unseen: Int
+    let today: [Slot]
+    let nextDose: Slot?
+    let week: [DayView]
+    let adherence: Adherence
+    let lastCheckin: Checkin?
+    let howDoing: HowDoing?
 }
 
 /// How to join a voice call: from GET .../voice-call, the socket's `voice_call` event or a snapshot's `voice`.
@@ -206,8 +251,16 @@ struct API {
 
     /// wss://<host>/ws/patients/{id}/chat, with the device token on the handshake.
     func patientSocketRequest(patientId: String) -> URLRequest? {
-        guard var c = URLComponents(url: base.appendingPathComponent("ws/patients/\(patientId)/chat"),
-                                    resolvingAgainstBaseURL: false) else { return nil }
+        socketRequest("ws/patients/\(patientId)/chat")
+    }
+
+    /// wss://<host>/ws/caregivers/{id}: every message means "refetch the caregiver home" (API.md C1).
+    func caregiverSocketRequest(caregiverId: String) -> URLRequest? {
+        socketRequest("ws/caregivers/\(caregiverId)")
+    }
+
+    private func socketRequest(_ path: String) -> URLRequest? {
+        guard var c = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false) else { return nil }
         c.scheme = base.scheme == "https" ? "wss" : "ws"
         guard let url = c.url else { return nil }
         var r = URLRequest(url: url)
@@ -225,6 +278,16 @@ struct API {
 
     func history(patientId: String) async throws -> PatientHistory {
         try await send("GET", "api/app/patients/\(patientId)/history")
+    }
+
+    func caregiverHome(caregiverId: String) async throws -> CaregiverHome {
+        try await send("GET", "api/app/caregivers/\(caregiverId)/home")
+    }
+
+    /// Mark one alert as seen, or all of them (`alertId` nil).
+    func markAlertsSeen(caregiverId: String, alertId: String?) async throws {
+        let path = alertId.map { "api/caregivers/\(caregiverId)/alerts/\($0)/seen" } ?? "api/caregivers/\(caregiverId)/alerts/seen"
+        try await sendEmpty("POST", path)
     }
 
     func pair(code: String, name: String) async throws -> PairResponse {

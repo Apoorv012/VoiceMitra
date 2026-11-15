@@ -598,6 +598,42 @@ sign-ups: people who want to join or get early access are pointed to the contact
   memory (fine: one API process); a forgotten password needs staff to set a new one; removing a patient's login doesn't
   unpair their phones (unpair separately).
 
+### Caregivers in the phone apps (2026-11-15) — **BUILT (backend, Android, iPhone); tests green; not yet tried on a phone**
+**Decision changed (user, 2026-11-15):** caregivers can now use the phone apps too (the 2026-11-11 rule "apps stay
+patient-only" is replaced). Contract in `mobile/API.md` ("Caregivers in the apps", step C1): the caregiver signs in
+with their existing website login; `POST /api/auth/login` returns `role` (+ `caregiver_id`, `caregiver_name`); a
+caregiver device's token acts as the caregiver (only caregiver routes); the app shows a caregiver home mirroring the
+website's `/caregivers/[id]` page (alerts + mark seen, today's medicines, week, how they're doing), read-only, no
+ringing. Android also gets an FCM `alert` push (ordinary notification) per new alert; the iPhone shows alerts only while
+open. Caregiver phones never get `ring` pushes and aren't listed on the patient's devices card. Pairing stays
+patient-only. Lead's choices, not asked: no "call the patient" button, no caregiver ringing for urgent alerts yet.
+- Android agent: backend C1 (Device `role`/`caregiver_id`, login, access, push filtering + alert push, tests) then
+  the Android caregiver screens. iPhone agent: caregiver screens in `mobile/ios/` against the contract.
+- **iPhone: BUILT, compiles clean with xtool (2026-11-15); not run on a phone or against the C1 backend yet.** Login,
+  pairing and the launch check read `role` (missing = patient) and store it in the Keychain (old saved logins load as
+  patients); caregiver home (`CaregiverHomeView.swift`) mirrors the website page in English + Hindi; the patient socket
+  became a generic `LiveSocket` used for `/ws/caregivers/{id}`; 404/401 on home or launch check signs out ("no longer
+  the family contact" notice); caregiver sessions never open the patient socket, ring or show Talk now. On-device checks
+  15-20 added to `mobile/ios/SPEC.md`. Staged, not committed.
+- **Backend C1: BUILT AND TESTED (2026-11-15).** `DeviceRole` + `Device.role`/`caregiver_id` (old records = patient
+  phones); family logins make caregiver phones (staff still 403 `staff_login`; a contact no longer linked gets 401);
+  `GET /api/devices/{id}` 404s and deletes a caregiver phone whose contact was removed; removing the family contact
+  deletes their phones too; the patient's devices list skips caregiver phones; `access.py` maps a caregiver phone's
+  token to that caregiver; `push_fcm` rings only patient phones and sends `alert` (TTL 1 h) to the caregiver's Android
+  phones from `domains/med_adherence/caregiver.py` in the background (a push failure can't break the alert). Web: the
+  staff page's family card says it signs in on the website and the app; API types regenerated. `mobile/API.md`:
+  login/device rows fixed, caregiver socket close codes (1008 / 4404) documented. Verified: pytest 111/111 (13 new),
+  web tsc + eslint clean.
+- **Android: BUILT, not run on a phone (2026-11-15).** Role stored and refreshed on launch; caregiver-only home
+  (`ui/CaregiverScreen.kt`) mirroring the website in English + Hindi, socket refresh with backoff, 401/404 signs out;
+  caregiver phones never open the patient socket or ring (stale `ring` ignored) and skip the ringing checklist; FCM
+  `alert` -> ordinary notification on a new `alerts_v1` channel. Verified: `assembleDebug`, `lintDebug` (0 errors),
+  unit tests 23/23, `ApiContractTest` 2/2 against a local API on a throwaway DB (dropped). Screenshots
+  `mobile/android/screenshots/12_caregiver_*`, `13_caregiver_quiet_*` (en/hi, light/dark).
+- **Not verified:** either app on a real phone with a caregiver login, real FCM alert delivery, rings skipping
+  caregiver phones on a device. Needs deploying (user commits/pushes) and a pilot family contact login to test.
+- Status per app in each `SPEC.md`.
+
 ### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
 **User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's
 `seriousness` field description in `tools.py` has exactly that cue, and `RED_FLAGS` is a substring list --

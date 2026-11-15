@@ -16,7 +16,8 @@ import com.voicemitra.patient.R
 import com.voicemitra.patient.ui.Strings
 
 /**
- * The two call notifications. Ringing: a CallStyle notification with a full-screen intent (the call
+ * The two call notifications, plus a family contact's alert notification ([showAlert]).
+ * Ringing: a CallStyle notification with a full-screen intent (the call
  * screen over the lock screen), the phone's ringtone on loop and vibration, gone after [RING_MS].
  * Ongoing: the foreground-service notification while a call is connected.
  */
@@ -24,8 +25,10 @@ object Notifications {
     // Channel settings can't be changed once created: a new id is needed to change sound/importance.
     const val CHANNEL_RING = "ring_v1"
     const val CHANNEL_ONGOING = "ongoing_v1"
+    const val CHANNEL_ALERTS = "alerts_v1"  // a family contact's phone: new alerts (ordinary, not full-screen)
     const val ID_RING = 1
     const val ID_ONGOING = 2
+    const val ID_ALERT = 3
     const val RING_MS = 60_000L
 
     private fun strings(): Strings = Strings.of(App.instance.settings.value.lang)
@@ -50,7 +53,38 @@ object Notifications {
             setSound(null, null)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
-        nm.createNotificationChannels(listOf(ring, ongoing))
+        val alerts = NotificationChannel(CHANNEL_ALERTS, s.channelAlerts, NotificationManager.IMPORTANCE_DEFAULT)
+        nm.createNotificationChannels(listOf(ring, ongoing, alerts))
+    }
+
+    /**
+     * A new alert for this family contact (FCM `alert`): an ordinary notification that opens the caregiver
+     * home. Only the patient's first name -- the push carries no health information, so neither does this.
+     * One at a time: a newer alert replaces the older notification (the home lists them all).
+     */
+    fun showAlert(context: Context, patientFirstName: String) {
+        val nm = context.getSystemService<NotificationManager>() ?: return
+        if (!nm.areNotificationsEnabled()) return
+        val s = strings()
+        val open = PendingIntent.getActivity(
+            context, 13, openAppIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_alert)
+            .setContentTitle(s.fill(s.alertTitle, "name" to patientFirstName))
+            .setContentText(s.alertText)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        nm.notify(ID_ALERT, n)
+    }
+
+    /** The caregiver home is on screen: the notification has done its job. */
+    fun cancelAlert(context: Context) {
+        context.getSystemService<NotificationManager>()?.cancel(ID_ALERT)
     }
 
     private fun caller(context: Context): Person =

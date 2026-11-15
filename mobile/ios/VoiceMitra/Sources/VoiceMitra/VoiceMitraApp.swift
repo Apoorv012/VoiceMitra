@@ -29,12 +29,16 @@ struct RootView: View {
             if model.pairing == nil {
                 SignInView()
                     .transition(.opacity)
+            } else if model.isCaregiver {
+                // A family contact: their own home, no tabs, no Talk now, never rings (API.md C1).
+                CaregiverHomeView()
+                    .transition(.opacity)
             } else {
                 MainTabs()
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: model.pairing == nil)
+        .animation(.easeInOut(duration: 0.25), value: route)
         // Ringing too: with the app open, CallKit only shows a small banner, easy to miss for older eyes. Our
         // full-screen ringing view sits under it and answers/declines through the same CallKit call.
         .fullScreenCover(isPresented: .constant(showCallScreen)) {
@@ -47,6 +51,8 @@ struct RootView: View {
     private var showCallScreen: Bool {
         model.calls.phase != .idle
     }
+
+    private var route: Int { model.pairing == nil ? 0 : model.isCaregiver ? 2 : 1 }
 }
 
 struct MainTabs: View {
@@ -65,6 +71,8 @@ struct MainTabs: View {
 /// A scrolling tab page on the page colour, with the app header on top.
 struct TabPage<Content: View>: View {
     var refresh: (() async -> Void)?
+    /// Room below the last card: iOS 26's floating tab bar needs 96; a page without tabs less.
+    var bottomRoom: CGFloat = 96
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -76,7 +84,7 @@ struct TabPage<Content: View>: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             // iOS 26's tab bar floats over the content: leave room so the last card scrolls fully clear of it.
-            .padding(.bottom, 96)
+            .padding(.bottom, bottomRoom)
         }
         .scrollIndicators(.hidden)
         .background(VM.page.ignoresSafeArea())

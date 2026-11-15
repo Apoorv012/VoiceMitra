@@ -160,3 +160,26 @@ with USB debugging, or sharing the APK file.
   the debug patient picker is gone (`/api/app/people` is staff-only); a family/staff login gets a "use the website"
   message; default server is now `https://voicemitra-api.apoorvm.com`. Verified: assembleDebug, lintDebug, unit tests,
   `ApiContractTest` against the locked API (`-PvmStaff=<user>:<password>` now needed). Older builds must be replaced.
+- **C1 Caregivers in the app -- DONE in code (2026-11-15), not yet on a phone or with real FCM.** Contract: `../API.md`
+  "Caregivers in the apps". Backend: `Device.role` (patient|caregiver, default patient so old records stay patient
+  phones) + `caregiver_id`; `POST /api/auth/login` turns a family login into a caregiver phone (staff still 403
+  `staff_login`; pairing stays patient-only); login/pair/`GET /api/devices/{id}` return `role`, `caregiver_id`,
+  `caregiver_name`; a caregiver phone's token is that caregiver in `backend/access.py` (caregiver home, mark seen,
+  `/ws/caregivers/{id}`; patient routes 403). Removing the family contact deletes their phones; `GET /api/devices/{id}`
+  also answers 404 (and deletes the device) if the phone's caregiver is no longer the patient's contact. Push:
+  `ring`/`call_ended` only to patient phones; new `alert` data message (ids only, TTL 1 h) to the caregiver's Android
+  phones from `domains/med_adherence/caregiver.py` (background, a push failure never breaks the alert); the patient's
+  devices list leaves out family phones. Web: the staff "Sign-in logins" family card now says website + app.
+  App: role stored with the sign-in (missing = patient) and refreshed from the launch check; a caregiver phone shows
+  only the caregiver home (`ui/CaregiverScreen.kt`, mirrors `web/src/app/caregivers/[id]`: greeting, in-call banner,
+  alerts with Mark as seen / Mark all, earlier ones folded with "Seen ...", today's medicines + last check-in, week
+  dots + legend, how they're doing, Sign out with confirm), pull to refresh, refetch on every caregiver-socket message
+  (`caregiver/CaregiverEvents.kt`, reconnects 1 s -> 30 s backoff; a refused socket triggers a refetch whose 401/404
+  signs out, with "You're no longer the family contact" on the login screen), every minute and on resume. Caregiver
+  phones never open the patient socket, never ring (`CallManager.onRing` and `PushService` ignore a stale `ring`), skip
+  the ringing setup checklist; FCM `alert` -> ordinary notification on its own channel (`alerts_v1`, default
+  importance, bell icon) "Update about <first name> / Open VoiceMitra to see it.", tapping opens the app; asks for
+  POST_NOTIFICATIONS once and shows a "Turn on" card while notifications are off. Verified: pytest 111/111; web tsc +
+  lint clean; `assembleDebug`, `lintDebug` (0 errors), unit tests 23/23 (2 contract tests skipped without a server);
+  `ApiContractTest` 2/2 against a local backend on a throwaway DB (caregiver login, device check, home, mark seen,
+  403 on patient routes, socket snapshot, removal -> 404/401); screenshots `12_caregiver*`, `13_caregiver_quiet*`.

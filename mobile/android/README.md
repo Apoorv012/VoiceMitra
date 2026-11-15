@@ -1,7 +1,9 @@
 # VoiceMitra Android app
 
 The patient's phone app: rings like a normal call (FCM push -> full-screen call screen, even when locked) and
-connects to the VoiceMitra voice agent over LiveKit. Spec and status: `SPEC.md`. Backend contract: `../API.md`.
+connects to the VoiceMitra voice agent over LiveKit. A family contact can sign in too (their website login) and gets
+the caregiver home instead: alerts, today's medicines, the week; an ordinary notification for each new alert, never
+ringing. Spec and status: `SPEC.md`. Backend contract: `../API.md`.
 
 - Kotlin + Jetpack Compose, Gradle (wrapper in this folder), minSdk 26, compile/target SDK 37.
 - Application id `in.voicemitra.patient` (registered with Firebase); the Kotlin code is under
@@ -70,7 +72,8 @@ JAVA_HOME="/c/Program Files/Java/jdk-25.0.3" ./gradlew.bat screenshots
 ```
 
 PNGs land in `mobile/android/screenshots/` (gitignored) as `<nn_screen>_<en|hi>_<light|dark>.png`; `*_full`
-ones are the scrolling pages at full length. The sample data and fixed clock are in
+ones are the scrolling pages at full length. `12_caregiver*` / `13_caregiver_quiet*` are a family contact's
+caregiver home. The sample data and fixed clock are in
 `app/src/test/java/com/voicemitra/patient/ScreenshotTest.kt`. First run downloads Robolectric's Android jar.
 
 ## Look

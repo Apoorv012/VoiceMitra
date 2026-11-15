@@ -79,8 +79,10 @@ bash /mnt/d/dev/Projects/VoiceMitra/mobile/ios/tools/build-ipa.sh
 2. LocalDevVPN -> Connect. SideStore -> My Apps -> **+** -> pick `VoiceMitra.ipa`. It installs and appears on the
    home screen.
 3. Open VoiceMitra: allow the **microphone**, then sign in (username + password from the patient's Me tab on the
-   web, "Phone app login"), or "Use a code instead" (Me tab -> "Connect a phone"). Settings (gear) has the
-   server address; the default is the tunnel, `https://test-voicemitra.apoorvm.com`.
+   web, "Phone app login"), or "Use a code instead" (Me tab -> "Connect a phone"). A family contact signs in with
+   their own website login and gets the caregiver home (alerts, today's medicines, the week; no ringing, alerts
+   only show while the app is open). Settings (gear) has the server address; the default is the cloud API,
+   `https://voicemitra-api.apoorvm.com`.
 
 **Refresh (every 7 days):** SideStore re-signs its apps in the background when LocalDevVPN is connected and the
 phone is on Wi-Fi. To be safe, open LocalDevVPN -> Connect, then SideStore -> My Apps -> **Refresh All** once a

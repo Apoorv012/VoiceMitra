@@ -68,6 +68,7 @@ import com.voicemitra.patient.data.Lang
 import com.voicemitra.patient.data.Pairing
 import com.voicemitra.patient.push.PushToken
 import com.voicemitra.patient.ui.BrandMark
+import com.voicemitra.patient.ui.CaregiverHomeTab
 import com.voicemitra.patient.ui.CodeScreen
 import com.voicemitra.patient.ui.HistoryTab
 import com.voicemitra.patient.ui.LangSwitch
@@ -84,8 +85,11 @@ import com.voicemitra.patient.ui.Vm
 import com.voicemitra.patient.ui.VoiceMitraTheme
 import kotlinx.coroutines.launch
 
-/** Signed out: login (with the server address under Advanced), the code pad, the debug picker. Signed in: the four tabs, plus the setup checklist. */
-enum class Screen { Login, Code, Today, Medicines, History, Me, Setup }
+/**
+ * Signed out: login (with the server address under Advanced), the code pad. Signed in as the patient: the
+ * four tabs, plus the setup checklist. Signed in as a family contact (C1): the caregiver home only.
+ */
+enum class Screen { Login, Code, Today, Medicines, History, Me, Setup, Caregiver }
 
 /** A debug-picker "pairing" (no device on the server): nothing to verify or unpair. */
 val Pairing.isDebug get() = deviceId == "debug"
@@ -110,6 +114,7 @@ private fun Root() {
     val settings by app.settings.collectAsStateWithLifecycle()
     val callState by app.calls.state.collectAsStateWithLifecycle()
     val pairing = settings.pairing
+    val notLinked by app.signedOutNotice.collectAsStateWithLifecycle()
 
     var authScreen by rememberSaveable { mutableStateOf(Screen.Login) }
     var screen by rememberSaveable { mutableStateOf(Screen.Today) }
@@ -124,26 +129,54 @@ private fun Root() {
         }
     }
 
-    // Signed in: check the phone is still paired, keep the push token current, and show the setup
-    // checklist once per launch if anything is missing.
+    // Signed in: check the phone is still paired (and who it is: patient or family contact), keep the push
+    // token current, and -- a patient's phone -- show the setup checklist once per launch if anything is missing.
     LaunchedEffect(pairing?.deviceId) {
         val p = pairing ?: return@LaunchedEffect
-        if (!setupShown && !Setup.allDone(context)) screen = Screen.Setup
+        app.signedOutNotice.value = false
+        if (!p.isCaregiver && !setupShown && !Setup.allDone(context)) screen = Screen.Setup
         setupShown = true
         if (p.isDebug) return@LaunchedEffect
         try {
-            app.api.device(p)
+            val info = app.api.device(p)
+            val role = Pairing.roleOf(info.role)
+            if (role != p.role || info.caregiverId != p.caregiverId || info.caregiverName != p.caregiverName ||
+                info.patientName != p.patientName) {
+                app.prefs.updateIdentity(info.patientName, role, info.caregiverId, info.caregiverName)
+            }
             PushToken.sendIfChanged(app, null)
         } catch (e: ApiException) {
-            if (e.code == 401 || e.code == 404) app.prefs.clearPairing()  // unpaired elsewhere: sign in again
+            if (e.code == 401 || e.code == 404) {  // unpaired elsewhere, or no longer the family contact: sign in again
+                app.signedOutNotice.value = p.isCaregiver && e.code == 404
+                app.prefs.clearPairing()
+            }
         } catch (e: Exception) {
             Log.i("Main", "couldn't check the pairing (offline?)", e)
         }
     }
 
-    val current = if (pairing == null) authScreen else screen
-    BackHandler(enabled = current !in setOf(Screen.Login, Screen.Today)) {
+    val current = when {
+        pairing == null -> authScreen
+        pairing.isCaregiver -> Screen.Caregiver
+        else -> screen
+    }
+    BackHandler(enabled = current !in setOf(Screen.Login, Screen.Today, Screen.Caregiver)) {
         if (pairing == null) authScreen = Screen.Login else screen = Screen.Today
+    }
+
+    val logOut: () -> Unit = logOut@{
+        val p = pairing ?: return@logOut
+        scope.launch {
+            if (!p.isDebug) try {
+                app.api.unpair(p)
+            } catch (e: Exception) {
+                Log.w("Main", "unpair failed; forgetting locally anyway", e)
+            }
+            app.prefs.clearPairing()
+            authScreen = Screen.Login
+            screen = Screen.Today
+            setupShown = false
+        }
     }
 
     val talk = when (callState) {
@@ -155,13 +188,14 @@ private fun Root() {
     AppFrame(
         lang = settings.lang,
         onLang = { scope.launch { app.prefs.setLang(it) } },
-        tab = if (pairing != null && current != Screen.Setup) current else null,
+        tab = if (pairing != null && current != Screen.Setup && current != Screen.Caregiver) current else null,
         onTab = { screen = it },
     ) {
         when (current) {
             Screen.Login -> LoginScreen(
                 onUseCode = { authScreen = Screen.Code },
                 settings = settings,
+                notice = if (notLinked) LocalStrings.current.cgNotLinked else null,
             )
             Screen.Code -> CodeScreen(onUseLogin = { authScreen = Screen.Login })
             Screen.Today -> TodayTab(pairing!!.patientId, talk) {
@@ -169,21 +203,9 @@ private fun Root() {
             }
             Screen.Medicines -> MedicinesTab(pairing!!.patientId)
             Screen.History -> HistoryTab(pairing!!.patientId)
-            Screen.Me -> MeTab(settings, setupLeft, onSetup = { screen = Screen.Setup }, onLogOut = {
-                val p = pairing ?: return@MeTab
-                scope.launch {
-                    if (!p.isDebug) try {
-                        app.api.unpair(p)
-                    } catch (e: Exception) {
-                        Log.w("Main", "unpair failed; forgetting locally anyway", e)
-                    }
-                    app.prefs.clearPairing()
-                    authScreen = Screen.Login
-                    screen = Screen.Today
-                    setupShown = false
-                }
-            })
+            Screen.Me -> MeTab(settings, setupLeft, onSetup = { screen = Screen.Setup }, onLogOut = logOut)
             Screen.Setup -> SetupScreen(onDone = { screen = Screen.Today })
+            Screen.Caregiver -> CaregiverHomeTab(pairing!!, onLogOut = logOut)
         }
     }
 }

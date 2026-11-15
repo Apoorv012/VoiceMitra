@@ -31,8 +31,14 @@ struct Pairing: Codable, Equatable {
     var deviceToken: String?
     var patientId: String
     var patientName: String
+    /// "patient" | "caregiver" (API.md C1). Missing (older backends, pairings saved by older builds) = patient.
+    var role: String?
+    /// Set for a caregiver (family contact) signed in on this phone; `patientId` is then the patient they look after.
+    var caregiverId: String?
+    var caregiverName: String?
 
     var isDevPick: Bool { deviceToken == nil }
+    var isCaregiver: Bool { role == "caregiver" && caregiverId != nil }
 }
 
 /// The pairing lives in the Keychain (the device token is the only credential the app has).

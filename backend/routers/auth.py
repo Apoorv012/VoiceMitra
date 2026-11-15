@@ -3,7 +3,7 @@
 Website  POST /api/auth/session {username, password} -> sets the `vm_session` cookie; GET /api/auth/me;
          DELETE /api/auth/session signs out; POST /api/auth/ws-ticket -> a ticket for opening a socket.
 Apps     POST /api/auth/login -> the same device id + token as pairing (mobile/API.md, "Identity: login").
-         Patients only: a family or staff login gets 403 with a reason the app can show.
+         Patients and their family contacts (a caregiver phone, `role` caregiver); a staff login gets 403.
 Logins   PUT/GET /api/patients/{id}/login and /api/caregivers/{id}/login (staff, or that person changing
          their own); DELETE is staff only. Staff logins come from `python -m backend.create_staff`.
 """
@@ -71,7 +71,7 @@ async def delete_patient_login(patient_id: str) -> None:
     await logins.delete(patient_id)
 
 
-# --- caregivers' logins (website only) --------------------------------------------------------
+# --- caregivers' logins (website and phone apps) -----------------------------------------------
 
 async def _require_caregiver_exists(caregiver_id: str) -> None:
     if await caregivers_col().find_one({"_id": caregiver_id}, {"_id": 1}) is None:
@@ -95,6 +95,8 @@ async def get_caregiver_login(caregiver_id: str) -> LoginView:
 
 @router.delete("/api/caregivers/{caregiver_id}/login", status_code=204, dependencies=[Depends(require_staff)])
 async def delete_caregiver_login(caregiver_id: str) -> None:
+    """Signs them out of the website; phones already signed in stay connected, as for patients (removing
+    the family contact signs those out too)."""
     await logins.delete(caregiver_id)
 
 
@@ -110,21 +112,27 @@ class LoginRequest(BaseModel):
 
 @router.post("/api/auth/login", response_model=PairResponse,
              responses={401: {"description": "wrong username or password"},
-                        403: {"description": "`family_login` / `staff_login`: right password, but this login "
-                                             "is for the website, not the phone app"},
+                        403: {"description": "`staff_login`: right password, but staff logins are for the "
+                                             "website, not the phone app"},
                         429: {"description": "too many failed logins, paused"}})
 async def login(body: LoginRequest) -> PairResponse:
+    """A patient's login -> a patient phone; a family contact's -> a caregiver phone (`role` caregiver)."""
     record = await logins.check(body.username, body.password)
-    if record is not None and record.role != LoginRole.patient:
+    if record is not None and record.role == LoginRole.staff:
         # Only said once the password is right, so it tells a guesser nothing.
-        raise HTTPException(status_code=403,
-                            detail="family_login" if record.role == LoginRole.caregiver else "staff_login")
-    patient = None
-    if record is not None:
+        raise HTTPException(status_code=403, detail="staff_login")
+    patient = caregiver = None
+    if record is not None and record.role == LoginRole.patient:
         patient = doc_to_model(Patient, await patients_col().find_one({"_id": record.id}))
+    elif record is not None and record.role == LoginRole.caregiver:
+        caregiver = doc_to_model(Caregiver, await caregivers_col().find_one({"_id": record.id}))
+        if caregiver is not None:
+            patient = doc_to_model(Patient, await patients_col().find_one({"_id": caregiver.patient_id}))
+            if patient is not None and patient.caregiver_id != caregiver.id:
+                patient = None  # no longer their family contact
     if patient is None:
         raise HTTPException(status_code=401, detail="wrong username or password")
-    return await create_device(patient, body.platform, body.push_token, body.name)
+    return await create_device(patient, body.platform, body.push_token, body.name, caregiver)
 
 
 # --- the website ------------------------------------------------------------------------------

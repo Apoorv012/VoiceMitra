@@ -292,10 +292,18 @@ class DevicePlatform(str, Enum):
     ios = "ios"
 
 
-class Device(MongoDocument):
-    """A phone paired to a patient. Its secret token is stored only as a SHA-256 hash."""
+class DeviceRole(str, Enum):
+    patient = "patient"      # the patient's own phone: rings for their calls
+    caregiver = "caregiver"  # a family contact's phone: their caregiver home + alert pushes, never rings
 
-    patient_id: str
+
+class Device(MongoDocument):
+    """A phone signed in as a patient, or as a patient's family contact (`role`). Its secret token is
+    stored only as a SHA-256 hash. Older records have no `role`: they are patient phones."""
+
+    patient_id: str                  # the patient (for a caregiver phone: the patient they look after)
+    role: DeviceRole = DeviceRole.patient
+    caregiver_id: str | None = None  # set on caregiver phones
     platform: DevicePlatform
     push_token: str | None = None  # FCM registration token (Android); none on iPhone for now
     name: str | None = None        # e.g. "Pixel 7", shown on the patient's page

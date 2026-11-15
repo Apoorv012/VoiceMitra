@@ -16,9 +16,11 @@ struct TodayView: View {
             CheckInCard()
             if let home = model.home {
                 if let next = home.nextDose { NextDoseCard(slot: next, tz: home.timezone) }
-                TodayMedsCard(home: home)
-                WeekCard(home: home)
-                if let how = home.howDoing { HowDoingCard(how: how) }
+                TodayMedsCard(today: home.today, tz: home.timezone, title: model.t("Today's medicines", "आज की दवाइयाँ"))
+                WeekCard(week: home.week, adherence: home.adherence, tz: home.timezone)
+                if let how = home.howDoing {
+                    HowDoingCard(how: how, tz: home.timezone, title: model.t("How you're doing", "आपकी सेहत"))
+                }
                 if !home.reminders.isEmpty { RemindersCard(home: home) }
                 if let cg = home.caregiver {
                     Label(model.t("\(cg.name) (\(cg.relation)) is told if we can't reach you or you're not feeling well.",
@@ -139,27 +141,32 @@ private struct NextDoseCard: View {
     }
 }
 
-private struct TodayMedsCard: View {
+/// Today's doses with their state (the patient's Today tab and the caregiver home).
+struct TodayMedsCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dynamicTypeSize) private var typeSize
-    let home: PatientHome
+    let today: [Slot]
+    let tz: String
+    let title: String
+    /// A small line under the list (the caregiver home's last check-in).
+    var footer: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(model.t("Today's medicines", "आज की दवाइयाँ"))
+            Text(title)
                 .font(.title3.bold())
                 .foregroundStyle(VM.ink)
                 .padding(.bottom, 12)
-            if home.today.isEmpty {
+            if today.isEmpty {
                 Text(model.t("No medicines are scheduled for today.", "आज कोई दवा तय नहीं है।"))
                     .font(.body)
                     .foregroundStyle(VM.muted)
             }
-            ForEach(Array(home.today.enumerated()), id: \.element.id) { i, slot in
+            ForEach(Array(today.enumerated()), id: \.element.id) { i, slot in
                 let s = Fmt.state(slot.state, model)
                 // Time on the left, then name / dose / status stacked, so long names never squeeze. At the
                 // accessibility text sizes the time moves above the name and the name gets the full width.
-                let time = Text(Fmt.time(slot.at, tz: home.timezone, lang: model.lang))
+                let time = Text(Fmt.time(slot.at, tz: tz, lang: model.lang))
                     .font(.headline.monospacedDigit())
                     .foregroundStyle(VM.ink)
                 let details = VStack(alignment: .leading, spacing: 6) {
@@ -183,7 +190,13 @@ private struct TodayMedsCard: View {
                 }
                 .padding(.vertical, 12)
                 .accessibilityElement(children: .combine)
-                if i < home.today.count - 1 { Divider().overlay(VM.line) }
+                if i < today.count - 1 { Divider().overlay(VM.line) }
+            }
+            if let footer {
+                Text(footer)
+                    .font(.footnote)
+                    .foregroundStyle(VM.muted)
+                    .padding(.top, 12)
             }
         }
         .card()
@@ -191,14 +204,16 @@ private struct TodayMedsCard: View {
 }
 
 /// Seven day dots (the web's "This week"), coloured by how the day went, plus the count.
-private struct WeekCard: View {
+struct WeekCard: View {
     @Environment(AppModel.self) private var model
-    let home: PatientHome
+    let week: [DayView]
+    let adherence: Adherence
+    let tz: String
 
     var body: some View {
-        let a = home.adherence
+        let a = adherence
         let total = a.taken + a.missed + a.unrecorded
-        let anyScheduled = home.week.contains { $0.state != "none" }
+        let anyScheduled = week.contains { $0.state != "none" }
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text(model.t("This week", "इस हफ़्ते")).font(.title3.bold()).foregroundStyle(VM.ink)
@@ -209,7 +224,7 @@ private struct WeekCard: View {
             }
             if anyScheduled {
                 HStack(spacing: 4) {
-                    ForEach(home.week) { day in
+                    ForEach(week) { day in
                         let today = isToday(day.date)
                         VStack(spacing: 6) {
                             Text(weekday(day.date))
@@ -263,7 +278,7 @@ private struct WeekCard: View {
     private func isToday(_ iso: String) -> Bool {
         let p = DateFormatter()
         p.dateFormat = "yyyy-MM-dd"
-        p.timeZone = Fmt.zone(home.timezone)
+        p.timeZone = Fmt.zone(tz)
         return p.string(from: Date()) == iso
     }
 
@@ -287,31 +302,36 @@ private struct WeekCard: View {
     private func weekday(_ iso: String) -> String {
         let p = DateFormatter()
         p.dateFormat = "yyyy-MM-dd"
-        p.timeZone = Fmt.zone(home.timezone)
+        p.timeZone = Fmt.zone(tz)
         guard let d = p.date(from: iso) else { return "" }
         let f = DateFormatter()
         f.locale = Fmt.locale(model.lang)
-        f.timeZone = Fmt.zone(home.timezone)
+        f.timeZone = Fmt.zone(tz)
         f.dateFormat = "EEEEE"
         return f.string(from: d)
     }
 }
 
-private struct HowDoingCard: View {
+/// "How you're doing" (patient) / "How Sunita is doing" (caregiver; the website shows no band there, since
+/// the band words speak to the patient).
+struct HowDoingCard: View {
     @Environment(AppModel.self) private var model
     let how: HowDoing
+    let tz: String
+    let title: String
+    var showBand = true
 
     var body: some View {
         let b = Fmt.band(how.band, model)
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(model.t("How you're doing", "आपकी सेहत")).font(.title3.bold()).foregroundStyle(VM.ink)
+                Text(title).font(.title3.bold()).foregroundStyle(VM.ink)
                 Spacer()
-                Text(Fmt.day(how.at, tz: model.home?.timezone, model: model))
+                Text(Fmt.day(how.at, tz: tz, model: model))
                     .font(.footnote)
                     .foregroundStyle(VM.muted)
             }
-            StatusPill(label: b.label, icon: b.icon, ink: b.ink, soft: b.soft)
+            if showBand { StatusPill(label: b.label, icon: b.icon, ink: b.ink, soft: b.soft) }
             Text(how.summary).font(.body).foregroundStyle(VM.ink2)
         }
         .card()

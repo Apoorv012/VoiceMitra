@@ -50,8 +50,8 @@ class Strings private constructor(val lang: Lang) {
 
     // sign in (username + password, the main way in)
     val loginTitle = t("Sign in", "लॉगिन करें")
-    val loginSub = t("Use the username and password your family set up for you.",
-        "वही यूज़रनेम और पासवर्ड डालें जो आपके परिवार ने बनाया है।")
+    val loginSub = t("Use the username and password you were given (family members too).",
+        "वही यूज़रनेम और पासवर्ड डालें जो आपको दिया गया है (परिवार वाले भी)।")
     val username = t("Username", "यूज़रनेम")
     val password = t("Password", "पासवर्ड")
     val showPassword = t("Show password", "पासवर्ड दिखाएँ")
@@ -62,6 +62,7 @@ class Strings private constructor(val lang: Lang) {
         "यूज़रनेम या पासवर्ड गलत है। कृपया जाँचकर फिर कोशिश करें।")
     val tooManyTries = t("Too many tries. Please wait 10 minutes, then try again.",
         "बहुत बार कोशिश हो गई। कृपया 10 मिनट रुककर फिर कोशिश करें।")
+    // Not sent since C1 (family contacts sign in here now); kept for an older server.
     val familyLogin = t("This is a family login. Family members use the website: open voicemitra.apoorvm.com in a browser.",
         "यह परिवार वालों का लॉगिन है। परिवार वाले वेबसाइट इस्तेमाल करते हैं: ब्राउज़र में voicemitra.apoorvm.com खोलें।")
     val staffLogin = t("This is a staff login. Staff use the website: voicemitra.apoorvm.com.",
@@ -198,6 +199,35 @@ class Strings private constructor(val lang: Lang) {
     val ongoingTitle = t("On a call with VoiceMitra", "VoiceMitra से कॉल चल रही है")
     val channelCalls = t("Incoming calls", "आने वाली कॉल")
     val channelOngoing = t("Ongoing call", "चल रही कॉल")
+
+    // a family contact's phone: the caregiver home (web/src/app/caregivers/[id]/page.tsx, `cg_*` in i18n.tsx)
+    val cgLookingAfter = t("Looking after {name}", "{name} की देखभाल")
+    val cgInCall = t("{name} is talking to VoiceMitra right now.", "{name} अभी VoiceMitra से बात कर रहे हैं।")
+    val cgAlerts = t("Alerts", "अलर्ट")
+    val cgNew = t("{n} new", "नए: {n}")
+    val cgNoAlerts = t("No alerts. You'll see one here if {name} isn't feeling well or can't be reached.",
+        "कोई अलर्ट नहीं। अगर {name} की तबीयत ठीक न हो या उनसे बात न हो सके, तो यहाँ दिखेगा।")
+    val cgNoNew = t("No new alerts.", "कोई नया अलर्ट नहीं।")
+    val cgUrgent = t("Urgent", "ज़रूरी")
+    val cgUnwell = t("Not feeling well", "तबीयत ठीक नहीं")
+    val cgUnreachable = t("Couldn't be reached", "बात नहीं हो सकी")
+    val cgMarkSeen = t("Mark as seen", "देख लिया")
+    val cgMarkAllSeen = t("Mark all as seen", "सब देख लिए")
+    val cgSeen = t("Seen {when}", "देखा गया: {when}")
+    val cgEarlier = t("Earlier", "पहले के")
+    val cgTodaysMeds = t("{name}'s medicines today", "{name} की आज की दवाइयाँ")
+    val cgHowDoing = t("How {name} is doing", "{name} की तबीयत")
+    val cgLastCheckin = t("Last check-in with VoiceMitra {when}", "VoiceMitra से पिछली बातचीत {when}")
+    val cgNotLinked = t("You're no longer the family contact for this patient.", "अब आप इस मरीज़ के परिवार के संपर्क नहीं हैं।")
+    val cgLogOutConfirm = t("Sign out? You won't get alerts on this phone until you sign in again.",
+        "साइन आउट करें? दोबारा साइन इन करने तक इस फ़ोन पर अलर्ट नहीं आएँगे।")
+    val cgNotifyOff = t("Turn on notifications to hear about new alerts on this phone.",
+        "इस फ़ोन पर नए अलर्ट की सूचना पाने के लिए नोटिफ़िकेशन चालू करें।")
+    val cgNotifyOn = t("Turn on", "चालू करें")
+    val channelAlerts = t("Family alerts", "परिवार के लिए अलर्ट")
+    // The push carries no health information, so neither does the notification.
+    val alertTitle = t("Update about {name}", "{name} के बारे में नई जानकारी")
+    val alertText = t("Open VoiceMitra to see it.", "देखने के लिए VoiceMitra खोलें।")
 
     // setup checklist
     val setupTitle = t("Set up your phone", "अपना फ़ोन तैयार करें")

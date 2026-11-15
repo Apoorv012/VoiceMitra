@@ -24,7 +24,7 @@ export default function ManagePatient() {
   );
 }
 
-/** Who can sign in for this patient: the patient (website + phone app) and the family contact (website). */
+/** Who can sign in for this patient: the patient and the family contact (each on the website + phone app). */
 function Logins({ patientId }: { patientId: string }) {
   const { data: profile } = useApi<PatientProfile>(`/api/patients/${patientId}/profile`, 0);
   return (
@@ -45,7 +45,7 @@ function Logins({ patientId }: { patientId: string }) {
             <LoginAdmin
               url={`/api/caregivers/${profile.caregiver_id}/login`}
               title={`Family: ${profile.caregiver.name} (${profile.caregiver.relation})`}
-              sub="Signs in on the website only, to see alerts and how the patient is doing."
+              sub="Signs in on the website and in the VoiceMitra phone app, to see alerts and how the patient is doing."
               personName={profile.caregiver.name}
             />
           ) : (

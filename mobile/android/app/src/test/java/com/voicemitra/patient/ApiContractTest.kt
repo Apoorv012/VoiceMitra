@@ -106,4 +106,71 @@ class ApiContractTest {
         call("DELETE", "/api/patients/${patient.id}/login")
         Unit
     }
+
+    /**
+     * C1: a family contact signs in on the app and gets a caregiver phone. Uses the first patient without a
+     * family contact: adds one for the test and removes it at the end (which signs the phone out: 404).
+     * Skipped when every patient already has one (their real login would be overwritten).
+     */
+    @Test
+    fun caregiverLoginHomeSocketAndRemoval() = runBlocking {
+        assumeTrue("no -PvmServer / -PvmStaff given", server.isNotEmpty() && staff.contains(":"))
+        signInAsStaff()
+        val (_, peopleJson) = call("GET", "/api/app/people")
+        val ids = Regex(""""patients"\s*:\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL).find(peopleJson)!!.groupValues[1]
+            .let { list -> Regex(""""id"\s*:\s*"([^"]+)"""").findAll(list).map { it.groupValues[1] }.toList() }
+        val patientId = ids.firstOrNull { id ->
+            !Regex(""""caregiver_id"\s*:\s*"""").containsMatchIn(call("GET", "/api/patients/$id/profile").second)
+        }
+        assumeTrue("every patient already has a family contact", patientId != null)
+        val (patched, profile) = call("PATCH", "/api/patients/$patientId",
+            """{"caregiver": {"name": "Jvm Carer", "relation": "son", "phone_number": "+910000000000"}}""")
+        assertEquals(200, patched)
+        val caregiverId = Regex(""""caregiver_id"\s*:\s*"([^"]+)"""").find(profile)!!.groupValues[1]
+        val username = "apptest-cg-${caregiverId.take(8)}"
+        assertEquals(204, call("PUT", "/api/caregivers/$caregiverId/login",
+            """{"username": "$username", "password": "family123"}""").first)
+
+        val res = api.login(username, "family123", null, "JVM caregiver")
+        assertEquals("caregiver", res.role)
+        assertEquals(patientId, res.patientId)
+        assertEquals(caregiverId, res.caregiverId)
+        assertEquals("Jvm Carer", res.caregiverName)
+        val p = Pairing(res.deviceId, res.deviceToken, res.patientId, res.patientName, Pairing.roleOf(res.role),
+            res.caregiverId, res.caregiverName)
+        assertTrue(p.isCaregiver)
+        token = p.deviceToken
+        val info = api.device(p)
+        assertEquals("caregiver", info.role)
+        assertEquals(caregiverId, info.caregiverId)
+
+        // The caregiver's own routes work with the token; the patient's don't.
+        val home = api.caregiverHome(caregiverId)
+        assertEquals(patientId, home.patient.id)
+        assertEquals(caregiverId, home.caregiver.id)
+        api.markAllAlertsSeen(caregiverId)
+        assertEquals(403, codeOf { api.home(patientId!!) })
+        assertEquals(403, codeOf { api.startVoiceCall(patientId!!, p.deviceToken) })
+        // The patient's devices card doesn't list the family phone.
+        assertTrue(!call("GET", "/api/patients/$patientId/devices").second.contains(res.deviceId))
+
+        // The socket opens with the token and starts with a snapshot.
+        val first = java.util.concurrent.LinkedBlockingQueue<String>()
+        val ws = api.http.newWebSocket(Request.Builder().url(api.caregiverSocketUrl(caregiverId)).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) { first.offer(text) }
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
+                    first.offer("failed: ${t.message}")
+                }
+            })
+        val msg = first.poll(10, java.util.concurrent.TimeUnit.SECONDS)
+        ws.cancel()
+        assertTrue("socket said: $msg", msg != null && msg.contains("\"snapshot\""))
+
+        // Removing the family contact signs the phone out.
+        assertEquals(200, call("PATCH", "/api/patients/$patientId", """{"caregiver": null}""").first)
+        assertEquals(404, codeOf { api.device(p) })
+        assertEquals(401, codeOf { api.caregiverHome(caregiverId) })
+        Unit
+    }
 }

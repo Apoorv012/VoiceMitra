@@ -76,7 +76,8 @@ class CallManager(private val app: App) {
         if (callId in declined) return
         if (s is CallState.Ringing && s.callId == callId) return
         if (s !is CallState.Idle && s !is CallState.Ended) return  // already busy with a call
-        if (app.settings.value.pairing == null) return
+        val pairing = app.settings.value.pairing ?: return
+        if (pairing.isCaregiver) return  // a family contact's phone never rings (mobile/API.md, C1)
         endedJob?.cancel()
         _state.value = CallState.Ringing(callId)
         Notifications.showIncoming(app, callId)

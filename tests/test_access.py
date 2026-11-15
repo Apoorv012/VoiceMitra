@@ -184,16 +184,50 @@ async def test_caregiver_and_staff_sign_in(mongo, client, anon_client):
     assert await mongo["logins"].count_documents({"_id": carer.id}) == 0
 
 
-async def test_the_phone_app_turns_away_website_logins(mongo, client, anon_client):
+async def test_a_wrong_password_on_a_family_login_makes_no_phone(mongo, client, anon_client):
     _, carer = await _patient(mongo)
     await client.put(f"/api/caregivers/{carer.id}/login", json={"username": "rahul", "password": "family12"})
-    body = {"username": "rahul", "password": "family12", "platform": "android"}
-    res = await anon_client.post("/api/auth/login", json=body)
-    assert res.status_code == 403 and res.json()["detail"] == "family_login"
-    # A wrong password says nothing about what kind of login it is.
-    res = await anon_client.post("/api/auth/login", json={**body, "password": "wrong123"})
-    assert res.status_code == 401
+    body = {"username": "rahul", "password": "wrong123", "platform": "android"}
+    assert (await anon_client.post("/api/auth/login", json=body)).status_code == 401
     assert await mongo["devices"].count_documents({}) == 0
+
+
+async def _caregiver_phone(client, anon_client, carer: Caregiver, username: str) -> dict:
+    await client.put(f"/api/caregivers/{carer.id}/login", json={"username": username, "password": "family12"})
+    res = await anon_client.post("/api/auth/login", json={"username": username, "password": "family12",
+                                                          "platform": "android"})
+    assert res.status_code == 200 and res.json()["role"] == "caregiver"
+    return {"X-Device-Token": res.json()["device_token"]}
+
+
+async def test_a_caregiver_phone_token_is_that_caregiver(mongo, client, anon_client):
+    a, a_carer = await _patient(mongo, "Sunita")
+    b, b_carer = await _patient(mongo, "Ravi")
+    a_call = await _call(mongo, a.id)
+    token = await _caregiver_phone(client, anon_client, a_carer, "rahul")
+
+    assert (await anon_client.get(f"/api/app/caregivers/{a_carer.id}/home", headers=token)).status_code == 200
+    assert (await anon_client.post(f"/api/caregivers/{a_carer.id}/alerts/seen", headers=token)).status_code == 204
+    assert (await anon_client.post(f"/api/caregivers/{a_carer.id}/alerts/x/seen", headers=token)).status_code == 204
+    # Not the patient's routes, not another family's.
+    for url in [f"/api/app/patients/{a.id}/home", f"/api/app/patients/{a.id}/history",
+                f"/api/patients/{a.id}/devices", f"/api/patients/{a.id}/voice-call", f"/api/app/calls/{a_call.id}",
+                f"/api/app/caregivers/{b_carer.id}/home", "/api/patients", "/api/app/people"]:
+        assert (await anon_client.get(url, headers=token)).status_code == 403, url
+    for url in [f"/api/patients/{a.id}/voice-call", f"/api/patients/{a.id}/call/end",
+                f"/api/caregivers/{b_carer.id}/alerts/seen"]:
+        assert (await anon_client.post(url, headers=token)).status_code == 403, url
+
+
+async def test_a_caregiver_phone_opens_only_its_own_socket(mongo, client, anon_client):
+    a, a_carer = await _patient(mongo, "Sunita")
+    _, b_carer = await _patient(mongo, "Ravi")
+    token = (await _caregiver_phone(client, anon_client, a_carer, "rahul"))["X-Device-Token"]
+
+    assert (await access.ws_require_caregiver(a_carer.id, _FakeSocket(device_token=token))).id == a_carer.id
+    for check, arg in [(access.ws_require_caregiver, b_carer.id), (access.ws_require_patient, a.id)]:
+        with pytest.raises(Exception):
+            await check(arg, _FakeSocket(device_token=token))
 
 
 async def test_changing_a_password_signs_out_other_browsers(mongo, client, anon_client, client_as):
