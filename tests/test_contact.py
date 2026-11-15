@@ -1,4 +1,4 @@
-"""The homepage contact form and the operator's inbox for it (backend/routers/contact.py)."""
+"""The homepage contact form, the waitlist, and the operator's inbox for both (backend/routers/contact.py)."""
 
 from __future__ import annotations
 
@@ -74,3 +74,38 @@ async def test_pauses_after_too_many(client, mongo, monkeypatch):
     for _ in range(2):
         assert (await client.post("/api/contact", json=_form())).status_code == 201
     assert (await client.post("/api/contact", json=_form())).status_code == 429
+
+
+# --- waitlist ----------------------------------------------------------------------------------
+
+async def test_join_waitlist_once_per_address(client, mongo):
+    assert (await client.post("/api/waitlist", json={"email": "  asha@example.com "})).status_code == 204
+    assert (await client.post("/api/waitlist", json={"email": "Asha@Example.com"})).status_code == 204
+    listed = (await client.get("/api/waitlist")).json()
+    assert len(listed) == 1
+    assert listed[0]["email"] == "asha@example.com" and "_id" not in listed[0]
+
+
+async def test_waitlist_newest_first(client, mongo):
+    for email in ("first@example.com", "second@example.com"):
+        assert (await client.post("/api/waitlist", json={"email": email})).status_code == 204
+    assert [e["email"] for e in (await client.get("/api/waitlist")).json()] == ["second@example.com", "first@example.com"]
+
+
+@pytest.mark.parametrize("email", ["", "nope", "a@b", "x" * 199 + "@b.in"])
+async def test_waitlist_rejects_bad_email(client, mongo, email):
+    assert (await client.post("/api/waitlist", json={"email": email})).status_code == 422
+    assert (await client.get("/api/waitlist")).json() == []
+
+
+async def test_waitlist_honeypot_is_dropped_quietly(client, mongo):
+    res = await client.post("/api/waitlist", json={"email": "bot@example.com", "website": "http://spam.example"})
+    assert res.status_code == 204
+    assert (await client.get("/api/waitlist")).json() == []
+
+
+async def test_waitlist_shares_the_pause(client, mongo, monkeypatch):
+    monkeypatch.setattr(contact, "MAX_MESSAGES", 2)
+    assert (await client.post("/api/contact", json=_form())).status_code == 201
+    assert (await client.post("/api/waitlist", json={"email": "a@example.com"})).status_code == 204
+    assert (await client.post("/api/waitlist", json={"email": "b@example.com"})).status_code == 429

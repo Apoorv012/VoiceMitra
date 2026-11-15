@@ -543,7 +543,8 @@ contact messages readable by anyone), and the website's `/login` was a picker li
 caregivers get a **username + password set by staff** and use the **website only** (the apps stay patient-only, a family
 or staff login there gets a clear "use the website" message); staff logins come from a **script that generates the
 password and prints it once**; doctor screens are **staff-only** while the doctor flow is off (doctor logins later). No
-sign-ups: people who want to join or get early access are pointed to the contact form.
+sign-ups: people who want to join or get early access are pointed to the contact form (since 2026-11-15: the
+one-field homepage waitlist, see below).
 - **Who is asking** (`backend/access.py`): the website's `vm_session` cookie (HttpOnly, Secure, SameSite=Lax; 30 days,
   staff 7; only a SHA-256 of it stored in `web_sessions`, TTL index) or a phone's `X-Device-Token`. Each route declares
   one rule: `require_staff`, `require_patient` (staff or that patient), `require_caregiver`, `require_call_owner`,
@@ -634,6 +635,24 @@ patient-only. Lead's choices, not asked: no "call the patient" button, no caregi
 - **Not verified:** either app on a real phone with a caregiver login, real FCM alert delivery, rings skipping
   caregiver phones on a device. Needs deploying (user commits/pushes) and a pilot family contact login to test.
 - Status per app in each `SPEC.md`.
+
+### Homepage one-field waitlist (2026-11-15) — **BUILT AND VERIFIED LOCALLY in a browser; not deployed yet (the user commits/pushes)**
+**Why (user, 2026-11-15):** the contact form (topic, name, email, message...) was the only way to ask in, and few people
+would fill it. Now the hero's main action is an email box + "Join the waitlist"; the contact form stays for demos,
+pilots and questions (its intro now says "Want a demo, or to run a pilot?" and links to the waitlist).
+- **Backend** (`backend/routers/contact.py`): public `POST /api/waitlist` `{email, website}` -> 204 (same honeypot and
+  the same shared 30-per-10-min pause as the contact form; an address already on the list answers the same and keeps
+  one row, matched lower-cased via `email_key`, unique index on the `waitlist` collection); staff-only
+  `GET /api/waitlist` (newest first). Model `WaitlistEntry`.
+- **Web:** `components/landing/Waitlist.tsx` in the hero (stacks on phones), "See a sample call" / "Book a demo" now
+  ghost buttons under it; the nav keeps "Book a demo". `/login`'s "no account" button is now "Join the waitlist"
+  (`/#waitlist`). The contact form's `?topic=` / `TopicLink` picking is removed (nothing links to it any more).
+  `/operator/messages` shows a Waitlist list under the messages, with "Copy all emails". API types regenerated.
+- **Verified:** pytest 119/119 (5 new waitlist tests; `POST /api/waitlist` added to the public routes in
+  `tests/test_access.py`); web tsc + eslint clean; in the browser against a local API on a throwaway DB (dropped):
+  joined from the hero, saw it on the operator page, checked the phone-width layout.
+- **Not done:** nobody is emailed when they join (operators copy the list); no "who are you" (family / clinic) field,
+  on purpose, to keep it one field.
 
 ### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
 **User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's

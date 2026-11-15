@@ -104,7 +104,7 @@ function SignIn() {
 
       <div className="card" style={{ marginTop: 16 }}>
         <p className="ink-2" style={{ margin: "0 0 8px" }}>{t("signin_no_account")}</p>
-        <Link href="/?topic=pilot#contact" className="btn secondary">
+        <Link href="/#waitlist" className="btn secondary">
           <Icon name="send" />{t("signin_early_access")}
         </Link>
       </div>

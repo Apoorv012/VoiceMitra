@@ -71,6 +71,10 @@ def contact_messages_col():
     return get_db()["contact_messages"]
 
 
+def waitlist_col():
+    return get_db()["waitlist"]
+
+
 def logins_col():
     return get_db()["logins"]
 
@@ -96,6 +100,7 @@ async def ensure_indexes() -> None:
     await devices_col().create_index("push_token")
     await pairing_codes_col().create_index("code")
     await contact_messages_col().create_index("created_at")
+    await waitlist_col().create_index("email_key", unique=True)
     await logins_col().create_index("username_key", unique=True)
     await web_sessions_col().create_index("subject_id")
     # Mongo deletes a session once `expires_at` (a real BSON date, unlike most dates here) has passed.

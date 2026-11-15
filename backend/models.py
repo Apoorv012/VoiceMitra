@@ -362,3 +362,11 @@ class ContactMessage(MongoDocument):
     message: str
     handled: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # sent with its zone
+
+
+class WaitlistEntry(MongoDocument):
+    """An email left on the homepage's one-field waitlist. Operators see the list next to the contact inbox."""
+
+    email: str      # as typed (trimmed)
+    email_key: str  # lower-cased: one row per address, unique
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

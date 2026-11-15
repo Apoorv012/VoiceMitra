@@ -1,8 +1,9 @@
-"""The contact form on the public homepage, and the operator's inbox for it.
+"""The contact form and the one-field waitlist on the public homepage, and the operator's inbox for both.
 
-Anyone can send a message (no sign-in), so the endpoint is guarded three ways: field lengths are capped,
-a hidden "website" field catches simple bots (a person never fills it), and the whole form pauses after
-MAX_MESSAGES in WINDOW_SECONDS. Nothing is emailed: operators read messages at /operator/messages (staff only).
+Anyone can send a message or join the waitlist (no sign-in), so both are guarded three ways: field lengths
+are capped, a hidden "website" field catches simple bots (a person never fills it), and both pause after
+MAX_MESSAGES in WINDOW_SECONDS (one shared count). Nothing is emailed: operators read messages and the waitlist
+at /operator/messages (staff only). Joining the waitlist twice with the same address keeps one row.
 """
 
 from __future__ import annotations
@@ -16,8 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from backend.access import require_staff
-from backend.db import contact_messages_col, doc_to_model, model_to_doc
-from backend.models import ContactMessage, ContactTopic
+from backend.db import contact_messages_col, doc_to_model, model_to_doc, waitlist_col
+from backend.models import ContactMessage, ContactTopic, WaitlistEntry
 
 router = APIRouter(tags=["contact"])
 
@@ -80,6 +81,25 @@ class HandledRequest(BaseModel):
     handled: bool
 
 
+class WaitlistRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=200)
+    website: str | None = Field(default=None, max_length=200)  # honeypot: hidden on the form
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, value: str) -> str:
+        value = value.strip()
+        if not EMAIL.match(value):
+            raise ValueError("not an email address")
+        return value
+
+
+class WaitlistEntryView(BaseModel):
+    id: str
+    email: str
+    created_at: datetime
+
+
 def _too_many() -> bool:
     cutoff = time.monotonic() - WINDOW_SECONDS
     while _recent and _recent[0] < cutoff:
@@ -87,12 +107,16 @@ def _too_many() -> bool:
     return len(_recent) >= MAX_MESSAGES
 
 
-@router.post("/api/contact", response_model=ContactReceipt, status_code=201,
-             responses={429: {"description": "too many messages lately, paused"}})
-async def send_message(body: ContactRequest) -> ContactReceipt:
+def _count_or_pause() -> None:
     if _too_many():
         raise HTTPException(status_code=429, detail="too many messages right now, try again in a few minutes")
     _recent.append(time.monotonic())
+
+
+@router.post("/api/contact", response_model=ContactReceipt, status_code=201,
+             responses={429: {"description": "too many messages lately, paused"}})
+async def send_message(body: ContactRequest) -> ContactReceipt:
+    _count_or_pause()
     message = ContactMessage(**body.model_dump(exclude={"website"}))
     if not body.website:  # a bot filled the hidden field: answer as usual, keep nothing
         await contact_messages_col().insert_one(model_to_doc(message))
@@ -112,3 +136,21 @@ async def set_handled(message_id: str, body: HandledRequest) -> None:
     result = await contact_messages_col().update_one({"_id": message_id}, {"$set": {"handled": body.handled}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="message not found")
+
+
+@router.post("/api/waitlist", status_code=204, responses={429: {"description": "too many sign-ups lately, paused"}})
+async def join_waitlist(body: WaitlistRequest) -> None:
+    """Already on the list answers the same as joining (nothing tells a stranger which emails are on it)."""
+    _count_or_pause()
+    if body.website:  # a bot filled the hidden field: answer as usual, keep nothing
+        return
+    entry = WaitlistEntry(email=body.email, email_key=body.email.lower())
+    doc = model_to_doc(entry)
+    await waitlist_col().update_one({"email_key": entry.email_key}, {"$setOnInsert": doc}, upsert=True)
+
+
+@router.get("/api/waitlist", response_model=list[WaitlistEntryView], dependencies=[Depends(require_staff)])
+async def list_waitlist() -> list[WaitlistEntryView]:
+    """Newest first (the last 1000)."""
+    cursor = waitlist_col().find().sort("created_at", -1).limit(1000)
+    return [WaitlistEntryView(**doc_to_model(WaitlistEntry, doc).model_dump()) async for doc in cursor]

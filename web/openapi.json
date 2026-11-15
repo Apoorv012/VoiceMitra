@@ -1966,6 +1966,68 @@
         }
       }
     },
+    "/api/waitlist": {
+      "get": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "List Waitlist",
+        "description": "Newest first (the last 1000).",
+        "operationId": "list_waitlist_api_waitlist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WaitlistEntryView"
+                  },
+                  "type": "array",
+                  "title": "Response List Waitlist Api Waitlist Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Join Waitlist",
+        "description": "Already on the list answers the same as joining (nothing tells a stranger which emails are on it).",
+        "operationId": "join_waitlist_api_waitlist_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "429": {
+            "description": "too many sign-ups lately, paused"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -5113,6 +5175,57 @@
           "token"
         ],
         "title": "VoiceCallJoin"
+      },
+      "WaitlistEntryView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "created_at"
+        ],
+        "title": "WaitlistEntryView"
+      },
+      "WaitlistRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "WaitlistRequest"
       },
       "WsTicket": {
         "properties": {

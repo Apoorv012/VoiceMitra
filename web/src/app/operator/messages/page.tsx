@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { ErrorState, Loading } from "@/components/ui";
 import { api, ApiError, useApi } from "@/lib/api";
 import { ago } from "@/lib/format";
-import type { ContactMessage, ContactTopic } from "@/lib/types";
+import type { ContactMessage, ContactTopic, WaitlistEntry } from "@/lib/types";
 
 const TOPIC: Record<ContactTopic, string> = {
   demo: "Demo",
@@ -14,7 +14,54 @@ const TOPIC: Record<ContactTopic, string> = {
   other: "Other",
 };
 
-/** Messages sent from the homepage contact form, newest first. */
+/** Emails left on the homepage's one-field waitlist, newest first, with one button to copy them all. */
+function WaitlistCard() {
+  const { data, error, mutate } = useApi<WaitlistEntry[]>("/api/waitlist", 60_000);
+  const [copied, setCopied] = useState(false);
+
+  if (error && !data) return <ErrorState onRetry={() => mutate()} />;
+  if (!data) return <Loading />;
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(data.map((e) => e.email).join(", "));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard refused: the addresses are still there to select */
+    }
+  };
+
+  return (
+    <>
+      <div className="page-head" style={{ marginTop: 32 }}>
+        <div>
+          <h2>Waitlist</h2>
+          <p className="ink-2">From the homepage, email only · {data.length === 1 ? "1 person" : `${data.length} people`}</p>
+        </div>
+        {data.length > 0 && (
+          <button type="button" className="btn secondary sm" onClick={copyAll} aria-live="polite">
+            {copied ? <><Icon name="check" />Copied</> : "Copy all emails"}
+          </button>
+        )}
+      </div>
+      <div className="card flush">
+        {data.length === 0 ? <p className="empty">Nobody yet. Emails appear here when someone joins the waitlist.</p> : (
+          <ul className="list">
+            {data.map((e) => (
+              <li key={e.id}>
+                <a className="grow" href={`mailto:${e.email}`} style={{ overflowWrap: "anywhere" }}>{e.email}</a>
+                <span className="muted small">{ago(e.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Messages sent from the homepage contact form, newest first, then the waitlist. */
 export default function Messages() {
   const { data, error, mutate } = useApi<ContactMessage[]>("/api/contact", 60_000);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,6 +125,8 @@ export default function Messages() {
           </ul>
         )}
       </div>
+
+      <WaitlistCard />
     </>
   );
 }

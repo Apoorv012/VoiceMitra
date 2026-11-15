@@ -61,7 +61,7 @@ export const MESSAGES = {
     en: "No account yet? VoiceMitra is in a small pilot right now.",
     hi: "अभी खाता नहीं है? VoiceMitra अभी एक छोटे पायलट में है।",
   },
-  signin_early_access: { en: "Ask to join or get early access", hi: "जुड़ने या जल्दी इस्तेमाल के लिए पूछें" },
+  signin_early_access: { en: "Join the waitlist", hi: "वेटलिस्ट में जुड़ें" },
   sign_out: { en: "Sign out", hi: "साइन आउट करें" },
   not_allowed_title: { en: "This page isn't yours", hi: "यह पेज आपका नहीं है" },
   not_allowed_sub: { en: "You're signed in as {name}.", hi: "आप {name} के नाम से साइन इन हैं।" },

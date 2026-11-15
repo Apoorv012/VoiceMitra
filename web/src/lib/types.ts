@@ -37,3 +37,4 @@ export type PairingCode = S["PairingCodeOut"];
 export type DeviceView = S["DeviceView"];
 export type ContactMessage = S["ContactMessageView"];
 export type ContactTopic = S["ContactTopic"];
+export type WaitlistEntry = S["WaitlistEntryView"];

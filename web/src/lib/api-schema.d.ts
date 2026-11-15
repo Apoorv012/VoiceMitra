@@ -688,6 +688,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Waitlist
+         * @description Newest first (the last 1000).
+         */
+        get: operations["list_waitlist_api_waitlist_get"];
+        put?: never;
+        /**
+         * Join Waitlist
+         * @description Already on the list answers the same as joining (nothing tells a stranger which emails are on it).
+         */
+        post: operations["join_waitlist_api_waitlist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1678,6 +1702,25 @@ export interface components {
             url: string;
             /** Token */
             token: string;
+        };
+        /** WaitlistEntryView */
+        WaitlistEntryView: {
+            /** Id */
+            id: string;
+            /** Email */
+            email: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** WaitlistRequest */
+        WaitlistRequest: {
+            /** Email */
+            email: string;
+            /** Website */
+            website?: string | null;
         };
         /** WsTicket */
         WsTicket: {
@@ -3217,6 +3260,64 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    list_waitlist_api_waitlist_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistEntryView"][];
+                };
+            };
+        };
+    };
+    join_waitlist_api_waitlist_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description too many sign-ups lately, paused */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

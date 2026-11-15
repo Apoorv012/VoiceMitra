@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Newsreader } from "next/font/google";
 import Link from "next/link";
-import { ContactForm, CopyEmail, TopicLink } from "@/components/landing/ContactForm";
+import { ContactForm, CopyEmail } from "@/components/landing/ContactForm";
+import { Waitlist } from "@/components/landing/Waitlist";
 import s from "@/components/landing/landing.module.css";
 
-// The public homepage. Signing in is at /login (and the installed app opens there). There are no sign-ups:
-// people who want to join the pilot or get early access use the contact form (topic "pilot").
+// The public homepage. Signing in is at /login (and the installed app opens there). There are no self sign-ups:
+// people who want in leave an email on the one-field waitlist (#waitlist, the hero's main action); the longer
+// contact form (#contact) is for demos, pilots and questions.
 
 const serif = Newsreader({ subsets: ["latin"], variable: "--font-serif", display: "swap", axes: ["opsz"] });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap", weight: ["400", "500"] });
@@ -64,16 +66,14 @@ export default function Home() {
             the doctor or family when something is wrong.
           </p>
           <p className={s.hindi} lang="hi">दवाई का समय, बस एक फ़ोन कॉल में।</p>
-          <div className={s.ctas}>
-            <a className={`${s.b} ${s.lg} ${s.dark}`} href="#contact">Book a demo</a>
-            <a className={`${s.b} ${s.lg} ${s.ghost}`} href="#call">
+          <Waitlist />
+          <div className={`${s.ctas} ${s.after}`}>
+            <a className={`${s.b} ${s.ghost}`} href="#call">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" /></svg>
               See a sample call
             </a>
+            <a className={`${s.b} ${s.ghost}`} href="#contact">Book a demo</a>
           </div>
-          <p className={s.early}>
-            Now in a small pilot. Want to join or get early access? <TopicLink topic="pilot">Tell us below</TopicLink>.
-          </p>
         </section>
 
         <section className={`${s.in} ${s.show}`} id="call" aria-label="Example call">
@@ -137,10 +137,11 @@ export default function Home() {
 
           <div className={s.contact} id="contact">
             <div className={s.contactIntro}>
-              <h2>Want to join the pilot or get early access?</h2>
+              <h2>Want a demo, or to run a pilot?</h2>
               <p>
-                VoiceMitra is in a small pilot, and we set up every account ourselves, so there&apos;s no sign-up. Fill
-                in the form and tell us about your clinic or your family. We&apos;ll book a demo call or get you started.
+                VoiceMitra is in a small pilot, and we set up every account ourselves. Tell us about your clinic or your
+                family and we&apos;ll book a demo call or get you started. Only want a spot when it opens?{" "}
+                <a href="#waitlist">Join the waitlist</a> with just your email.
               </p>
               <CopyEmail />
               <div className={s.next}>

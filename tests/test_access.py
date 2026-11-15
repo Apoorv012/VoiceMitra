@@ -19,6 +19,7 @@ pytestmark = pytest.mark.anyio
 PUBLIC = {
     ("GET", "/health"),
     ("POST", "/api/contact"),
+    ("POST", "/api/waitlist"),
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/session"),
     ("DELETE", "/api/auth/session"),
@@ -106,7 +107,7 @@ async def test_a_patient_sees_only_their_own(mongo, client_as):
         assert (await me.get(url)).status_code == 200, url
     for url in [f"/api/app/patients/{b.id}/home", f"/api/patients/{b.id}/devices", f"/api/app/calls/{b_call.id}",
                 "/api/app/calls/no-such-call", "/api/patients", f"/api/patients/{a.id}", "/api/app/operator/roster",
-                "/api/app/people", "/api/contact", f"/api/app/caregivers/{a.caregiver_id}/home"]:
+                "/api/app/people", "/api/contact", "/api/waitlist", f"/api/app/caregivers/{a.caregiver_id}/home"]:
         assert (await me.get(url)).status_code == 403, url
     assert (await me.post(f"/api/patients/{b.id}/call/end")).status_code == 403
     # Only staff take a login away.
