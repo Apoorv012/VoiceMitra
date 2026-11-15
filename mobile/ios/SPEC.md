@@ -54,8 +54,17 @@ on it (needs a pairing file made on the PC once).
 
 ## Status
 
-- **C1 Caregivers in the app (2026-11-15; compiles clean with `wsl-build.sh VoiceMitra build`, no warnings; not run
-  on a device, phone not connected):** built against `../API.md` "Caregivers in the apps" while the backend side
+- **C1 Caregivers in the app (2026-11-15; compiles clean with `wsl-build.sh VoiceMitra build`, no warnings;
+  installed on the user's iPhone with `wsl-build.sh VoiceMitra run` the same day -- the first try failed with Apple's
+  "no current iOS devices on this team" 409, the retry signed and installed. **User tested it: "all things went
+  well".** Follow-up the same day: the sign-in screen now fits one screen without scrolling at the default text
+  size (smaller logo with the language toggle beside it, shorter hint, slimmer fields, "Use a 6-digit code" and
+  "Server settings" as one row of text buttons; still scrolls with the keyboard up or very large text). The user
+  then found it all bunched at the top with empty space below, so it now fills the screen: language toggle at the
+  top, logo + form centred, the text links at the bottom. Then (user: "it was better before") reworked along common
+  sign-in screen lines: gear icon top-left and language toggle top-right, the bigger logo block back, the form card,
+  and "Have a 6-digit code? Use it instead" right under the Sign in button; the group sits a little above centre --
+  installed; **user: "Looks good"**):** built against `../API.md` "Caregivers in the apps" while the backend side
   was being built in parallel, so it hasn't run against a live C1 backend yet. Login, pairing and the launch check
   now decode `role` (missing = patient), `caregiver_id`, `caregiver_name`, and the Keychain pairing keeps them (older
   saved pairings still decode, as patients). `RootView` opens the patient tabs or the new

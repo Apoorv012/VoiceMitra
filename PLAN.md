@@ -609,7 +609,8 @@ open. Caregiver phones never get `ring` pushes and aren't listed on the patient'
 patient-only. Lead's choices, not asked: no "call the patient" button, no caregiver ringing for urgent alerts yet.
 - Android agent: backend C1 (Device `role`/`caregiver_id`, login, access, push filtering + alert push, tests) then
   the Android caregiver screens. iPhone agent: caregiver screens in `mobile/ios/` against the contract.
-- **iPhone: BUILT, compiles clean with xtool (2026-11-15); not run on a phone or against the C1 backend yet.** Login,
+- **iPhone: BUILT, compiles clean with xtool, installed on the user's iPhone (2026-11-15); caregiver flow not yet
+  tried on it (the C1 backend deploy was still running at install time).** Login,
   pairing and the launch check read `role` (missing = patient) and store it in the Keychain (old saved logins load as
   patients); caregiver home (`CaregiverHomeView.swift`) mirrors the website page in English + Hindi; the patient socket
   became a generic `LiveSocket` used for `/ws/caregivers/{id}`; 404/401 on home or launch check signs out ("no longer
@@ -975,6 +976,11 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
       - *iPhone:* SideStore install for the household phones (I6, deferred); look at light mode, Hindi and the
         largest text sizes on the device.
       - *Agent behaviour:* the three bugs above (separate task).
+      - *Response lag after speaking -- OK for development, fix before public use (user, 2026-11-15, iPhone test):*
+        there's a noticeable pause between the patient finishing and the agent answering, and the app can't tell
+        when the patient starts speaking, because voice detection, STT, the LLM and TTS all run on the server; the
+        phone only streams audio. Accepted for the development cycle. Before patients outside the pilot use it, look
+        at shortening the server-side end-of-speech wait, streaming TTS sooner, and/or on-device voice detection.
       - *Cleanup:* the test patient "Test Patient iPhone" (`05803d68-2062-4104-9649-4d0b3eef6750`, login
         `testiphone`) is in the real `voicemitra` DB; there's no delete-patient endpoint (if one is added it must
         also remove `patient_logins`, `devices` and unused `pairing_codes`).

@@ -8,72 +8,103 @@ struct SignInView: View {
     @State private var showServer = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 26) {
-                HStack {
-                    Spacer()
-                    LangToggle()
-                }
-
-                VStack(spacing: 14) {
-                    ZStack {
-                        Circle().fill(VM.sage).frame(width: 150, height: 150)
-                        BrandMark(size: 88)
+        // One screen, no scrolling at the default text size (user, 2026-11-15), laid out the way most phone
+        // sign-in screens are: a slim top bar (server settings left, language right), the logo block, the form
+        // card, and the one alternative ("Have a 6-digit code?") right under the button it replaces. Free space
+        // goes above and below the group (more below, so it sits a little above centre). Scrolls with the
+        // keyboard up or at the largest text sizes.
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 0) {
+                    HStack {
+                        serverButton
+                        Spacer()
+                        LangToggle()
                     }
-                    Text("VoiceMitra")
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                        .foregroundStyle(VM.ink)
-                    Text(model.t("Your medicine reminders and a friendly check-in call.",
-                                 "आपकी दवा की याद और एक दोस्ताना बातचीत।"))
-                        .font(.title3)
-                        .foregroundStyle(VM.ink2)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 4)
 
-                if let notice = model.signInNotice {
-                    Notice(text: notice, icon: "info.circle.fill", ink: VM.warnInk, soft: VM.warnSoft) {
-                        model.signInNotice = nil
+                    Spacer(minLength: 8)
+
+                    VStack(spacing: 24) {
+                        VStack(spacing: 10) {
+                            ZStack {
+                                Circle().fill(VM.sage).frame(width: 116, height: 116)
+                                BrandMark(size: 68)
+                            }
+                            Text("VoiceMitra")
+                                .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                                .foregroundStyle(VM.ink)
+                            // U+2011: a hyphen the line can't break at ("check-" / "in call" looked odd).
+                            Text(model.t("Your medicine reminders and a friendly check\u{2011}in call.",
+                                         "आपकी दवा की याद और एक दोस्ताना बातचीत।"))
+                                .font(.body)
+                                .foregroundStyle(VM.ink2)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        if let notice = model.signInNotice {
+                            Notice(text: notice, icon: "info.circle.fill", ink: VM.warnInk, soft: VM.warnSoft) {
+                                model.signInNotice = nil
+                            }
+                        }
+
+                        VStack(spacing: 6) {
+                            Group {
+                                if useCode {
+                                    CodeForm()
+                                } else {
+                                    PasswordForm()
+                                }
+                            }
+                            .card(padding: 18)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                            switchButton
+                        }
                     }
-                }
 
-                Group {
-                    if useCode {
-                        CodeForm()
-                    } else {
-                        PasswordForm()
-                    }
+                    Spacer(minLength: 8)
+                    Spacer(minLength: 0)  // a second one, so the group sits a little above centre
                 }
-                .card(padding: 22)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { useCode.toggle() }
-                } label: {
-                    Label(useCode ? model.t("Sign in with username and password", "यूज़रनेम और पासवर्ड से साइन इन करें")
-                                  : model.t("Use a 6-digit code instead", "6 अंकों का कोड इस्तेमाल करें"),
-                          systemImage: useCode ? "person.fill" : "number")
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button {
-                    showServer = true
-                } label: {
-                    Label(model.t("Server settings", "सर्वर सेटिंग्स"), systemImage: "gearshape")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(VM.muted)
-                }
-                .buttonStyle(.plain)
-
+                .padding(.horizontal, 20)
+                .padding(.vertical, 6)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity, minHeight: geo.size.height)
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
         }
+        .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .background(VM.page.ignoresSafeArea())
         .sheet(isPresented: $showServer) { ServerSettingsSheet() }
+    }
+
+    private var switchButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { useCode.toggle() }
+        } label: {
+            Text(useCode ? model.t("Sign in with username and password instead", "यूज़रनेम और पासवर्ड से साइन इन करें")
+                         : model.t("Have a 6-digit code? Use it instead", "6 अंकों का कोड है? उससे जोड़ें"))
+                .font(.body.weight(.semibold))
+                .foregroundStyle(VM.accent)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var serverButton: some View {
+        Button {
+            showServer = true
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.title3)
+                .foregroundStyle(VM.muted)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(model.t("Server settings", "सर्वर सेटिंग्स"))
     }
 }
 
@@ -128,7 +159,7 @@ private struct FieldBox<Field: View>: View {
     @ViewBuilder var field: Field
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.headline).foregroundStyle(VM.ink2)
             HStack(spacing: 12) {
                 Image(systemName: icon)
@@ -140,7 +171,7 @@ private struct FieldBox<Field: View>: View {
                     .foregroundStyle(VM.ink)
             }
             .padding(.horizontal, 16)
-            .frame(minHeight: 60)
+            .frame(minHeight: 54)
             .background(RoundedRectangle(cornerRadius: VM.radiusSmall, style: .continuous).fill(VM.sunken))
             .overlay(
                 RoundedRectangle(cornerRadius: VM.radiusSmall, style: .continuous)
@@ -162,16 +193,17 @@ private struct PasswordForm: View {
     enum Field { case username, password }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(model.t("Sign in", "साइन इन करें"))
-                    .font(.title.bold())
+                    .font(.title2.bold())
                     .foregroundStyle(VM.ink)
                 // Patients and their family contacts (caregivers, API.md C1) both sign in here.
-                Text(model.t("Use the username and password set on the VoiceMitra website (Me → Phone app login). Family members: use your website login.",
-                             "VoiceMitra वेबसाइट पर बनाया यूज़रनेम और पासवर्ड डालें (मैं → फ़ोन ऐप लॉगिन)। परिवार वाले: अपना वेबसाइट वाला लॉगिन डालें।"))
-                    .font(.body)
+                Text(model.t("Use your VoiceMitra website username and password. Family members too.",
+                             "VoiceMitra वेबसाइट वाला यूज़रनेम और पासवर्ड डालें। परिवार वाले भी।"))
+                    .font(.callout)
                     .foregroundStyle(VM.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             FieldBox(label: model.t("Username", "यूज़रनेम"), icon: "person.fill", focused: field == .username) {
@@ -258,15 +290,16 @@ private struct CodeForm: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(model.t("Connect with a code", "कोड से जोड़ें"))
-                    .font(.title.bold())
+                    .font(.title2.bold())
                     .foregroundStyle(VM.ink)
                 Text(model.t("On the VoiceMitra website, open Me → Connect a phone, and type the 6-digit code here.",
                              "VoiceMitra वेबसाइट पर मैं → फ़ोन जोड़ें खोलें और 6 अंकों का कोड यहाँ लिखें।"))
                     .font(.body)
                     .foregroundStyle(VM.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Six boxes over one hidden field (the number pad and SMS-style autofill still work).
