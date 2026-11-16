@@ -11,7 +11,9 @@ tzdata  # Windows has no system timezone database; the UI shows times in APP_TIM
 openai
 
 # Voice: Pipecat for audio I/O (Sarvam STT/TTS), LiveKit as the room.
-pipecat-ai[livekit,sarvam]
+pipecat-ai[livekit,sarvam]>=1.12,<2
+# Checks what the agent is about to say (the advice / dosage phrase rules in domains/med_adherence/guardrails.py).
+pipecat-guardrails>=0.3,<0.4
 livekit-api
 aiohttp
 

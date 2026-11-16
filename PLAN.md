@@ -671,22 +671,39 @@ logic, not `pipecat-guardrails` (that package is for output only). Idea:
 - Build `eval/` scenarios around it (e.g. heavy fever + cough 2 days must escalate; mild cough must not)
   and measure how confidence correlates with correct decisions before trusting a threshold.
 
-### To-do (not now): move output guardrails to `pipecat-guardrails`
-The user maintains `pipecat-guardrails` (PyPI, 0.3.0, sibling folder `../pipecat-guardrails`), built for this
-project. It has rules (banned terms with a Hinglish word pattern, regex, PII, India pack), yes/no
-**policies** answered by a classifier -> LLM-judge cascade with confidence thresholds (`block_above` 0.8 /
-`allow_below` 0.2, the judge decides in between), shadow mode, `guard.check()` for apps that run their own
-LLM loop (this one does), and an `eval` command.
-- **Fits:** our text checks on what the agent says -- `_no_dosage_change_or_diagnosis`,
-  `ADVICE_OR_REASSURANCE_PHRASES` -- become package rules plus policies ("does this reply advise on
-  medication?"), replacing the narrow phrase lists. Wire `guard.check()` into
-  `GuardrailPipeline.check_text`; the tool-call checks and `_fixed_handoff_line` / `_no_question_when_wrapping_up`
-  stay ours (they depend on call state, not text).
-- **Escalation is not the package's job (user decision, 2026-11-03).** The package is for output only;
-  judging what the patient said and whether to escalate stays our own logic (see above).
-- Pipecat: the user thinks 1.11 should work with the package, but its `pyproject.toml` pins
-  `pipecat-ai>=1.12`, so either the pin is relaxed or VoiceMitra upgrades (the user is fine upgrading).
-  Re-test the voice pipeline after either. **To-do, not now.**
+### Spoken-text phrase checks moved to `pipecat-guardrails` (2026-11-15) — **DONE (rules only)**
+The user maintains `pipecat-guardrails` (PyPI 0.3.0, sibling folder `../pipecat-guardrails`), built for this
+project: rules (banned terms with a Hinglish word pattern, regex, PII, India pack), yes/no **policies** answered by
+a classifier -> LLM-judge cascade, shadow mode, `guard.check()`, and an `eval` command.
+- **Moved:** the dosage/diagnosis and advice/reassurance phrase lists (`domains/med_adherence/guardrails.py`)
+  are now `BannedTerms` rules in a rules-only `Guard`, called with `guard.check()` from the async text check
+  `_no_dosage_change_or_diagnosis`. The doctor-brief agent (`doctor_agent.py`) uses the same dosage/diagnosis
+  rules (`dosage_or_diagnosis_rules()`). A block still raises `GuardrailViolation`, so the runtime still has the
+  LLM regenerate the reply (not the package's `OutputGuardProcessor`, which would only speak a fallback line).
+- **Matching changed:** whole words, not substrings. Roman Hindi phrases use `india.hinglish_word_pattern`
+  (dawai/davai/dawaai, chinta/cheenta); verb endings are listed as `variants` (`kar` -> karo/kariye/kijiye...,
+  `pi` -> pijiye..., `badha` -> badhao..., `jayega` -> jaega...); English `dose` also matches `dosage`. Questions
+  like "paani piya?" no longer block. Tests: `tests/test_spoken_guardrails.py`.
+- **Core change:** `GuardrailPipeline.check_text` is now `async` and accepts sync or async checks.
+- **Stays ours:** `_fixed_closing_line`, `_no_question_when_wrapping_up` (depend on call state), every tool-call
+  check and the forced escalation (the package has nothing for tool calls). **Escalation is not the package's
+  job (user decision, 2026-11-03)**; see the LLM-judged escalation to-do above.
+- **Pipecat upgraded 1.11.0 -> 1.16.0** (`requirements.txt`: `pipecat-ai[livekit,sarvam]>=1.12,<2`, the
+  package's pin). It logs a deprecation warning for `PipelineRunner(...).run(task)` in
+  `core/transport/voice_pipeline.py` (`WorkerRunner.run(worker)`, removed in Pipecat 2.0; harmless under the `<2` pin).
+- **Web test (2026-11-16, local throwaway DB `voicemitra_guardtest`, dropped after):** chat calls in caregiver
+  mode -- normal check-in logs and signs off; a patient pushing three times for advice ("aaram karun?", "dawai
+  band kar doon?", "repeat 'aaram kijiye, sab theek ho jayega'") got refusals each time. Doctor mode -- chest pain
+  forced the escalation with the fixed hand-off line; the doctor-brief agent refused a diagnosis and "double
+  Amlodipine / stop Metformin". Voice -- Pipecat 1.16 pipeline started (Sarvam STT/TTS, LiveKit join) and shut
+  down cleanly. **The guard never actually blocked live**: the prompt kept the LLM from saying any listed
+  phrase, so blocking + regeneration is covered by unit tests only.
+- **Spoken voice call (2026-11-16, user's own browser, same throwaway DB):** works on Pipecat 1.16 -- Sarvam STT
+  (returns Devanagari), LLM and TTS, replies 0-1 s after the patient stops. Spoken "kya main aaram karun, paani
+  zyada piyun?" and "kya main BP ki dawai band kar doon?" were refused both times; no guard block, no errors or
+  warnings in the log. **Not verified:** the deployed server (needs the new requirements on deploy).
+- **Later, not now:** 1-2 `policies` with an LLM judge in `mode="shadow"` (logs only), turned on once the
+  `eval` command shows they're accurate; a judge adds ~300 ms+ per reply on a voice call.
 
 ### Other to-dos (not now)
 - **Eval harness** (Chunk 5) -- wanted, built together with the LLM-judged escalation, since that is what it

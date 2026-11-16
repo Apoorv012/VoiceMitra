@@ -15,8 +15,9 @@ LLM was prompted to do or decided to do this turn. Three kinds of checks, all do
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 
 class GuardrailViolation(Exception):
@@ -37,7 +38,8 @@ class ForcedAction:
     reason: str
 
 
-TextCheck = Callable[[str, Any], str]
+# A text check may be sync or async (e.g. one backed by pipecat-guardrails' `Guard.check`).
+TextCheck = Callable[[str, Any], str | Awaitable[str]]
 ToolCallCheck = Callable[[str, dict, Any], None]
 ForcedActionCheck = Callable[[Any], ForcedAction | None]
 
@@ -57,11 +59,12 @@ class GuardrailPipeline:
     def add_forced_action_check(self, check: ForcedActionCheck) -> None:
         self._forced_action_checks.append(check)
 
-    def check_text(self, text: str, context: Any) -> str:
+    async def check_text(self, text: str, context: Any) -> str:
         """Run all text checks in order; each may rewrite the text. Raises GuardrailViolation
         if a check decides the text must be blocked outright."""
         for check in self._text_checks:
-            text = check(text, context)
+            result = check(text, context)
+            text = await result if inspect.isawaitable(result) else result
         return text
 
     def check_tool_call(self, tool_name: str, args: dict, context: Any) -> None:

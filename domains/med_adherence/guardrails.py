@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import re
 
+from pipecat_guardrails import Guard
+from pipecat_guardrails.packs import india
+from pipecat_guardrails.rules import BannedTerms
+
 from core.agent.guardrails import ForcedAction, GuardrailPipeline, GuardrailViolation
 from domains.med_adherence.context import CallContext
 from backend.models import CareMode
@@ -17,22 +21,69 @@ from domains.med_adherence.prompts import HANDOFF_LINE_ENGLISH, HANDOFF_LINE_HIN
 OFFER_DOCTOR_AT_SERIOUSNESS = 5
 ESCALATE_AT_SERIOUSNESS = 8
 
-DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES = [
-    "dosage badha", "dosage kam", "dawai band kar do", "dawai badal do", "dose double",
-    "increase the dose", "decrease the dose", "stop taking", "double the dose",
-    "aapko ho sakta hai", "you might have", "this is likely",
+# What the agent says is checked by pipecat-guardrails' `BannedTerms`: whole-word, case-insensitive
+# phrase matching. Roman Hindi phrases also use `india.hinglish_word_pattern`, so the usual spelling
+# variants match too (dawai/davai/dawaai, chinta/cheenta, theek/thik). English phrases match as written.
+# Whole words means "aaram kar" no longer matches inside "aaram kariye", so verb endings are listed
+# in `variants` (each one gets the same spelling tolerance).
+DOSAGE_CHANGE_OR_DIAGNOSIS_HINGLISH = [
+    "dosage badha", "dosage kam", "dose badha", "dose kam", "dose double",
+    "dawai band kar do", "dawai band karo", "dawai band kijiye", "dawai band kar dijiye",
+    "dawai badal do", "dawai badliye", "dawai badal dijiye",
+    "aapko ho sakta hai", "aap ko ho sakta hai",
+]
+DOSAGE_CHANGE_OR_DIAGNOSIS_ENGLISH = [
+    "increase the dose", "decrease the dose", "double the dose", "stop taking",
+    "you might have", "this is likely",
 ]
 
 # The agent must not give advice or reassurance of any kind (for now). Deliberately narrow phrases:
-# a substring match, so anything common in ordinary polite speech would cause false blocks.
-ADVICE_OR_REASSURANCE_PHRASES = [
-    "aaram kar", "rest kar", "take rest", "get some rest", "get rest",
-    "paani pi", "drink water", "drink plenty", "you should", "i suggest", "i recommend",
-    "aap ko chahiye", "aapko chahiye", "meri salah", "meri rai",
-    "sab theek ho jayega", "sab theek ho jaega", "theek ho jayega", "everything will be fine",
-    "will be fine", "don't worry", "do not worry", "chinta mat", "chinta ki koi baat nahi",
-    "ghabraiye mat", "ghabrao mat",
+# anything common in ordinary polite speech would cause false blocks.
+ADVICE_OR_REASSURANCE_HINGLISH = [
+    "aaram kar", "rest kar", "paani pi", "aap ko chahiye", "aapko chahiye", "meri salah", "meri rai",
+    "theek ho jayega", "chinta mat", "chinta ki koi baat nahi", "ghabraiye mat", "ghabrao mat",
 ]
+ADVICE_OR_REASSURANCE_ENGLISH = [
+    "take rest", "get some rest", "get rest", "drink water", "drink plenty", "you should",
+    "i suggest", "i recommend", "everything will be fine", "will be fine", "don't worry",
+    "do not worry",
+]
+
+_HINGLISH_ENDINGS = {
+    "kar": ["karo", "kariye", "kijiye", "karein", "karen", "karna", "karte", "kar lijiye"],
+    "pi": ["piyo", "pijiye", "piye", "pina", "pite", "pi lijiye"],
+    "badha": ["badhao", "badhaiye", "badhana", "badha do", "badha dijiye"],
+    "jayega": ["jaega", "jayegi", "jaegi", "jaoge", "jayenge", "jaenge", "jaayega"],
+}
+_ENGLISH_ENDINGS = {"dose": ["dosage"]}
+
+_DOSAGE_MESSAGE = (
+    "I'm not able to advise on dosage changes or give a diagnosis myself -- I'll make sure the doctor knows."
+)
+_ADVICE_MESSAGE = "I'm not able to give advice or reassurance -- please ask your doctor about that."
+
+
+def dosage_or_diagnosis_rules() -> list:
+    """Shared with the doctor-brief agent (doctor_agent.py), which must not suggest these either."""
+    return [
+        BannedTerms(DOSAGE_CHANGE_OR_DIAGNOSIS_HINGLISH, id="dosage-or-diagnosis-hinglish",
+                    word_pattern=india.hinglish_word_pattern, variants=_HINGLISH_ENDINGS),
+        BannedTerms(DOSAGE_CHANGE_OR_DIAGNOSIS_ENGLISH, id="dosage-or-diagnosis-english",
+                    variants=_ENGLISH_ENDINGS),
+    ]
+
+
+def _advice_or_reassurance_rules() -> list:
+    return [
+        BannedTerms(ADVICE_OR_REASSURANCE_HINGLISH, id="advice-or-reassurance-hinglish",
+                    word_pattern=india.hinglish_word_pattern, variants=_HINGLISH_ENDINGS),
+        BannedTerms(ADVICE_OR_REASSURANCE_ENGLISH, id="advice-or-reassurance-english"),
+    ]
+
+
+# Rules only (no classifier/judge): local and instant, so no extra delay before the agent speaks.
+# No fallback: a blocked reply goes back to the LLM to be regenerated (core/agent/runtime.py).
+_PATIENT_GUARD = Guard(rules=[*dosage_or_diagnosis_rules(), *_advice_or_reassurance_rules()])
 
 
 def _fixed_closing_line(text: str, context: CallContext) -> str:
@@ -51,19 +102,11 @@ def _fixed_closing_line(text: str, context: CallContext) -> str:
     return text
 
 
-def _no_dosage_change_or_diagnosis(text: str, context: CallContext) -> str:
-    lowered = text.lower()
-    for phrase in DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES:
-        if phrase in lowered:
-            raise GuardrailViolation(
-                "I'm not able to advise on dosage changes or give a diagnosis myself -- "
-                "I'll make sure the doctor knows."
-            )
-    for phrase in ADVICE_OR_REASSURANCE_PHRASES:
-        if phrase in lowered:
-            raise GuardrailViolation(
-                "I'm not able to give advice or reassurance -- please ask your doctor about that."
-            )
+async def _no_dosage_change_or_diagnosis(text: str, context: CallContext) -> str:
+    verdict = await _PATIENT_GUARD.check(text)
+    if verdict.blocked:
+        dosage = any(r.startswith("dosage-or-diagnosis") for r in verdict.rule_ids)
+        raise GuardrailViolation(_DOSAGE_MESSAGE if dosage else _ADVICE_MESSAGE)
     return text
 
 

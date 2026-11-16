@@ -113,7 +113,7 @@ async def run_chat_session(transport: Transport, config: AgentConfig, context: A
 
         text = choice.content or ""
         try:
-            text = config.guardrails.check_text(text, context)
+            text = await config.guardrails.check_text(text, context)
             blocked_replies = 0
         except GuardrailViolation as e:
             blocked_replies += 1

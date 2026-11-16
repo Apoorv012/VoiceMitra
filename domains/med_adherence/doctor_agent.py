@@ -43,7 +43,12 @@ from core.agent.policy import PolicyEngine, PolicyState
 from core.agent.runtime import AgentConfig
 from core.agent.tool_registry import ToolRegistry
 from core.providers.llm import get_llm_client_and_model
-from domains.med_adherence.guardrails import DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES
+from pipecat_guardrails import Guard
+
+from domains.med_adherence.guardrails import dosage_or_diagnosis_rules
+
+# Same dosage/diagnosis phrases the patient agent may not say (rules only, so no extra delay).
+_DOCTOR_GUARD = Guard(rules=dosage_or_diagnosis_rules())
 
 BRIEFING = "briefing"
 MERGING = "merging"
@@ -166,14 +171,12 @@ def _merge_needs_doctor_confirmation(tool_name: str, args: dict, context: Doctor
         )
 
 
-def _no_diagnosis_or_dosage_advice(text: str, context: DoctorBriefContext) -> str:
-    lowered = text.lower()
-    for phrase in DOSAGE_CHANGE_OR_DIAGNOSIS_PHRASES:
-        if phrase in lowered:
-            raise GuardrailViolation(
-                "you gave a diagnosis or a dosage/treatment suggestion; the doctor decides those. "
-                "Restate using only what's in the records"
-            )
+async def _no_diagnosis_or_dosage_advice(text: str, context: DoctorBriefContext) -> str:
+    if (await _DOCTOR_GUARD.check(text)).blocked:
+        raise GuardrailViolation(
+            "you gave a diagnosis or a dosage/treatment suggestion; the doctor decides those. "
+            "Restate using only what's in the records"
+        )
     return text
 
 
