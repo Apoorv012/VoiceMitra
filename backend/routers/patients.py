@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
-from backend import dose_scheduler, logins
+from backend import logins
 from backend.access import require_staff
 from backend.db import (
     caregivers_col,
@@ -11,14 +11,13 @@ from backend.db import (
     doctors_col,
     model_to_doc,
     patients_col,
-    prescriptions_col,
 )
-from backend.models import Caregiver, DoseFrequency, Dosage, Patient, Prescription
+from backend.models import Caregiver, Patient
 from backend.queries import get_patient_bundle
 from backend.routers.devices import delete_caregiver_devices
 
 # Staff only. (A patient's own endpoints under /api/patients/{id}/... -- calls, devices, login -- live in
-# live.py, devices.py and auth.py with their own rules.)
+# live.py, devices.py and auth.py with their own rules; prescriptions and medicines in medicines.py.)
 router = APIRouter(prefix="/api/patients", tags=["patients"], dependencies=[Depends(require_staff)])
 
 
@@ -164,43 +163,3 @@ async def get_patient_detail(patient_id: str) -> dict:
     if bundle is None:
         raise HTTPException(status_code=404, detail="patient not found")
     return {k: _dump(v) for k, v in bundle.items()}
-
-
-class DosageInput(BaseModel):
-    medicine_name: str
-    dosage: str
-    from_date: str
-    to_date: str | None = None
-    frequency: DoseFrequency
-    times: list[str] = Field(default_factory=list)
-    interval_days: int | None = Field(default=None, ge=1, le=90)  # required for every_x_days
-
-    @model_validator(mode="after")
-    def _interval_for_every_x_days(self) -> "DosageInput":
-        if self.frequency == DoseFrequency.every_x_days and not self.interval_days:
-            raise ValueError("'every few days' needs interval_days (how many days apart)")
-        if self.frequency != DoseFrequency.every_x_days:
-            self.interval_days = None
-        return self
-
-
-class AddPrescriptionRequest(BaseModel):
-    medicines: list[DosageInput]
-
-
-@router.post("/{patient_id}/prescriptions", response_model=Prescription, response_model_by_alias=False)
-async def add_prescription(patient_id: str, body: AddPrescriptionRequest) -> Prescription:
-    patient_doc = await patients_col().find_one({"_id": patient_id})
-    if patient_doc is None:
-        raise HTTPException(status_code=404, detail="patient not found")
-
-    prescription = Prescription(patient_id=patient_id)
-    prescription.medicines = [
-        Dosage(prescription_id=prescription.id, **m.model_dump()) for m in body.medicines
-    ]
-    await prescriptions_col().insert_one(model_to_doc(prescription))
-    await patients_col().update_one(
-        {"_id": patient_id}, {"$push": {"prescription_ids": prescription.id}}
-    )
-    await dose_scheduler.arm(patient_id)  # new dose times may come sooner (no-op unless dose ringing is on)
-    return prescription

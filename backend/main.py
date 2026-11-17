@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from backend import dose_scheduler, escalations
 from backend.db import ensure_indexes, get_db
 from backend.live_calls import rearm_pending_reminders
-from backend.routers import app_api, calls, caregivers, contact, devices, doctors, live, patients
+from backend.routers import app_api, calls, caregivers, contact, devices, doctors, live, medicines, patients
 from backend.routers import escalations as escalation_routes
 from backend.routers import auth as auth_routes
 
@@ -38,6 +38,7 @@ app = FastAPI(title="VoiceMitra", lifespan=lifespan, docs_url="/docs" if _docs e
 
 app.include_router(app_api.router)
 app.include_router(patients.router)
+app.include_router(medicines.router)
 app.include_router(doctors.router)
 app.include_router(calls.router)
 app.include_router(live.router)

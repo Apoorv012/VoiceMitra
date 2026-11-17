@@ -36,6 +36,7 @@ import com.voicemitra.patient.ui.LocalStrings
 import com.voicemitra.patient.ui.LoginScreen
 import com.voicemitra.patient.ui.MeBody
 import com.voicemitra.patient.ui.MedicinesBody
+import com.voicemitra.patient.ui.OwnMedicineForm
 import com.voicemitra.patient.ui.ErrorState
 import com.voicemitra.patient.ui.H1
 import com.voicemitra.patient.ui.SetupScreen
@@ -105,7 +106,17 @@ class ScreenshotTest {
     fun medicines() = shoot("04_medicines", tab = Screen.Medicines) {
         TabPage {
             H1(LocalStrings.current.medsTitle)
-            MedicinesBody(SampleData.medicines)
+            MedicinesBody(SampleData.medicines, onAdd = {}, onEdit = {}, onRemove = {})
+        }
+    }
+
+    /** Adding one of the patient's own medicines, and changing one. */
+    @Test
+    @Config(qualifiers = "w411dp-h1800dp-420dpi")
+    fun ownMedicineForm() {
+        shoot("14_medicine_add", tab = Screen.Medicines) { TabPage { OwnMedicineForm("p1", null, {}, {}) } }
+        shoot("14_medicine_edit", tab = Screen.Medicines) {
+            TabPage { OwnMedicineForm("p1", SampleData.medicines.medicines[2].copy(fromDate = "2026-11-01"), {}, {}) }
         }
     }
 
@@ -144,7 +155,7 @@ class ScreenshotTest {
     fun fullLength() {
         shoot("03_today_full", tab = Screen.Today) { TabPage { TodayBody(SampleData.home, TalkState.Idle, onTalk = {}) } }
         shoot("04_medicines_full", tab = Screen.Medicines) {
-            TabPage { H1(LocalStrings.current.medsTitle); MedicinesBody(SampleData.medicines) }
+            TabPage { H1(LocalStrings.current.medsTitle); MedicinesBody(SampleData.medicines, onAdd = {}, onEdit = {}, onRemove = {}) }
         }
         shoot("05_history_full", tab = Screen.History) {
             TabPage { H1(LocalStrings.current.historyTitle); HistoryBody(SampleData.history) }
@@ -232,7 +243,7 @@ object SampleData {
         medicines = listOf(
             Medicine("m1", "Metformin", "500 mg", "daily", times = listOf("08:30", "14:00"), toDate = "2026-12-31", daysLeft = 56, taken = 12, known = 13),
             Medicine("m2", "Amlodipine", "5 mg", "daily", times = listOf("08:30"), taken = 4, known = 6),
-            Medicine("m3", "Vitamin D3", "60,000 IU", "weekly", times = listOf("09:00"), taken = 1, known = 1),
+            Medicine("m3", "Vitamin D3", "60,000 IU", "weekly", times = listOf("09:00"), taken = 1, known = 1, source = "own"),
             Medicine("m4", "Amoxicillin", "250 mg", "daily", times = listOf("08:00", "20:00"), toDate = "2026-10-20", active = false),
         ),
     )

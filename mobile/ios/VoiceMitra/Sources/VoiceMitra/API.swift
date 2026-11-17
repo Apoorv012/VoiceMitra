@@ -104,13 +104,55 @@ struct MedicineView: Decodable, Identifiable {
     let frequency: String
     let intervalDays: Int?
     let times: [String]
+    /// "2026-11-17"
+    let fromDate: String?
+    let toDate: String?
     let active: Bool
     let daysLeft: Int?
     /// Last 7 days.
     let taken: Int
     let known: Int
+    /// "prescribed": the doctor's, entered by the clinic -- read-only in the app. "own": the patient added it and
+    /// may change or remove it. Missing (older servers) = prescribed.
+    let source: String?
 
     var id: String { dosageId }
+    var isOwn: Bool { source == "own" }
+}
+
+/// One of the patient's own medicines to add or change (API.md "Own medicines").
+struct OwnMedicineBody: Encodable {
+    let medicineName: String
+    let dosage: String
+    /// fixed_times (every day) | weekly | every_x_day
+    let frequency: String
+    /// At least one, "HH:MM".
+    let times: [String]
+    let intervalDays: Int?
+    let fromDate: String
+    let toDate: String?
+
+    enum CodingKeys: String, CodingKey {
+        case medicineName = "medicine_name", dosage, frequency, times
+        case intervalDays = "interval_days", fromDate = "from_date", toDate = "to_date"
+    }
+
+    // Send nulls explicitly (the synthesized encoder would leave them out; the server takes either).
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(medicineName, forKey: .medicineName)
+        try c.encode(dosage, forKey: .dosage)
+        try c.encode(frequency, forKey: .frequency)
+        try c.encode(times, forKey: .times)
+        try c.encode(intervalDays, forKey: .intervalDays)
+        try c.encode(fromDate, forKey: .fromDate)
+        try c.encode(toDate, forKey: .toDate)
+    }
+}
+
+/// "stopped" (it had doses on record: kept under Finished) | "deleted".
+struct RemoveResult: Decodable {
+    let outcome: String
 }
 
 struct PatientMedicines: Decodable {
@@ -276,6 +318,19 @@ struct API {
         try await send("GET", "api/app/patients/\(patientId)/medicines")
     }
 
+    // The patient's own medicines (API.md "Own medicines"). Prescribed ones answer 403 here.
+    func addOwnMedicine(patientId: String, body: OwnMedicineBody) async throws {
+        try await sendEmpty("POST", "api/patients/\(patientId)/own-medicines", body: body)
+    }
+
+    func updateMedicine(patientId: String, dosageId: String, body: OwnMedicineBody) async throws {
+        try await sendEmpty("PUT", "api/patients/\(patientId)/medicines/\(dosageId)", body: body)
+    }
+
+    func removeMedicine(patientId: String, dosageId: String) async throws -> RemoveResult {
+        try await send("DELETE", "api/patients/\(patientId)/medicines/\(dosageId)")
+    }
+
     func history(patientId: String) async throws -> PatientHistory {
         try await send("GET", "api/app/patients/\(patientId)/history")
     }
@@ -359,6 +414,10 @@ struct API {
 
     private func sendEmpty(_ method: String, _ path: String, token: String? = nil) async throws {
         _ = try await perform(request(method, path, token: token, body: nil))
+    }
+
+    private func sendEmpty<B: Encodable>(_ method: String, _ path: String, token: String? = nil, body: B) async throws {
+        _ = try await perform(request(method, path, token: token, body: try JSONEncoder().encode(body)))
     }
 
     /// FastAPI errors: {"detail": "text"} or {"detail": [{"msg": ...}]} for validation errors.

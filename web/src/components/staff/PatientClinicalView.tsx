@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Icon, type IconName } from "@/components/Icon";
 import { Adherence, EscalationList } from "@/components/staff/parts";
+import { AddPrescription, EditMedicine } from "@/components/staff/PrescriptionEditor";
 import { AttentionChip, Avatar } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { DOCTOR_FLOW } from "@/lib/features";
@@ -82,74 +83,32 @@ function SymptomChart({ logs }: { logs: LogView[] }) {
   );
 }
 
-function AddPrescription({ patientId, onAdded }: { patientId: string; onAdded: () => void }) {
-  const today = new Date().toISOString().slice(0, 10);
+function MedicineCard({ m, patientId, onChanged }: { m: MedicineView; patientId: string; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [frequency, setFrequency] = useState("fixed_times");
-  return (
-    <details className="disclosure card">
-      <summary><Icon name="plus" />Add a prescription</summary>
-      <form
-        className="stack"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          setBusy(true);
-          setError(null);
-          try {
-            await api(`/api/patients/${patientId}/prescriptions`, {
-              method: "POST",
-              json: {
-                medicines: [{
-                  medicine_name: String(f.get("medicine_name")).trim(),
-                  dosage: String(f.get("dosage")).trim(),
-                  frequency: f.get("frequency"),
-                  interval_days: frequency === "every_x_day" ? Number(f.get("interval_days")) : null,
-                  times: String(f.get("times") ?? "").split(",").map((t) => t.trim()).filter(Boolean),
-                  from_date: f.get("from_date"),
-                  to_date: f.get("to_date") || null,
-                }],
-              },
-            });
-            (e.target as HTMLFormElement).reset();
-            setFrequency("fixed_times");
-            onAdded();
-          } catch (err) {
-            setError(err instanceof ApiError ? err.message : "Could not add the prescription");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="form-grid">
-          <div className="field"><label htmlFor="rx-name">Medicine</label><input id="rx-name" name="medicine_name" type="text" required /></div>
-          <div className="field"><label htmlFor="rx-dose">Dose</label><input id="rx-dose" name="dosage" type="text" placeholder="1 tablet" required /></div>
-          <div className="field">
-            <label htmlFor="rx-freq">How often</label>
-            <select id="rx-freq" name="frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-              <option value="fixed_times">At set times each day</option>
-              <option value="daily">Every day</option>
-              <option value="weekly">Once a week</option>
-              <option value="every_x_day">Every few days</option>
-            </select>
-          </div>
-          {frequency === "every_x_day" && (
-            <div className="field"><label htmlFor="rx-every">Every how many days</label><input id="rx-every" name="interval_days" type="number" min={2} max={90} defaultValue={2} inputMode="numeric" required /></div>
-          )}
-          <div className="field"><label htmlFor="rx-times">Times</label><input id="rx-times" name="times" type="text" placeholder="09:00, 21:00" /><span className="hint">24-hour, comma separated</span></div>
-          <div className="field"><label htmlFor="rx-from">From</label><input id="rx-from" name="from_date" type="date" defaultValue={today} required /></div>
-          <div className="field"><label htmlFor="rx-to">Until (optional)</label><input id="rx-to" name="to_date" type="date" /></div>
-        </div>
-        {error && <p className="callout crit" role="alert">{error}</p>}
-        <div><button className="btn" type="submit" disabled={busy}>{busy ? "Adding…" : "Add prescription"}</button></div>
-      </form>
-    </details>
-  );
-}
-
-function MedicineCard({ m }: { m: MedicineView }) {
   const freq = m.frequency === "weekly" ? "Once a week" : m.frequency === "daily" ? "Every day" : m.frequency === "every_x_day" ? (m.interval_days ? `Every ${m.interval_days} days` : "Every few days") : "Daily";
+  const own = m.source === "own";
+
+  async function remove() {
+    if (!window.confirm(`Remove ${m.name}? If doses were recorded for it, it is stopped and kept in the history instead.`)) return;
+    setBusy(true);
+    try {
+      await api(`/api/patients/${patientId}/medicines/${m.dosage_id}`, { method: "DELETE" });
+      onChanged();
+    } catch (err) {
+      window.alert(err instanceof ApiError ? `Couldn't remove it: ${err.message}` : "Couldn't remove it");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="card" style={{ gridColumn: "1 / -1" }}>
+        <EditMedicine patientId={patientId} m={m} onCancel={() => setEditing(false)} onDone={() => { setEditing(false); onChanged(); }} />
+      </div>
+    );
+  }
   return (
     <div className="card" style={m.active ? undefined : { opacity: 0.65 }}>
       <div className="row between top">
@@ -167,6 +126,13 @@ function MedicineCard({ m }: { m: MedicineView }) {
         {m.active && m.days_left !== null ? ` · ${m.days_left} days left` : ""}
       </p>
       {m.active && m.known > 0 && <p className="small" style={{ marginTop: 8 }}>{m.taken} of {m.known} taken this week</p>}
+      <div className="row between wrap" style={{ marginTop: 10, gap: 6 }}>
+        <span className={`chip ${own ? "warn" : ""}`}>{own ? <><Icon name="user" />Added by the patient</> : <><Icon name="file" />Prescribed</>}</span>
+        <span className="row" style={{ gap: 4 }}>
+          <button type="button" className="btn ghost sm" disabled={busy} onClick={() => setEditing(true)} aria-label={`Change ${m.name}`}><Icon name="pencil" />Change</button>
+          <button type="button" className="btn ghost sm" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${m.name}`}><Icon name="trash" />Remove</button>
+        </span>
+      </div>
     </div>
   );
 }
@@ -272,9 +238,14 @@ export function PatientClinicalView({
         )}
       </Section>
 
-      <Section id="medicines" title="Prescriptions">
+      <Section id="medicines" title="Medicines">
+        <p className="small ink-2">
+          <strong>Prescribed</strong> ones come from the doctor&rsquo;s prescription and only staff can change them.
+          The patient can add <strong>their own</strong> from their app; those are rung and asked about the same way.
+        </p>
         <div className="tiles" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-          {data.medicines.length === 0 ? <div className="card"><p className="muted">No medicines yet.</p></div> : data.medicines.map((m) => <MedicineCard key={m.dosage_id} m={m} />)}
+          {data.medicines.length === 0 ? <div className="card"><p className="muted">No medicines yet.</p></div>
+            : data.medicines.map((m) => <MedicineCard key={m.dosage_id} m={m} patientId={data.patient.id} onChanged={onChanged} />)}
         </div>
         <AddPrescription patientId={data.patient.id} onAdded={onChanged} />
       </Section>

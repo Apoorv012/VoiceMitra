@@ -115,7 +115,27 @@ The app stores `device_id`, `device_token`, `patient_id`. Every other call below
   `web/src/lib/api-schema.d.ts`): `timezone`, `patient`, `today[]` (slots with `at`, `medicine`, `dose`,
   `state`), `next_dose`, `week[]`, `adherence`, `last_checkin`, `how_doing`, `reminders[]`, `caregiver`.
   Times are ISO; show them in `timezone` (default Asia/Kolkata).
-- `GET /api/app/patients/{patient_id}/medicines`, `.../history` -- same pattern, for later screens.
+- `GET /api/app/patients/{patient_id}/medicines`, `.../history` -- same pattern, for later screens. Each medicine
+  has `source`: `prescribed` (the doctor's, entered by the clinic -- show read-only) or `own` (the patient added it);
+  missing on older servers = `prescribed`. Also `from_date` / `to_date` (`YYYY-MM-DD`).
+
+## Own medicines (2026-11-17)
+
+Patients add medicines they take on their own (not from the doctor's prescription) and change or remove them. Calls
+and reminders treat them like any other medicine. Header `X-Device-Token` as usual; caregiver phones get 403.
+
+- `POST /api/patients/{patient_id}/own-medicines` -> 201 with the stored dosage. Body:
+  `{"medicine_name", "dosage", "frequency": "fixed_times" | "weekly" | "every_x_day", "times": ["08:00", ...],
+  "interval_days": int | null, "from_date": "YYYY-MM-DD", "to_date": "YYYY-MM-DD" | null}`. `fixed_times` = every
+  day at the times; `weekly` = on `from_date`'s weekday; `every_x_day` needs `interval_days` (2-90). At least one
+  time (24-hour `HH:MM`), name and dose 1-80 characters, `to_date` not before `from_date`; otherwise 422. 409 after
+  30 own medicines.
+- `PUT /api/patients/{patient_id}/medicines/{dosage_id}` -> 200, same body. **403 for a `prescribed` one.**
+- `DELETE /api/patients/{patient_id}/medicines/{dosage_id}` -> `{"outcome": "stopped" | "deleted"}`. One with doses
+  on record that is still running is **stopped** (ends yesterday, stays under "Finished" with its history);
+  otherwise it is **deleted**. 403 for a `prescribed` one.
+
+Refetch `/api/app/patients/{id}/medicines` after any of these.
 - `GET /api/app/people` -> everyone: **staff only** now (the apps' debug "pick a patient" was removed 2026-11-11).
 - OpenAPI: `python -m backend.dump_openapi` writes `web/openapi.json` (the full schema).
 

@@ -648,9 +648,10 @@
     "/api/patients/{patient_id}/prescriptions": {
       "post": {
         "tags": [
-          "patients"
+          "medicines"
         ],
         "summary": "Add Prescription",
+        "description": "Staff add the doctor's prescription (one or more medicines). The patient can't change these.",
         "operationId": "add_prescription_api_patients__patient_id__prescriptions_post",
         "parameters": [
           {
@@ -680,6 +681,224 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Prescription"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/prescriptions/read-photo": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Read Photo",
+        "description": "Read a photo of a prescription into draft medicines. Saves nothing: staff check the draft, then add it.",
+        "operationId": "read_photo_api_patients__patient_id__prescriptions_read_photo_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrescriptionPhoto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrescriptionDraft"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/own-medicines": {
+      "post": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Add Own Medicine",
+        "description": "The patient adds a medicine they take on their own (staff may add one for them too).",
+        "operationId": "add_own_medicine_api_patients__patient_id__own_medicines_post",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnMedicineInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dosage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patients/{patient_id}/medicines/{dosage_id}": {
+      "put": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Update Medicine",
+        "description": "Change a medicine. The patient: only their own ones. Staff: either kind.",
+        "operationId": "update_medicine_api_patients__patient_id__medicines__dosage_id__put",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "dosage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dosage Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DosageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dosage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "medicines"
+        ],
+        "summary": "Remove Medicine",
+        "description": "Remove a medicine (the patient: only their own). One with doses on record is stopped instead, so its\nhistory stays; an already finished one is deleted with its records.",
+        "operationId": "remove_medicine_api_patients__patient_id__medicines__dosage_id__delete",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Patient Id"
+            }
+          },
+          {
+            "name": "dosage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dosage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveResult"
                 }
               }
             }
@@ -2058,6 +2277,8 @@
               "$ref": "#/components/schemas/DosageInput"
             },
             "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
             "title": "Medicines"
           }
         },
@@ -3298,20 +3519,26 @@
         "properties": {
           "medicine_name": {
             "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
             "title": "Medicine Name"
           },
           "dosage": {
             "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
             "title": "Dosage"
           },
           "from_date": {
             "type": "string",
+            "format": "date",
             "title": "From Date"
           },
           "to_date": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "format": "date"
               },
               {
                 "type": "null"
@@ -3327,6 +3554,7 @@
               "type": "string"
             },
             "type": "array",
+            "maxItems": 8,
             "title": "Times"
           },
           "interval_days": {
@@ -3361,6 +3589,68 @@
           "fixed_times"
         ],
         "title": "DoseFrequency"
+      },
+      "DraftMedicine": {
+        "properties": {
+          "medicine_name": {
+            "type": "string",
+            "title": "Medicine Name"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage",
+            "default": ""
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/DoseFrequency",
+            "default": "fixed_times"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Times"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "unsure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicine_name"
+        ],
+        "title": "DraftMedicine"
       },
       "EscalationRow": {
         "properties": {
@@ -3856,6 +4146,10 @@
           "known": {
             "type": "integer",
             "title": "Known"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
           }
         },
         "type": "object",
@@ -3871,7 +4165,8 @@
           "active",
           "days_left",
           "taken",
-          "known"
+          "known",
+          "source"
         ],
         "title": "MedicineView"
       },
@@ -3895,6 +4190,72 @@
           "patients"
         ],
         "title": "OperatorRoster"
+      },
+      "OwnMedicineInput": {
+        "properties": {
+          "medicine_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Medicine Name"
+          },
+          "dosage": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Dosage"
+          },
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/DoseFrequency"
+          },
+          "times": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Times"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 90.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicine_name",
+          "dosage",
+          "from_date",
+          "frequency"
+        ],
+        "title": "OwnMedicineInput",
+        "description": "A patient's own medicine needs at least one time: that is when the reminder call comes."
       },
       "PairRequest": {
         "properties": {
@@ -4650,12 +5011,28 @@
             "type": "string",
             "title": "Patient Id"
           },
+          "source": {
+            "$ref": "#/components/schemas/PrescriptionSource",
+            "default": "prescribed"
+          },
           "medicines": {
             "items": {
               "$ref": "#/components/schemas/Dosage"
             },
             "type": "array",
             "title": "Medicines"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           }
         },
         "type": "object",
@@ -4663,6 +5040,85 @@
           "patient_id"
         ],
         "title": "Prescription"
+      },
+      "PrescriptionDraft": {
+        "properties": {
+          "medicines": {
+            "items": {
+              "$ref": "#/components/schemas/DraftMedicine"
+            },
+            "type": "array",
+            "title": "Medicines"
+          },
+          "prescribed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prescribed On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicines"
+        ],
+        "title": "PrescriptionDraft"
+      },
+      "PrescriptionPhoto": {
+        "properties": {
+          "image_base64": {
+            "type": "string",
+            "maxLength": 8388612,
+            "title": "Image Base64"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image_base64",
+          "mime_type"
+        ],
+        "title": "PrescriptionPhoto"
+      },
+      "PrescriptionSource": {
+        "type": "string",
+        "enum": [
+          "prescribed",
+          "own"
+        ],
+        "title": "PrescriptionSource"
+      },
+      "RemoveResult": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "title": "RemoveResult"
       },
       "RosterRow": {
         "properties": {

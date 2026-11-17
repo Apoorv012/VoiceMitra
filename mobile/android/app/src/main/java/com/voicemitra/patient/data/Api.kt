@@ -98,12 +98,33 @@ data class Medicine(
     val frequency: String,                       // daily|weekly|every_x_day|fixed_times
     @SerialName("interval_days") val intervalDays: Int? = null,
     val times: List<String> = emptyList(),       // "21:00"
+    @SerialName("from_date") val fromDate: String? = null,  // "2026-11-17"
     @SerialName("to_date") val toDate: String? = null,
     val active: Boolean = true,
     @SerialName("days_left") val daysLeft: Int? = null,
     val taken: Int = 0,                          // last 7 days
     val known: Int = 0,
+    // "prescribed": the doctor's, entered by the clinic -- read-only here. "own": the patient added it and may
+    // change or remove it. Missing (older servers) = prescribed.
+    val source: String = "prescribed",
+) {
+    val isOwn get() = source == "own"
+}
+
+/** An own medicine to add or change (`POST /api/patients/{id}/own-medicines`, `PUT .../medicines/{dosage_id}`). */
+@Serializable
+data class OwnMedicineBody(
+    @SerialName("medicine_name") val name: String,
+    @SerialName("dosage") val dose: String,
+    val frequency: String,                       // fixed_times (every day) | weekly | every_x_day
+    val times: List<String>,                     // at least one, "HH:MM"
+    @SerialName("interval_days") val intervalDays: Int?,
+    @SerialName("from_date") val fromDate: String,
+    @SerialName("to_date") val toDate: String?,
 )
+
+@Serializable
+data class RemoveResult(val outcome: String)     // "stopped" (kept under Finished) | "deleted"
 
 @Serializable
 data class PatientMedicines(
@@ -223,6 +244,21 @@ class Api(private val baseUrl: () -> String, private val deviceToken: () -> Stri
 
     suspend fun medicines(patientId: String): PatientMedicines =
         send(Request.Builder().url(url("/api/app/patients/$patientId/medicines")).get().build(), PatientMedicines.serializer())
+
+    // --- the patient's own medicines (mobile/API.md "Own medicines") -----------------------------
+
+    suspend fun addOwnMedicine(patientId: String, body: OwnMedicineBody) {
+        val rb = json.encodeToString(OwnMedicineBody.serializer(), body).toRequestBody(jsonType)
+        sendNoContent(Request.Builder().url(url("/api/patients/$patientId/own-medicines")).post(rb).build())
+    }
+
+    suspend fun updateMedicine(patientId: String, dosageId: String, body: OwnMedicineBody) {
+        val rb = json.encodeToString(OwnMedicineBody.serializer(), body).toRequestBody(jsonType)
+        sendNoContent(Request.Builder().url(url("/api/patients/$patientId/medicines/$dosageId")).put(rb).build())
+    }
+
+    suspend fun removeMedicine(patientId: String, dosageId: String): RemoveResult =
+        send(Request.Builder().url(url("/api/patients/$patientId/medicines/$dosageId")).delete().build(), RemoveResult.serializer())
 
     suspend fun history(patientId: String): PatientHistory =
         send(Request.Builder().url(url("/api/app/patients/$patientId/history")).get().build(), PatientHistory.serializer())

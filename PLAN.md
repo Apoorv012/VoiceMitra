@@ -588,7 +588,7 @@ one-field homepage waitlist, see below).
   Vercel the website; for a few minutes one may be newer than the other); (4) sign in, set logins for the 3 pilot
   patients and their family contacts; (5) reinstall the iPhone app, build the APK; (6) check
   `curl https://voicemitra-api.apoorvm.com/api/patients` -> 401.
-- **Cloud database re-seeded (user, 2026-11-12):** the Atlas `voicemitra` DB was wiped except the 2 contact messages and
+- **Cloud database re-seeded (user, 2026-11-12; replaced by the demo data on 2026-11-17, see pilot step 8):** the Atlas `voicemitra` DB was wiped except the 2 contact messages and
   the 3 pilot patients put back fresh (same details, medicines and family contacts; no calls, logs, phones or old
   phone-app logins). Each patient and family contact got a login (`apoorv` / `apoorv-family` etc.); the passwords are in
   the git-ignored `pilot-logins.local.txt` on the user's PC, and the full pre-wipe backup in the git-ignored
@@ -792,7 +792,7 @@ Android app with friends.
   apps default to the API host as of 2026-11-11) deploy the lockdown (rollout steps in its section) and send the
   Android build to friends.
 
-### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-3 of 9 done** (user's first priority, 2026-11-03)
+### Pilot: patients + caregivers, no doctor — **IN PROGRESS: steps 1-5 and 8 done (4-5 in code, off until the phone test); 6, 7, 9 left** (user's first priority, 2026-11-03)
 There is no doctor available for a pilot, so the pilot runs patient + caregiver only. The doctor escalation
 flow stays in the code (tested, working) but is **turned off** (user, 2026-11-03: "turn off the doctor flow as
 of now, don't show the option"): backend `DOCTOR_FLOW_ENABLED` (unset = off) and web `src/lib/features.ts`
@@ -818,8 +818,10 @@ assignment. The `/doctors/*` pages still exist for anyone who already has that l
 - **Not feeling well:** log it, tell the patient the caregiver is being informed, and alert the caregiver
   (in-app first, WhatsApp later) with what the issue is -- "if needed", using the current seriousness score
   as the interim rule until the LLM-judged escalation replaces it. **Urgent:** also call the caregiver.
-- **Prescription entry** by the patient or caregiver, **both** a photo upload and manual typing (decided
-  2026-11-03). The upload may be rough at first and improved later; the dose schedule comes from it.
+- **Prescription entry** -- **changed (user, 2026-11-17):** two kinds of medicines. *Prescribed*: staff add the
+  doctor's prescription, typed or from a photo; the patient can't change it. *Own*: the patient adds medicines they
+  take on their own, on the website **and in the phone apps**, and can change or remove them. (Was: patient or
+  caregiver enter it, photo + typing, 2026-11-03.) Built 2026-11-17, see step 8.
 
 **Platform -- OPEN DECISION (user, 2026-11-03):** patients and caregivers may be on iPhone or Android; the user
 has no Mac. Go with a PWA only if it gives the features needed, otherwise apps; Android-only is not
@@ -1170,19 +1172,57 @@ screen or role; escalation always means "ring the doctor".
      scripted live calls -- check-in (no dose question, told the next dose time correctly when asked) and a
      normal two-medicine dose call (unchanged). Step 6 replaces this interim check-in with the open
      inbound flow; step 7 decides when a check-in asks about wellbeing at all.
-4. **Dose-time ring (native apps)** -- the call itself is the reminder: at each dose slot the patient's
+4. **Dose-time ring (native apps)** -- **DONE in code as B5 (2026-11-04), OFF until the phone test.** The call itself is the reminder: at each dose slot the patient's
    phone rings (Android: server push to our app; iPhone: only while the app is open), answering joins the voice
    call for that slot. Specced in `mobile/android/SPEC.md` (step B5). Caregiver alerts as push to the caregiver's
    phone can reuse it later.
-5. **No answer in 5 min -> ring again** -- then the existing `unreachable` caregiver alert.
+5. **No answer in 5 min -> ring again** -- then the existing `unreachable` caregiver alert. **DONE in code as B5.**
 6. **Inbound call flow** -- its own policy states: open greeting, questions about their medicines answered
    from the records, symptoms -> same "not well" path, plain chat.
 7. **Wellbeing rules** -- per the decision above: asked in the reminder call for one slot a day, once a day
    (twice if needed) for several, a standalone check-in call (`CallType.just_catch_up`) every N days for
    less-than-daily medicines.
-8. **Prescription entry by patient/caregiver** -- both together: the existing form, and a **photo upload**
-   read by the LLM (Gemini, already configured, takes images) into the same form for the person to check
-   and save. A rough first version is fine; improve extraction later.
+8. **Prescription entry: prescribed + own medicines** -- **BUILT (2026-11-17): tests, web checked in a browser,
+   both apps compile; not deployed, the apps not tried on a phone.** Two kinds (user, 2026-11-17), stored as
+   `Prescription.source` (`prescribed` | `own`; older records = prescribed):
+   - *Prescribed* -- staff only (`backend/routers/medicines.py`, moved out of `patients.py`). The staff patient
+     page's "Add a prescription" (`web/src/components/staff/PrescriptionEditor.tsx`) takes several medicines at once,
+     typed, or **read from a photo**: `POST /api/patients/{id}/prescriptions/read-photo` (`backend/prescription_photo.py`)
+     sends the photo (shrunk to ~1600 px JPEG in the browser) to **Gemini** (`GEMINI_API_KEY`, model
+     `PRESCRIPTION_MODEL`, default flash-lite; always Gemini, since the call LLM may be Sarvam) and returns a
+     **draft only** -- rows filled in next to the photo for staff to check, nothing saved and the photo not kept.
+     The prompt knows Indian notation (1-0-1, OD/BD/TDS/HS, "x 5 days"), leaves out SOS/as-needed medicines with a
+     note, and flags what it wasn't sure of. Staff can also **change / remove** either kind on the medicine cards
+     (labelled "Prescribed" / "Added by the patient").
+   - *Own* -- the patient (or staff) adds, changes and removes them: `POST /api/patients/{id}/own-medicines`,
+     `PUT|DELETE /api/patients/{id}/medicines/{dosage_id}` (`require_patient`; a patient gets 403 on a prescribed
+     one). One `own` prescription per patient; at least one time required (that's when the reminder comes); max 30.
+     **Remove** = stop (ends yesterday, stays under "Finished" with its history) if doses were recorded and it is
+     still running, else delete (with its dose records). Every change re-arms the dose timer.
+   - Patient screens: Medicines tab split into "From your doctor" (read-only) and "Your own medicines" with Add /
+     Change / Remove -- website (`OwnMedicineForm.tsx`, Hindi/English), **Android** (`MedicinesScreen.kt`, form with
+     the phone's time/date pickers) and **iPhone** (`MedicinesView.swift`, a sheet). Contract: `mobile/API.md`
+     "Own medicines". `MedicineView` gained `source` (+ `from_date` in the apps).
+   - Calls ask about own medicines like any other; the doctor brief marks them "[added by the patient, not
+     prescribed]". `seed_demo` gives two demo patients an own medicine.
+   - **Verified:** pytest 151/151 (15 new in `tests/test_medicines.py`: access per kind, add/edit/remove, stop vs
+     delete, validation, re-arming, photo draft parsing, doctor brief); web tsc + eslint + `next build`; Android
+     `assembleDebug`, `lintDebug`, unit tests, screenshots `04_medicines*`, `14_medicine_add*`, `14_medicine_edit*`;
+     iPhone compiles with xtool. In a browser on a local throwaway DB (dropped): patient added an own medicine with
+     two times, removed one with history (-> "stopped", under Finished), saw no buttons on prescribed ones; staff saw
+     the labels, uploaded a generated prescription image -- the real Gemini call read 3 medicines with the right
+     times, durations and start date and left out the SOS one with a note -- and saved them as prescribed.
+   - **Not done / not verified:** either app against a live server or on a phone; a real handwritten photo; the
+     deployed server needs `GEMINI_API_KEY` set for photo reading (503 "isn't set up" otherwise); caregivers can't
+     add medicines (not asked); the photo isn't stored with the prescription.
+   - **Production database reset (user, 2026-11-17: "clear it and add new demo data") -- DONE 2026-11-17.** The
+     Atlas `voicemitra` DB was backed up to the git-ignored `prod-backup-2026-11-17.local.json` (the 3 pilot patients,
+     their calls/logs, 2 contact messages, logins, 2 devices), every collection emptied, then `seed_demo --force`
+     loaded the demo set: Dr. Mehta, 5 patients (Ramesh Sharma and Sunita Verma each with one own medicine), two
+     weeks of calls and doses, one escalation. Logins (staff `demo`, each patient by first name, family as
+     `<name>-family`) with fresh passwords in the git-ignored `demo-logins.local.txt`; the old pilot logins and paired
+     phones are gone (sign in again). Atlas only lets in allow-listed IPs: with Cloudflare WARP on, this PC's
+     connections were refused on and off, so turn WARP off (or allow its IP) before working against Atlas.
 9. **Urgent -> call the caregiver** -- the agent calls the caregiver and tells them what happened.
 
 **Known limits:** timers live in the server process, so the machine running the API must stay on (see

@@ -38,6 +38,15 @@ class DoseFrequency(str, Enum):
     fixed_times = "fixed_times"
 
 
+class PrescriptionSource(str, Enum):
+    # Entered by staff from the doctor's prescription (typed, or read from a photo). The patient sees it but
+    # can't change it.
+    prescribed = "prescribed"
+    # Added by the patient themself (something they take that no doctor here prescribed). They can edit and
+    # remove these; calls and reminders treat them like any other medicine.
+    own = "own"
+
+
 class DoseStatus(str, Enum):
     taken = "taken"
     not_taken = "not_taken"
@@ -137,7 +146,9 @@ class Dosage(BaseModel):
 
 class Prescription(MongoDocument):
     patient_id: str
+    source: PrescriptionSource = PrescriptionSource.prescribed  # older records: all staff-entered
     medicines: list[Dosage] = Field(default_factory=list)
+    created_at: datetime | None = Field(default_factory=datetime.utcnow)
 
 
 class DoseEvent(MongoDocument):

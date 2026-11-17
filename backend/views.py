@@ -44,6 +44,7 @@ from backend.models import (
     EscalationStatus,
     Patient,
     Prescription,
+    PrescriptionSource,
     Reminder,
     ReminderStatus,
 )
@@ -159,6 +160,9 @@ class MedicineView(View):
     days_left: int | None   # None: no end date
     taken: int              # last 7 days
     known: int
+    # "prescribed": from the doctor's prescription, entered by staff -- the patient can't change it.
+    # "own": added by the patient themself -- they can edit and remove it.
+    source: str
 
 
 class HowDoing(View):
@@ -360,6 +364,7 @@ class PatientData:
     escalations: list[Escalation]      # newest first
     reminders: list[Reminder]
     alerts: list[CaregiverNotification]
+    own_dosage_ids: frozenset[str] = frozenset()  # medicines the patient added themself
 
 
 async def _all(cursor) -> list:
@@ -390,6 +395,7 @@ async def load_patient(patient_id: str) -> PatientData | None:
         patient=patient,
         caregiver=doc_to_model(Caregiver, caregiver_doc),
         dosages=[m for rx in prescriptions for m in rx.medicines],
+        own_dosage_ids=frozenset(m.id for rx in prescriptions if rx.source == PrescriptionSource.own for m in rx.medicines),
         events=[doc_to_model(DoseEvent, d) for d in event_docs],
         logs=[doc_to_model(DailyLog, d) for d in log_docs],
         calls=[doc_to_model(Call, d) for d in call_docs],
@@ -471,6 +477,7 @@ def _medicines(data: PatientData, today: date, week_slots: list[ins.Slot]) -> li
             times=sorted(d.times), from_date=d.from_date, to_date=d.to_date, active=active,
             days_left=None if d.to_date is None else max(0, (d.to_date - today).days),
             taken=a.taken, known=a.known,
+            source="own" if d.id in data.own_dosage_ids else "prescribed",
         ))
     # Current medicines first, then by name.
     return sorted(views, key=lambda m: (not m.active, m.name.lower()))

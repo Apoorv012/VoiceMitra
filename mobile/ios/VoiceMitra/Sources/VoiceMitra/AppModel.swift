@@ -229,6 +229,25 @@ final class AppModel {
         if let m = try? await api.medicines(patientId: p.patientId) { medicines = m }
     }
 
+    /// Add one of the patient's own medicines (`editing` nil) or change one; then reload the list.
+    func saveOwnMedicine(_ body: OwnMedicineBody, editing: MedicineView?) async throws {
+        guard let p = pairing, !p.isCaregiver, let api else { throw APIError(status: 0, detail: "not signed in") }
+        if let editing {
+            try await api.updateMedicine(patientId: p.patientId, dosageId: editing.dosageId, body: body)
+        } else {
+            try await api.addOwnMedicine(patientId: p.patientId, body: body)
+        }
+        await loadMedicines()
+    }
+
+    /// Remove one of the patient's own medicines; returns "stopped" or "deleted".
+    func removeMedicine(_ m: MedicineView) async throws -> String {
+        guard let p = pairing, !p.isCaregiver, let api else { throw APIError(status: 0, detail: "not signed in") }
+        let res = try await api.removeMedicine(patientId: p.patientId, dosageId: m.dosageId)
+        await loadMedicines()
+        return res.outcome
+    }
+
     func loadHistory() async {
         guard let p = pairing, !p.isCaregiver, let api else { return }
         if let h = try? await api.history(patientId: p.patientId) { history = h }

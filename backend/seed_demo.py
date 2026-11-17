@@ -29,7 +29,8 @@ from backend.insights import TZ  # noqa: E402
 from backend.models import (  # noqa: E402
     Call, CallLogEntry, CallLogEntryType, CallType, Caregiver, CaregiverNotification, CaregiverNotifyOn,
     DailyLog, Doctor, Dosage, DoseConfidence, DoseEvent, DoseFrequency, DoseSource, DoseStatus,
-    Escalation, EscalationStatus, LoginRole, MedicineStatus, Patient, PatientStatus, Prescription, Symptom,
+    Escalation, EscalationStatus, LoginRole, MedicineStatus, Patient, PatientStatus, Prescription, PrescriptionSource,
+    Symptom,
     SymptomSeverity, new_id,
 )
 
@@ -70,10 +71,12 @@ PATIENTS = [
     dict(name="Ramesh Sharma", age=67, phone="+919810000001", address="Rohini, Delhi", allergies=["Penicillin"],
          about="Hypertension, on treatment for 6 years.", caregiver=("Anita Sharma", "wife"),
          meds=[("Amlodipine", "5 mg, 1 tablet", ["09:00"]), ("Metformin", "500 mg, 1 tablet", ["09:00", "21:00"])],
+         own=[("Calcium + Vitamin D3", "1 tablet after lunch", ["14:00"])],
          p=lambda d: 0.93, symptoms={9: (3, "Mild headache in the morning, gone by afternoon.", [("Headache", "head", "mild", "since morning")])}),
     dict(name="Sunita Verma", age=72, phone="+919810000002", address="Dwarka, Delhi", allergies=[],
          about="Type 2 diabetes. Lives alone; daughter checks in by phone.", caregiver=("Neha Verma", "daughter"),
          meds=[("Glimepiride", "2 mg, 1 tablet", ["08:30"]), ("Atorvastatin", "10 mg, 1 tablet", ["21:00"])],
+         own=[("Multivitamin", "1 capsule", ["10:00"])],
          p=lambda d: 0.9 if d > 5 else 0.5,
          symptoms={1: (6, "Cough and mild fever for 2 days; feeling weak and not eating well.",
                        [("Cough", "chest", "moderate", "2 days"), ("Fever", None, "moderate", "2 days")])}),
@@ -132,6 +135,15 @@ async def seed() -> None:
         if cfg["meds"]:
             patient.prescription_ids.append(rx.id)
             await db.prescriptions_col().insert_one(db.model_to_doc(rx))
+        # Medicines the patient added themself (the "own" kind: they can change these, staff see them labelled).
+        own_rx = Prescription(patient_id=patient.id, source=PrescriptionSource.own)
+        for med, dose, times in cfg.get("own", []):
+            own_rx.medicines.append(Dosage(
+                prescription_id=own_rx.id, medicine_name=med, dosage=dose, from_date=today - timedelta(days=6),
+                frequency=DoseFrequency.fixed_times, times=times))
+        if own_rx.medicines:
+            patient.prescription_ids.append(own_rx.id)
+            await db.prescriptions_col().insert_one(db.model_to_doc(own_rx))
 
         now = datetime.utcnow()
         for ago in range(DAYS - 1, -1, -1):
@@ -142,7 +154,9 @@ async def seed() -> None:
             call = Call(patient_id=patient.id, date_time=utc(day, 9, 5), type=CallType.medicine_reminder,
                         doctor_id=doctor.id)
             events = []
-            for dosage in rx.medicines:
+            for dosage in rx.medicines + own_rx.medicines:
+                if day < dosage.from_date:
+                    continue
                 for t in dosage.times:
                     hh, mm = (int(x) for x in t.split(":"))
                     slot = utc(day, hh, mm)

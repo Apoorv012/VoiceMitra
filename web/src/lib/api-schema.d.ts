@@ -259,9 +259,77 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Prescription */
+        /**
+         * Add Prescription
+         * @description Staff add the doctor's prescription (one or more medicines). The patient can't change these.
+         */
         post: operations["add_prescription_api_patients__patient_id__prescriptions_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/prescriptions/read-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Photo
+         * @description Read a photo of a prescription into draft medicines. Saves nothing: staff check the draft, then add it.
+         */
+        post: operations["read_photo_api_patients__patient_id__prescriptions_read_photo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/own-medicines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Own Medicine
+         * @description The patient adds a medicine they take on their own (staff may add one for them too).
+         */
+        post: operations["add_own_medicine_api_patients__patient_id__own_medicines_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patients/{patient_id}/medicines/{dosage_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Medicine
+         * @description Change a medicine. The patient: only their own ones. Staff: either kind.
+         */
+        put: operations["update_medicine_api_patients__patient_id__medicines__dosage_id__put"];
+        post?: never;
+        /**
+         * Remove Medicine
+         * @description Remove a medicine (the patient: only their own). One with doses on record is stopped instead, so its
+         *     history stays; an already finished one is deleted with its records.
+         */
+        delete: operations["remove_medicine_api_patients__patient_id__medicines__dosage_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1139,7 +1207,10 @@ export interface components {
             medicine_name: string;
             /** Dosage */
             dosage: string;
-            /** From Date */
+            /**
+             * From Date
+             * Format: date
+             */
             from_date: string;
             /** To Date */
             to_date?: string | null;
@@ -1154,6 +1225,26 @@ export interface components {
          * @enum {string}
          */
         DoseFrequency: "daily" | "weekly" | "every_x_day" | "fixed_times";
+        /** DraftMedicine */
+        DraftMedicine: {
+            /** Medicine Name */
+            medicine_name: string;
+            /**
+             * Dosage
+             * @default
+             */
+            dosage: string;
+            /** @default fixed_times */
+            frequency: components["schemas"]["DoseFrequency"];
+            /** Times */
+            times?: string[];
+            /** Interval Days */
+            interval_days?: number | null;
+            /** Days */
+            days?: number | null;
+            /** Unsure */
+            unsure?: string | null;
+        };
         /** EscalationRow */
         EscalationRow: {
             /** Id */
@@ -1335,6 +1426,8 @@ export interface components {
             taken: number;
             /** Known */
             known: number;
+            /** Source */
+            source: string;
         };
         /** OperatorRoster */
         OperatorRoster: {
@@ -1342,6 +1435,28 @@ export interface components {
             timezone: string;
             /** Patients */
             patients: components["schemas"]["RosterRow"][];
+        };
+        /**
+         * OwnMedicineInput
+         * @description A patient's own medicine needs at least one time: that is when the reminder call comes.
+         */
+        OwnMedicineInput: {
+            /** Medicine Name */
+            medicine_name: string;
+            /** Dosage */
+            dosage: string;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /** To Date */
+            to_date?: string | null;
+            frequency: components["schemas"]["DoseFrequency"];
+            /** Times */
+            times?: string[];
+            /** Interval Days */
+            interval_days?: number | null;
         };
         /** PairRequest */
         PairRequest: {
@@ -1552,8 +1667,38 @@ export interface components {
             _id?: string;
             /** Patient Id */
             patient_id: string;
+            /** @default prescribed */
+            source: components["schemas"]["PrescriptionSource"];
             /** Medicines */
             medicines?: components["schemas"]["Dosage"][];
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** PrescriptionDraft */
+        PrescriptionDraft: {
+            /** Medicines */
+            medicines: components["schemas"]["DraftMedicine"][];
+            /** Prescribed On */
+            prescribed_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** PrescriptionPhoto */
+        PrescriptionPhoto: {
+            /** Image Base64 */
+            image_base64: string;
+            /** Mime Type */
+            mime_type: string;
+        };
+        /**
+         * PrescriptionSource
+         * @enum {string}
+         */
+        PrescriptionSource: "prescribed" | "own";
+        /** RemoveResult */
+        RemoveResult: {
+            /** Outcome */
+            outcome: string;
         };
         /** RosterRow */
         RosterRow: {
@@ -2233,6 +2378,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Prescription"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_photo_api_patients__patient_id__prescriptions_read_photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrescriptionPhoto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrescriptionDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_own_medicine_api_patients__patient_id__own_medicines_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnMedicineInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dosage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_medicine_api_patients__patient_id__medicines__dosage_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+                dosage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DosageInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dosage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_medicine_api_patients__patient_id__medicines__dosage_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                patient_id: string;
+                dosage_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoveResult"];
                 };
             };
             /** @description Validation Error */

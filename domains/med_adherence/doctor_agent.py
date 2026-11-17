@@ -36,6 +36,7 @@ from backend.models import (
     Escalation,
     Patient,
     Prescription,
+    PrescriptionSource,
 )
 from core.agent.context import AgentContext
 from core.agent.guardrails import GuardrailPipeline, GuardrailViolation
@@ -220,7 +221,8 @@ async def _gather_facts(escalation: Escalation, patient: Patient) -> str:
         for m in (rx.medicines if rx else []):
             times = f" at {', '.join(m.times)}" if m.times else ""
             every = f" (every {m.interval_days} days)" if m.interval_days else ""
-            prescription_lines.append(f"- {m.medicine_name}, {m.dosage}, {m.frequency.value}{every}{times}")
+            own = " [added by the patient, not prescribed]" if rx.source == PrescriptionSource.own else ""
+            prescription_lines.append(f"- {m.medicine_name}, {m.dosage}, {m.frequency.value}{every}{times}{own}")
 
     call = doc_to_model(Call, await calls_col().find_one({"_id": escalation.call_id}))
     transcript_lines: list[str] = []

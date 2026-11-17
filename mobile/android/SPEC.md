@@ -183,3 +183,12 @@ with USB debugging, or sharing the APK file.
   lint clean; `assembleDebug`, `lintDebug` (0 errors), unit tests 23/23 (2 contract tests skipped without a server);
   `ApiContractTest` 2/2 against a local backend on a throwaway DB (caregiver login, device check, home, mark seen,
   403 on patient routes, socket snapshot, removal -> 404/401); screenshots `12_caregiver*`, `13_caregiver_quiet*`.
+- **Own medicines (2026-11-17, built by the lead; not yet on a phone):** the Medicines tab now has "From your doctor"
+  (read-only: the clinic enters the prescription) and "Your own medicines" with **Add a medicine**, and **Change** /
+  **Remove** on each own one (`ui/MedicinesScreen.kt`; contract in `../API.md` "Own medicines"). The form replaces
+  the list (system Back closes it): name, dose, one row per time (the phone's own time picker; add up to 6, remove
+  any but the last), every day / once a week / every N days (- N + stepper), start date and optional end date (the
+  phone's date picker). Remove asks first; a medicine with doses on record is "stopped" (moves to Finished) instead
+  of deleted, and the notice says which. Finished own ones keep Change / Remove and an "Added by you" tag.
+  Verified: `assembleDebug`, `lintDebug`, unit tests green; screenshots `04_medicines*` (sample has one own medicine)
+  and `14_medicine_add*` / `14_medicine_edit*` (en/hi, light/dark). Not run against a live server from the app.
