@@ -654,6 +654,17 @@ pilots and questions (its intro now says "Want a demo, or to run a pilot?" and l
 - **Not done:** nobody is emailed when they join (operators copy the list); no "who are you" (family / clinic) field,
   on purpose, to keep it one field.
 
+### Next.js security patch 16.4.2 -> 16.4.5 (2026-11-17) — **DONE, verified locally; not deployed yet (the user commits/pushes)**
+`next build` warned that 16.4.2 has a known vulnerability: GHSA-mfr8-8qww-v76h (moderate; `'use cache'` called through
+`unstable_cache()` can leak data across root params; affects 16.3.0-16.4.4). The app uses neither, but `next` and
+`eslint-config-next` are now pinned to 16.4.5, the smallest fixed release (Next's own advisory check reports it
+unaffected). No code changes: between the two versions the bundled docs differ only in an OpenTelemetry note.
+- **Verified:** tsc, eslint and `next build` pass with no warning; a production build (`next start`) against a local API
+  on a throwaway DB (dropped): the proxy sent `/patients/<id>` to `/login?next=...`, staff sign-in returned to the
+  patient page, and its data came through the `/api/*` rewrite.
+- **Left:** `npm audit` still lists 7 moderate issues from `minimatch` under `typescript-eslint` (lint-time only,
+  dev dependency; `npm audit fix` without `--force` should clear them).
+
 ### To-do (after the pilot): confidence-gated, LLM-judged escalation — **NOT NOW**
 **User decision (2026-11-03):** no keyword search and no word cues of the "'bahut' -> 5-7" kind (today's
 `seriousness` field description in `tools.py` has exactly that cue, and `RED_FLAGS` is a substring list --
