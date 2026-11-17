@@ -702,6 +702,16 @@ a classifier -> LLM-judge cascade, shadow mode, `guard.check()`, and an `eval` c
 - **Pipecat upgraded 1.11.0 -> 1.16.0** (`requirements.txt`: `pipecat-ai[livekit,sarvam]>=1.12,<2`, the
   package's pin). It logs a deprecation warning for `PipelineRunner(...).run(task)` in
   `core/transport/voice_pipeline.py` (`WorkerRunner.run(worker)`, removed in Pipecat 2.0; harmless under the `<2` pin).
+- **CI broke on this (found 2026-11-17):** `requirements.lock` (what CI and the Docker image install) wasn't
+  regenerated, so it still had Pipecat 1.11.0 and no `pipecat-guardrails`; 5 test files failed to import and the
+  backend runs for `1f4b8a9` and the Next.js merge `33ea5f8` failed, so **nothing deployed after `d48e882`
+  (2026-11-15)**. Fixed 2026-11-17: the lock regenerated with its header command, constrained to the venv's versions
+  (Pipecat 1.16.0, pipecat-guardrails 0.3.0, pipecat-resampler 0.2.0; packages Pipecat 1.11 needed dropped), checked
+  to resolve for Linux x86_64 / Python 3.12, and the full test suite run in a fresh venv installed only from the lock.
+  **After changing `requirements.txt`, always regenerate `requirements.lock`.**
+  Same day: a flaky teardown error in `tests/test_access.py::test_a_ticket_opens_one_socket_for_its_owner` (~1 run in
+  6; enough to fail CI) came from the test patching the process-wide `time.monotonic` to expire a ticket, which also
+  fired the event loop's and pymongo's timeouts; it now backdates the ticket's stored expiry instead (8/8 clean).
 - **Web test (2026-11-16, local throwaway DB `voicemitra_guardtest`, dropped after):** chat calls in caregiver
   mode -- normal check-in logs and signs off; a patient pushing three times for advice ("aaram karun?", "dawai
   band kar doon?", "repeat 'aaram kijiye, sab theek ho jayega'") got refusals each time. Doctor mode -- chest pain

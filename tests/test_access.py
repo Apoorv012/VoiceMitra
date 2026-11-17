@@ -265,7 +265,7 @@ class _FakeSocket:
         self.headers = {"x-device-token": device_token} if device_token else {}
 
 
-async def test_a_ticket_opens_one_socket_for_its_owner(mongo, client_as, monkeypatch):
+async def test_a_ticket_opens_one_socket_for_its_owner(mongo, client_as):
     a, _ = await _patient(mongo)
     me = await client_as("patient", a.id)
     res = await me.post("/api/auth/ws-ticket")
@@ -280,8 +280,10 @@ async def test_a_ticket_opens_one_socket_for_its_owner(mongo, client_as, monkeyp
         await access.ws_require_patient(a.id, _FakeSocket(ticket))  # single use
 
     ticket = (await me.post("/api/auth/ws-ticket")).json()["ticket"]
-    now = access.time.monotonic()
-    monkeypatch.setattr(access.time, "monotonic", lambda: now + access.TICKET_SECONDS + 1)
+    # Backdate this ticket's expiry. (Not by patching `time.monotonic`: that is the process-wide clock, and moving it
+    # also fires the event loop's and pymongo's timeouts -- the database cleanup after this test then got cancelled.)
+    who, _ = access._tickets[ticket]
+    access._tickets[ticket] = (who, access.time.monotonic() - 1)
     with pytest.raises(Exception):
         await access.ws_require_patient(a.id, _FakeSocket(ticket))  # expired
 
