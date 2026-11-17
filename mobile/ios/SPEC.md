@@ -181,8 +181,8 @@ it like this"). Paused here.**
     "couldn't refresh" note when stale home data is shown.
 - **I6 docs:** README "Install on the household iPhones (SideStore)": build the .ipa, iloader + LocalDevVPN to put
   SideStore on the phone, Trust + Developer Mode, install via SideStore's +, weekly refresh, updating.
-- **Own medicines (2026-11-17, built by the lead; compiles clean with `wsl-build.sh VoiceMitra build`; not yet on the
-  phone):** the Medicines tab has "From your doctor" (read-only) and "Your own medicines" with **Add a medicine** and
+- **Own medicines (2026-11-17, built by the lead; compiles clean; installed on the user's iPhone with
+  `wsl-build.sh VoiceMitra run` the same day, not yet tried there):** the Medicines tab has "From your doctor" (read-only) and "Your own medicines" with **Add a medicine** and
   **Change** / **Remove** on each own one (`MedicinesView.swift`; contract in `../API.md` "Own medicines"). Add /
   change opens a sheet (`OwnMedicineSheet`): name, how much, one wheel time picker per time (add up to 6), every
   day / once a week / every N days (stepper), start date, optional end date; Save in the top bar. Remove asks with a

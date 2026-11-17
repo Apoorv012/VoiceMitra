@@ -103,7 +103,7 @@ def _audio_from(speaker: str):
         nonlocal heard_audio
         if not isinstance(frame, InputAudioRawFrame):
             return True
-        if frame.user_id != speaker:
+        if frame.id != speaker:
             return False
         if not heard_audio:
             heard_audio = True
