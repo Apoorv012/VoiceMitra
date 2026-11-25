@@ -723,6 +723,15 @@ a classifier -> LLM-judge cascade, shadow mode, `guard.check()`, and an `eval` c
   (returns Devanagari), LLM and TTS, replies 0-1 s after the patient stops. Spoken "kya main aaram karun, paani
   zyada piyun?" and "kya main BP ki dawai band kar doon?" were refused both times; no guard block, no errors or
   warnings in the log. **Not verified:** the deployed server (needs the new requirements on deploy).
+- **Agent stopped hearing the patient (found 2026-11-25):** commit `975e03c` changed the per-speaker audio filter in
+  `core/transport/voice_pipeline.py` (`_audio_from`) from `frame.user_id` to `frame.id` -- Pipecat's numeric frame
+  counter, which never equals `"patient"`, so every mic frame was dropped before STT (greeting played, nothing heard,
+  and no `first audio frame from patient` log line). Fixed: it reads `user_id` (participant identity on the
+  `UserAudioRawFrame` LiveKit sends). Regression test `tests/test_voice_audio_filter.py`. **Verified locally
+  (2026-11-25):** a real LiveKit room with the agent's `LiveKitTransport` and a scripted `patient` participant
+  publishing a recorded English sentence -> `first audio frame from patient`, Sarvam STT returned the sentence and it
+  reached `receive_text()`. The broken commit was deployed on 2026-11-17, so **the live server can't hear patients
+  until this fix is pushed and deployed**. Not re-checked with a human in a browser/phone.
 - **Later, not now:** 1-2 `policies` with an LLM judge in `mode="shadow"` (logs only), turned on once the
   `eval` command shows they're accurate; a judge adds ~300 ms+ per reply on a voice call.
 
@@ -1032,6 +1041,8 @@ acceptable, and WhatsApp-only would be preferred over that. Findings:
         Talk now; a call surviving the screen lock; then switch on `DOSE_RINGING_ENABLED=true` and check a dose-time
         ring, the retry after 5 min and the single caregiver alert; TalkBack pass. Build/run steps in
         `mobile/android/README.md`; screenshots via `./gradlew.bat screenshots`.
+        **Update (user, 2026-11-20): the Android app has been tested on volunteers' phones** (the capstone report
+        now says so); which of the checks above were run isn't recorded here.
       - *iPhone:* SideStore install for the household phones (I6, deferred); look at light mode, Hindi and the
         largest text sizes on the device.
       - *Agent behaviour:* the three bugs above (separate task).

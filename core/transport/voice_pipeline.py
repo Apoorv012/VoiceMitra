@@ -103,7 +103,9 @@ def _audio_from(speaker: str):
         nonlocal heard_audio
         if not isinstance(frame, InputAudioRawFrame):
             return True
-        if frame.id != speaker:
+        # The room sends UserAudioRawFrame, whose `user_id` is the participant identity. Not `frame.id`:
+        # that is Pipecat's numeric frame counter and never matches, which silently drops all mic audio.
+        if getattr(frame, "user_id", None) != speaker:
             return False
         if not heard_audio:
             heard_audio = True
